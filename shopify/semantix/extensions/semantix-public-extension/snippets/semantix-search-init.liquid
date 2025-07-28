@@ -1,0 +1,45 @@
+{% comment %}
+  Semantix Search Initialization Snippet
+  Include this in your theme's layout file for basic functionality
+{% endcomment %}
+
+<!-- Semantix Search Styles -->
+{{ 'semantix-search.css' | asset_url | stylesheet_tag }}
+
+<!-- Semantix Search Scripts -->
+{{ 'semantix-search.js' | asset_url | script_tag }}
+{{ 'semantix-search-results.js' | asset_url | script_tag }}
+
+<!-- Search Results Template (only load on search pages) -->
+{% if template.name == 'search' %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Ensure search results container exists
+      if (!document.getElementById('semantix-products-container')) {
+        const searchContainer = document.querySelector('.template-search, #shopify-section-template--search, main');
+        if (searchContainer) {
+          const resultsHTML = `
+            <div class="semantix-search-results-page">
+              <h1 id="semantix-search-title" class="semantix-search-title">תוצאות חיפוש</h1>
+              <div id="semantix-loading-message" class="semantix-loading-message" style="display: none;">טוען תוצאות...</div>
+              <div id="semantix-loading-spinner" class="semantix-loading-spinner" style="display: none;"></div>
+              <div id="semantix-error-message" class="semantix-error-message" style="display: none;"></div>
+              <div id="semantix-products-container" class="semantix-products-grid"></div>
+            </div>
+          `;
+          searchContainer.innerHTML = resultsHTML;
+        }
+      }
+    });
+  </script>
+{% endif %}
+
+<!-- Global Search Configuration -->
+<script>
+  window.SEMANTIX_GLOBAL_CONFIG = {
+    shopDomain: {{ shop.permanent_domain | json }},
+    currency: {{ shop.currency | json }},
+    moneyFormat: {{ shop.money_format | json }},
+    locale: {{ request.locale.iso_code | json }}
+  };
+</script>

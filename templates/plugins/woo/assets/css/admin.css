@@ -1,0 +1,138 @@
+/* ===== MINIMAL SEMANTIX STYLING - PRESERVE NATIVE WOOCOMMERCE DESIGN ===== */
+
+/* Container margin for AI labels */
+#semantix-results-container,
+.semantix-ajax-results-container {
+    position: relative;
+    margin-top: 20px;
+}
+
+/* MOBILE & TABLET: Force one-column grid & center content */
+@media (max-width: 770px) {
+  /* Keep products list as grid */
+  #semantix-results-container ul.products,
+  .semantix-ajax-results-container ul.products {
+    display: grid !important;
+   
+    grid-gap: 1rem !important;
+    margin-top: 35px !important; /* space for labels */
+  }
+
+  /* Ensure each product is visible and flex-centered */
+  #semantix-results-container ul.products li.product,
+  .semantix-ajax-results-container ul.products li.product {
+    display: flex !important;
+   
+    align-items: center;
+    text-align: center;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    margin-bottom: 35px !important; /* space for label */
+  }
+
+  /* Center image inside product */
+  #semantix-results-container ul.products li.product img,
+  .semantix-ajax-results-container ul.products li.product img {
+    margin: 0 auto !important;
+  }
+
+  /* Title & price spacing */
+  #semantix-results-container ul.products li.product .woocommerce-loop-product__title,
+  #semantix-results-container ul.products li.product .price,
+  .semantix-ajax-results-container ul.products li.product .woocommerce-loop-product__title,
+  .semantix-ajax-results-container ul.products li.product .price {
+    margin: 0.5em 0 1em !important;
+    width: 100%;
+  }
+
+  /* Ensure AI labels (::before) are visible */
+  #semantix-results-container ul.products li.semantix-perfect-match::before,
+  .semantix-ajax-results-container ul.products li.semantix-perfect-match::before {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: absolute !important;
+    top: -35px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 15 !important;
+    background-color: #000 !important;
+    color: #fff !important;
+    padding: 6px 12px !important;
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+    border: 1px solid #333 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    min-width: 120px !important;
+    max-width: 200px !important;
+  }
+}
+
+/* EXTRA SMALL MOBILE: Shorten label text */
+@media (max-width: 480px) {
+  #semantix-results-container ul.products li.semantix-perfect-match::before,
+  .semantix-ajax-results-container ul.products li.semantix-perfect-match::before {
+    content: "🤖 AI MATCH" !important;
+    font-size: 0.65rem !important;
+    padding: 5px 10px !important;
+    min-width: 100px !important;
+    top: -30px !important;
+  }
+
+  #semantix-results-container ul.products,
+  .semantix-ajax-results-container ul.products {
+    margin-top: 30px !important;
+  }
+}
+
+/* Loading spinner and messages */
+.semantix-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.semantix-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007cba;
+    border-radius: 50%;
+    animation: semantix-spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes semantix-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.semantix-message {
+    text-align: center;
+    padding: 30px 20px;
+    color: #666;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin: 20px 0;
+}
+
+/* Suggestions list for search bar */
+html body .semantix-search-bar-container .semantix-suggestions-list {
+    position: absolute !important;
+    right: 0 !important;
+    left: auto !important;
+    top: 100% !important;
+    background-color: #fff !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    width: 100% !important;
+    max-height: 250px !important;
+    overflow-y: auto !important;
+    z-index: 9999 !important;
+}

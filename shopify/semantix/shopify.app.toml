@@ -1,0 +1,30 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ed3834d550c5d814851e0ad46493ca2c"
+name = "semantix"
+handle = "semantix-1"
+application_url = "https://semantix-ai.com"
+embedded = false
+
+[build]
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2025-04"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_themes,write_themes"
+
+[auth]
+redirect_urls = [ 
+  "https://semantix-ai.com/api/auth/callback",
+  "https://semantix-ai.com/api/auth"
+]
+
+[pos]
+embedded = false
+
+# Explicitly declare theme app extension capability
+[capabilities]
+theme_app_extension = true

@@ -1,0 +1,29 @@
+name = "Semantix AI Search"
+type = "theme"
+handle = "semantix-search"
+
+[capabilities]
+network_access = true
+block_progress = true
+
+[extension_points]
+  [[extension_points.targets]]
+  target = "section"
+  module = "blocks/semantix-search-loader.liquid"
+
+  [[extension_points.targets]]
+  target = "section" 
+  module = "blocks/search-results.liquid"
+
+[settings]
+  [settings.api_endpoint]
+    type = "single_line_text_field"
+    default = "https://shopifyserver-1.onrender.com"
+    label = "API Endpoint"
+    info = "The base URL for the Semantix search API"
+
+  [settings.default_db_name]
+    type = "single_line_text_field"
+    default = "manoVino"
+    label = "Default Database Name"
+    info = "Default database name for new installations"

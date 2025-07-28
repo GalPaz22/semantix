@@ -1,0 +1,136 @@
+{% comment %}
+  Semantix Search Results Block
+  Displays AI-powered search results
+{% endcomment %}
+
+<div class="semantix-search-results-page">
+  <div class="semantix-search-results-header">
+    <h1 id="semantix-search-title" class="semantix-search-title">
+      {{ block.settings.default_title }}
+    </h1>
+    
+    <div id="semantix-loading-message" class="semantix-loading-message" style="display: none;">
+      {{ block.settings.loading_text }}
+    </div>
+    
+    <div id="semantix-loading-spinner" class="semantix-loading-spinner" style="display: none;"></div>
+    
+    <div id="semantix-error-message" class="semantix-error-message" style="display: none;"></div>
+  </div>
+  
+  <div id="semantix-products-container" class="semantix-products-grid"></div>
+  
+  {% comment %} Fallback for no results {% endcomment %}
+  <div id="semantix-no-results" class="semantix-no-results" style="display: none;">
+    <h2>{{ block.settings.no_results_title }}</h2>
+    <p>{{ block.settings.no_results_text }}</p>
+    
+    {% if block.settings.show_suggestions %}
+      <div class="semantix-search-suggestions">
+        <h3>{{ block.settings.suggestions_title }}</h3>
+        <ul>
+          {% for suggestion in block.settings.search_suggestions %}
+            <li>
+              <a href="/search?q={{ suggestion | url_encode }}">{{ suggestion }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Semantix Search Results",
+  "target": "section",
+  "javascript": "semantix-search-results.js",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Page Text"
+    },
+    {
+      "type": "text",
+      "id": "default_title",
+      "label": "Default Page Title",
+      "default": "חיפוש מוצרים",
+      "info": "Title shown when no search query is provided"
+    },
+    {
+      "type": "text",
+      "id": "loading_text",
+      "label": "Loading Message",
+      "default": "טוען תוצאות חיפוש...",
+      "info": "Message shown while search is loading"
+    },
+    {
+      "type": "text",
+      "id": "no_results_title",
+      "label": "No Results Title",
+      "default": "לא נמצאו תוצאות",
+      "info": "Title shown when no products found"
+    },
+    {
+      "type": "textarea",
+      "id": "no_results_text",
+      "label": "No Results Message",
+      "default": "לא מצאנו מוצרים התואמים לחיפוש שלך. נסה לחפש במילים אחרות או עיין במוצרים הפופולריים שלנו.",
+      "info": "Message shown when no products found"
+    },
+    {
+      "type": "header",
+      "content": "Search Suggestions"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_suggestions",
+      "label": "Show Search Suggestions",
+      "default": true,
+      "info": "Display suggested searches when no results found"
+    },
+    {
+      "type": "text",
+      "id": "suggestions_title",
+      "label": "Suggestions Title",
+      "default": "נסה לחפש:",
+      "info": "Title for the suggestions section"
+    },
+    {
+      "type": "text",
+      "id": "search_suggestions",
+      "label": "Search Suggestions",
+      "default": "יין אדום, יין לבן, יין רוזה, וויסקי, קוניאק",
+      "info": "Comma-separated list of suggested search terms"
+    },
+    {
+      "type": "header",
+      "content": "Display Options"
+    },
+    {
+      "type": "range",
+      "id": "products_per_row",
+      "min": 2,
+      "max": 6,
+      "step": 1,
+      "label": "Products Per Row",
+      "default": 4,
+      "info": "Number of products to show in each row on desktop"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_product_vendor",
+      "label": "Show Product Vendor",
+      "default": false,
+      "info": "Display the product vendor/brand in results"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_compare_price",
+      "label": "Show Compare at Price",
+      "default": true,
+      "info": "Show the original price if product is on sale"
+    }
+  ]
+}
+{% endschema %}

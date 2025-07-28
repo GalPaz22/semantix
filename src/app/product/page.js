@@ -21,18 +21,18 @@ export default function SearchDemo() {
   };
 
   return (
-    <div className="min-h-screen text-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen text-gray-800 py-12 px-4 sm:px-6 lg:px-8" dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-center">
-          <h1 className="text-3xl font-bold mb-8 text-center">חיפוש AI</h1>
+          <h1 className="text-3xl font-bold mb-8 text-center">חיפוש בינה מלאכותית</h1>
           <img src="ai.png" alt="ai" className="w-9 h-9 mr-2" />
         </div>
 
         <p className="text-gray-600 mb-8 text-center">
-          לפניכם דמו (מצומצם) של המוצר בשני מתארים- חיפוש סמנטי לפי תיאור וחיפוש לפי תוכן תמונה. התוצאות הרלוונטיות ביותר יסודרו מימין לשמאל, כשהתוצאה הרלוונטית ביותר תופיע מימין למעלה.
+          להלן הדגמה (מוגבלת) של המוצר בשני תרחישים - חיפוש סמנטי לפי תיאור וחיפוש לפי תוכן תמונה. התוצאות הרלוונטיות ביותר יסודרו משמאל לימין, כאשר התוצאה הרלוונטית ביותר תופיע בפינה הימנית העליונה.
         </p>
 
-        <div className="bg-gray-400 bg-opacity-20 rounded-xl p-6 backdrop-filter backdrop-blur-lg">
+        <div className="bg-purple-600 bg-opacity-20 rounded-xl p-6 backdrop-filter backdrop-blur-lg">
           <div className="flex justify-center mb-8 bg-gray-100 p-2 shadow-inner">
             {["products", "jewelry", "glasses"].map((tab) => (
               <button
@@ -121,7 +121,7 @@ function ProductSearch() {
       "sale",
     ],
     noHebrewWord: ["אדום", "לבן", "יין", "מבעבע", "רוזה", "מעל", "עד", "מתחת", "יותר"],
-    categories: ", יין לבן, יין אדום, יין מבעבע, יין רוזה",
+    categories: "Red wine, White wine, Rosé wine, Sparkling wine",
   };
 
   // Fetch products when the component mounts
@@ -147,7 +147,7 @@ function ProductSearch() {
         setProducts(products);
       } catch (error) {
         console.error("Error fetching products:", error);
-        setError("Failed to fetch products");
+        setError("נכשל לטעון מוצרים");
       } finally {
         setLoading(false);
       }
@@ -174,10 +174,10 @@ function ProductSearch() {
 
       const data = await response.json();
       setProducts(data);
-      setError(data.results?.length === 0 ? "No products found" : "");
+      setError(data.results?.length === 0 ? "לא נמצאו מוצרים" : "");
     } catch (error) {
       console.error("Error fetching products:", error);
-      setError("Failed to fetch products");
+      setError("נכשל לטעון מוצרים");
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ function ProductSearch() {
       <div className="flex">
         <input
           type="text"
-          placeholder='"יין אדום לארוחה איטלקית בפחות מ100 שקלים"'
+          placeholder='"יין אדום לארוחת ערב איטלקית מתחת ל-400 שקל"'
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -220,7 +220,7 @@ function ProductSearch() {
           onClick={handleSearch}
           className="p-3 mr-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
         >
-          חפש
+          Search
         </button>
       </div>
 
@@ -241,7 +241,7 @@ function ProductSearch() {
               <div dir="ltr" className="flex items-center mb-3">
                 <span className="font-bold text-black-500">Perfect Match!</span>
                 <img
-                  src="https://alcohome.co.il/wp-content/uploads/2024/09/ai_stars_icon-removebg-preview.png"
+                  src='AI-icon.png'
                   alt="Sparkling Star"
                   width="30"
                   height="30"
@@ -261,13 +261,34 @@ function ProductSearch() {
             </div>
 
             <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
-            <p className="text-black-200 mb-3">{product.description}</p>
-            <p className="text-black-300 font-bold mb-4">₪{product.price}</p>
+            {product.description && (
+              <div className="text-black-200 mb-3 space-y-2">
+                {product.description.split(/(?=Product Description:|Product Character:|Food Pairing:|\n| - )/g).map((part, idx) => {
+                  // Bold section headers
+                  if (/^Product Description:/.test(part)) {
+                    return <p key={idx}><span className="font-bold">Product Description:</span>{part.replace(/^Product Description:/, "")}</p>;
+                  }
+                  if (/^Product Character:/.test(part)) {
+                    return <p key={idx}><span className="font-bold">Product Character:</span>{part.replace(/^Product Character:/, "")}</p>;
+                  }
+                  if (/^Food Pairing:/.test(part)) {
+                    return <p key={idx}><span className="font-bold">Food Pairing:</span>{part.replace(/^Food Pairing:/, "")}</p>;
+                  }
+                  // List items
+                  if (/^ - /.test(part)) {
+                    return <li key={idx} className="ml-4 list-disc">{part.replace(/^ - /, "")}</li>;
+                  }
+                  // Otherwise, just a paragraph
+                  return <p key={idx}>{part.trim()}</p>;
+                })}
+              </div>
+            )}
+            <p className="text-black-300 font-bold mb-4">{product.price}</p>
             <a
               href={product.url}
               className="text-purple-400 hover:text-purple-100 transition-colors duration-200"
             >
-              לפרטים נוספים
+              More Details
             </a>
           </div>
         ))}
@@ -372,7 +393,7 @@ function JewelrySearch() {
   return (
     <div>
       <h1 className="font-bold mb-8">
-        מבוסס על הקטלוג של{" "}
+        Based on the catalog of{" "}
         <a
           href="https://theydream-online.com"
           className="text-blue-600"
@@ -386,7 +407,7 @@ function JewelrySearch() {
       <div className="flex">
         <input
           type="text"
-          placeholder='"כל התכשיטים שיש בהם שמש או ירח"'
+          placeholder='"תכשיטים עם עיצוב של שמש או ירח"'
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -400,7 +421,7 @@ function JewelrySearch() {
           onClick={handleSearch}
           className="p-3 mr-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
         >
-          חפש
+          Search
         </button>
       </div>
 
@@ -430,7 +451,7 @@ function JewelrySearch() {
               href={product.url}
               className="text-purple-300 hover:text-purple-100 transition-colors duration-200"
             >
-              לפרטים נוספים
+              More Details
             </a>
           </div>
         ))}
@@ -523,7 +544,7 @@ function GlassesSearch() {
       <div className="flex">
         <input
           type="text"
-          placeholder='"משקפי שמש עגולים עם מסגרת מטאלית שחורה"'
+          placeholder='"משקפי שמש עגולים עם מסגרת מתכת שחורה"'
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -537,7 +558,7 @@ function GlassesSearch() {
           onClick={handleSearch}
           className="p-3 mr-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
         >
-          חפש
+          Search
         </button>
       </div>
 

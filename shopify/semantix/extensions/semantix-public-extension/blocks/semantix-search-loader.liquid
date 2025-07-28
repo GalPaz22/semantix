@@ -1,0 +1,113 @@
+{% comment %}
+  Semantix AI Search Block
+  Loads and initializes the AI-powered search functionality
+{% endcomment %}
+
+<div 
+  id="semantix-search-container" 
+  data-semantix-search="true"
+  data-api-key="{{ block.settings.api_key }}"
+  data-db-name="{{ block.settings.db_name }}"
+  data-placeholder-1="{{ block.settings.placeholder_1 }}"
+  data-placeholder-2="{{ block.settings.placeholder_2 }}"
+  data-placeholder-3="{{ block.settings.placeholder_3 }}"
+  data-search-icon="{{ block.settings.search_icon }}"
+>
+  <!-- Search bar will be injected here by JavaScript -->
+</div>
+
+<script>
+  // Pass settings to JavaScript
+  window.SEMANTIX_SETTINGS = {
+    apiKey: {{ block.settings.api_key | json }},
+    dbName: {{ block.settings.db_name | json }},
+    placeholders: [
+      {{ block.settings.placeholder_1 | json }},
+      {{ block.settings.placeholder_2 | json }},
+      {{ block.settings.placeholder_3 | json }}
+    ],
+    searchIcon: {{ block.settings.search_icon | json }}
+  };
+</script>
+
+{% schema %}
+{
+  "name": "Semantix Search",
+  "target": "section",
+  "stylesheet": "semantix-search.css",
+  "javascript": "semantix-search.js",
+  "settings": [
+    {
+      "type": "header",
+      "content": "API Configuration"
+    },
+    {
+      "type": "text",
+      "id": "api_key",
+      "label": "API Key",
+      "info": "Enter your Semantix API key for search functionality"
+    },
+    {
+      "type": "text",
+      "id": "db_name",
+      "label": "Database Name",
+      "default": "manoVino",
+      "info": "The database name for your product index"
+    },
+    {
+      "type": "header",
+      "content": "Search Appearance"
+    },
+    {
+      "type": "text",
+      "id": "placeholder_1",
+      "label": "Placeholder Text #1",
+      "default": "יין אדום לארוחת סטייקים עד 120 ש׳׳ח",
+      "info": "First rotating placeholder text"
+    },
+    {
+      "type": "text",
+      "id": "placeholder_2",
+      "label": "Placeholder Text #2",
+      "default": "יין רוזה שיתאים לארוחת דגים",
+      "info": "Second rotating placeholder text"
+    },
+    {
+      "type": "text",
+      "id": "placeholder_3",
+      "label": "Placeholder Text #3",
+      "default": "יין לבן כשר לאוכל אסייאתי",
+      "info": "Third rotating placeholder text"
+    },
+    {
+      "type": "text",
+      "id": "search_icon",
+      "label": "Search Icon URL",
+      "default": "https://cdn.shopify.com/s/files/1/0911/9701/4333/files/ai-technology.png?v=1735062266",
+      "info": "URL for the search button icon"
+    },
+    {
+      "type": "header",
+      "content": "Advanced Settings"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_autocomplete",
+      "label": "Enable Autocomplete",
+      "default": true,
+      "info": "Show search suggestions as user types"
+    },
+    {
+      "type": "range",
+      "id": "placeholder_speed",
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "unit": "s",
+      "label": "Placeholder Rotation Speed",
+      "default": 3,
+      "info": "How often placeholder text changes (in seconds)"
+    }
+  ]
+}
+{% endschema %}
