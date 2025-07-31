@@ -323,5 +323,162 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchResults();
 });
 </script>
+<script id="semantix-custom-template-js">
+document.addEventListener('DOMContentLoaded', () => {
+    const SEMANTIX_DATA = <?php echo wp_json_encode( $js_data ); ?>;
+    const resultsGrid = document.getElementById('semantix-custom-results-grid');
+    
+    // Configuration constants
+    const C = {
+        cacheKey: 'semantix_search_cache',
+        maxItems: 50, // Maximum number of results to cache
+        expiryHours: 24 // Cache expires after 24 hours
+    };
 
+    const query = SEMANTIX_DATA.searchQuery;
+
+    function loadCache() {
+        try { 
+            const cached = JSON.parse(sessionStorage.getItem(C.cacheKey));
+            
+            // Check if cache is valid and for the same query
+            if (cached && cached.query === query && cached.ts) {
+                const now = Date.now();
+                const expiryTime = cached.ts + (C.expiryHours * 60 * 60 * 1000);
+                
+                if (now < expiryTime) {
+                    console.log(`Semantix: Loaded ${cached.results.length} cached results for "${query}"`);
+                    return cached.results;
+                }
+            }
+            return null;
+        }
+        catch { return null; }
+    }
+
+    function saveCache(items) {
+        try {
+            sessionStorage.setItem(C.cacheKey,
+                JSON.stringify({ 
+                    query, 
+                    results: items.slice(0, C.maxItems), 
+                    ts: Date.now() 
+                })
+            );
+            console.log(`Semantix: Cached ${items.length} results for "${query}"`);
+        }
+        catch (error) {
+            console.warn('Semantix: Failed to save cache:', error);
+        }
+    }
+
+    async function fetchResults() {
+        if (!query || !SEMANTIX_DATA.apiEndpoint) {
+            showErrorState('Search configuration is incomplete.');
+            return;
+        }
+
+        // Try to load from cache first
+        const cachedResults = loadCache();
+        if (cachedResults) {
+            renderProducts(cachedResults);
+            return;
+        }
+
+        // If no cached results, fetch from API
+        try {
+            const response = await fetch(SEMANTIX_DATA.apiEndpoint, { 
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Accept': 'application/json',
+                    ...(SEMANTIX_DATA.apiKey && {'x-api-key': SEMANTIX_DATA.apiKey}) 
+                },
+                body: JSON.stringify({
+                    query: query,
+                    dbName: SEMANTIX_DATA.dbName,
+                    collectionName1: SEMANTIX_DATA.collection1,
+                    collectionName2: SEMANTIX_DATA.collection2
+                }),
+                mode: 'cors'
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API Error: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            const products = Array.isArray(data) ? data : (data.products || (data.data && Array.isArray(data.data)) || []);
+            
+            // Save results to cache
+            saveCache(products);
+            
+            renderProducts(products);
+
+        } catch (error) {
+            console.error('Semantix Search Fetch Error:', error);
+            showErrorState(error.message);
+        }
+    }
+
+    function renderProducts(products) {
+        resultsGrid.innerHTML = '';
+        
+        if (!products || products.length === 0) {
+            showEmptyState();
+            return;
+        }
+
+        products.forEach(product => {
+            const card = document.createElement('div');
+            card.className = 'semantix-product-card';
+
+            const productLink = product.url || `/?p=${product.id}`;
+            const productImage = product.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            const productPrice = product.price ? `${product.price} ₪` : '';
+            const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
+            const productExplanation = product.explanation ? `<div class="semantix-product-explanation">${product.explanation}</div>` : '';
+
+            card.innerHTML = `
+                <a href="${productLink}" class="semantix-product-link" aria-label="View ${product.name || 'product'}">
+                    <div class="semantix-product-image-container">
+                        ${perfectMatchBadge}
+                        <img src="${productImage}" alt="${product.name || 'Product Image'}" class="semantix-product-image" loading="lazy">
+                    </div>
+                </a>
+                <div class="semantix-product-content">
+                    <h2 class="semantix-product-title">
+                        <a href="${productLink}">${product.name || 'Untitled Product'}</a>
+                    </h2>
+                    ${productExplanation}
+                    ${productPrice ? `<div class="semantix-product-price">${productPrice}</div>` : ''}
+                </div>
+            `;
+            
+            resultsGrid.appendChild(card);
+        });
+    }
+
+    function showEmptyState() {
+        resultsGrid.innerHTML = `<div class="semantix-empty-state"><h3>No products found</h3><p>We couldn't find any products matching your search. Try different keywords.</p></div>`;
+    }
+
+    function showErrorState(message) {
+        resultsGrid.innerHTML = `<div class="semantix-error-state"><h3>Something went wrong</h3><p>${message}</p></div>`;
+    }
+
+    // Expose function to manually clear search cache (optional)
+    window.semantixClearSearchCache = function() {
+        try {
+            sessionStorage.removeItem(C.cacheKey);
+            console.log('Semantix: Search cache cleared');
+        } catch (error) {
+            console.warn('Semantix: Failed to clear search cache:', error);
+        }
+    };
+
+    fetchResults();
+});
+</script>
 <?php get_footer(); // Load the site footer ?>
