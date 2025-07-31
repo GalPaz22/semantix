@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Get the search query from the URL.
 $search_query = get_search_query();
+$show_header_title = get_option('semantix_show_header_title', 1);
 
 // --- ADJUSTABLE TYPOGRAPHY SETTINGS ---
 $title_font_family = get_option( 'semantix_title_font_family', "'Inter', sans-serif" );
@@ -215,6 +216,7 @@ get_header(); // Load the site header ?>
 <!-- This is the main container that renders instead of the theme's <main> element -->
 <div class="semantix-results-page-wrapper">
     <div id="semantix-custom-results-container">
+        <?php if ($show_header_title) : ?>
         <header class="semantix-page-header">
             <h1 class="semantix-page-title">
                 <?php
@@ -223,6 +225,7 @@ get_header(); // Load the site header ?>
                 ?>
             </h1>
         </header>
+        <?php endif; ?>
 
         <div id="semantix-custom-results-grid">
             <div class="semantix-loader">Loading products...</div>

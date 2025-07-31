@@ -1217,6 +1217,16 @@ function semantix_search_advanced_page() {
                             <th scope="row"><?php esc_html_e('Image Height (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_image_height" value="<?php echo esc_attr(get_option('semantix_image_height', '220')); ?>" /></td>
                         </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Show Page Title', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <input type="hidden" name="semantix_show_header_title" value="0" />
+                                <label>
+                                    <input type="checkbox" name="semantix_show_header_title" value="1" <?php checked(get_option('semantix_show_header_title', 1), 1); ?> />
+                                    <?php esc_html_e('Display the "Search Results for: [query]" header title on the custom search results page.', 'semantix-ai-search'); ?>
+                                </label>
+                            </td>
+                        </tr>
                     </table>
 
                     <h3><?php esc_html_e('Colors', 'semantix-ai-search'); ?></h3>
@@ -1424,6 +1434,7 @@ if (!function_exists('semantix_register_settings')) {
         register_setting('semantix-advanced-group', 'semantix_collection1', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('semantix-advanced-group', 'semantix_collection2', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('semantix-advanced-group', 'semantix_custom_css', ['type' => 'string', 'sanitize_callback' => 'wp_strip_all_tags']);
+        register_setting('semantix-advanced-group', 'semantix_show_header_title', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
     }
 }
 add_action('admin_init', 'semantix_register_settings');
