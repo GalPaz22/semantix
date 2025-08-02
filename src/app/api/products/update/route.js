@@ -41,13 +41,16 @@ export async function POST(request) {
       }, { status: 404 });
     }
     
-    // Now, upsert the category and types into the user's credentials
-    const usersCollection = client.db(process.env.MONGODB_DB_NAME).collection("users");
+    // Now, update the user's credentials with new categories and types
+    const usersCollection = client.db("users").collection("users");
     const userUpdateOps = {};
 
+    // Add category to the categories array if provided
     if (updates.category) {
       userUpdateOps['credentials.categories'] = updates.category;
     }
+    
+    // Add types to the type array if provided
     if (updates.type && Array.isArray(updates.type) && updates.type.length > 0) {
       userUpdateOps['credentials.type'] = { $each: updates.type };
     }

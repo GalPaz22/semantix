@@ -1338,6 +1338,13 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
           : onboarding.credentials.categories
       : ""
   );
+  const [productTypes, setProductTypes] = useState(
+    onboarding?.credentials?.type
+      ? Array.isArray(onboarding.credentials.type)
+          ? onboarding.credentials.type.join(", ")
+          : onboarding.credentials.type
+      : ""
+  );
   const [platform] = useState(onboarding?.platform || "shopify");
   const [cred, setCred] = useState(
     platform === "shopify"
@@ -1421,7 +1428,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         platform,
         dbName,
         categories: categories.split(",").map(s => s.trim()).filter(Boolean),
-        type: onboarding?.credentials?.type || "text",
+        type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
         syncMode: onboarding?.syncMode || "text",
         ...platformCredentials // Include credentials at top level for API compatibility
       };
@@ -1498,7 +1505,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         platform,
         dbName,
         categories: categoriesArray,
-        type: onboarding?.credentials?.type || "text",
+        type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
         syncMode: onboarding?.syncMode || "text",
         ...platformCredentials
       };
@@ -1643,6 +1650,21 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </div>
               </div>
               
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  סוגי מוצרים (מופרדים בפסיקים)
+                </label>
+                <input
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+                  value={productTypes}
+                  onChange={e => setProductTypes(e.target.value)}
+                  placeholder="כשר, במבצע, חדש, אורגני"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  סוגי המוצרים יעזרו לקטלג ולסנן מוצרים בחיפוש
+                </p>
+              </div>
+              
               {platform === "shopify" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1758,6 +1780,17 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                       </span>
                     )) : "לא הוגדר"}
                   </div>
+                </div>
+              </div>
+              
+              <div>
+                <span className="block text-sm font-medium text-gray-700 mb-2">סוגי מוצרים</span>
+                <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                  {productTypes ? productTypes.split(', ').map((type, index) => (
+                    <span key={index} className="inline-block px-2 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full mr-1 mb-1">
+                      {type}
+                    </span>
+                  )) : "לא הוגדר"}
                 </div>
               </div>
               

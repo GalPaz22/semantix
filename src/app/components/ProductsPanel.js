@@ -61,7 +61,7 @@ export default function ProductsPanel({ session, onboarding }) {
       setProducts(data.products || []);
     } catch (err) {
       console.error('Error fetching products:', err);
-      setError('טעינת המוצרים נכשלה. אנא נסה שוב.');
+      setError('Failed to load products. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -122,6 +122,12 @@ export default function ProductsPanel({ session, onboarding }) {
   const handleSave = async () => {
     if (!editingProduct) return;
     
+    // Ensure type is converted to array if it's still a string
+    let finalType = editingProduct.type;
+    if (typeof finalType === 'string') {
+      finalType = finalType.split(',').map(t => t.trim()).filter(Boolean);
+    }
+    
     try {
       const response = await fetch('/api/products/update', {
         method: 'POST',
@@ -133,7 +139,7 @@ export default function ProductsPanel({ session, onboarding }) {
             name: editingProduct.name,
             description1: editingProduct.description1,
             category: editingProduct.category,
-            type: editingProduct.type,
+            type: finalType,
             price: editingProduct.price
           }
         })
@@ -143,16 +149,17 @@ export default function ProductsPanel({ session, onboarding }) {
         throw new Error(`HTTP ${response.status}`);
       }
       
-      // Update local state
+      // Update local state with the final type array
+      const updatedProduct = { ...editingProduct, type: finalType };
       setProducts(products.map(p => 
-        p.id === editingProduct.id ? editingProduct : p
+        p.id === editingProduct.id ? updatedProduct : p
       ));
       
       setShowModal(false);
       setEditingProduct(null);
     } catch (err) {
       console.error('Error saving product:', err);
-      setError('שמירת המוצר נכשלה. אנא נסה שוב.');
+      setError('Failed to save product. Please try again.');
     }
   };
 
@@ -172,15 +179,15 @@ export default function ProductsPanel({ session, onboarding }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto" dir="rtl">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <header className="mb-8">
         <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl shadow-xl">
           <div className="relative p-8 flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-1">ניהול מוצרים</h1>
+              <h1 className="text-3xl font-bold text-white mb-1">Products Management</h1>
               <p className="text-indigo-100">
-                נהל ועקוב אחר קטלוג המוצרים שלך
+                Manage and monitor your product catalog
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -189,8 +196,8 @@ export default function ProductsPanel({ session, onboarding }) {
                 disabled={refreshing}
                 className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-white backdrop-blur-sm"
               >
-                <RefreshCw className={`h-4 w-4 ml-2 ${refreshing ? 'animate-spin' : ''}`} />
-                רענן
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
             </div>
           </div>
@@ -198,23 +205,23 @@ export default function ProductsPanel({ session, onboarding }) {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-6 bg-white/5 backdrop-blur-sm border-t border-white/10">
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">סה"כ מוצרים</p>
+              <p className="text-white/70 text-sm mb-1">Total Products</p>
               <p className="text-2xl font-bold text-white">{stats.total}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">מעובדים</p>
+              <p className="text-white/70 text-sm mb-1">Processed</p>
               <p className="text-2xl font-bold text-green-300">{stats.processed}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">ממתינים</p>
+              <p className="text-white/70 text-sm mb-1">Pending</p>
               <p className="text-2xl font-bold text-yellow-300">{stats.pending}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">אזל מהמלאי</p>
+              <p className="text-white/70 text-sm mb-1">Out of Stock</p>
               <p className="text-2xl font-bold text-red-400">{stats.outOfStock}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">מחיר ממוצע</p>
+              <p className="text-white/70 text-sm mb-1">Avg Price</p>
               <p className="text-2xl font-bold text-white">${stats.avgPrice}</p>
             </div>
           </div>
@@ -224,33 +231,33 @@ export default function ProductsPanel({ session, onboarding }) {
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-100">
         <div className="flex items-center mb-4">
-          <Filter className="h-5 w-5 text-indigo-600 ml-2" />
-          <h2 className="text-lg font-semibold text-gray-800">מסננים</h2>
+          <Filter className="h-5 w-5 text-indigo-600 mr-2" />
+          <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">חיפוש</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="חפש מוצרים..."
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Search products..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">קטגוריה</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="">כל הקטגוריות</option>
+              <option value="">All Categories</option>
               {categories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -258,13 +265,13 @@ export default function ProductsPanel({ session, onboarding }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">סוג</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="">כל הסוגים</option>
+              <option value="">All Types</option>
               {types.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
@@ -272,16 +279,16 @@ export default function ProductsPanel({ session, onboarding }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">כל המוצרים</option>
-              <option value="processed">מעובד</option>
-              <option value="pending">ממתין</option>
-              <option value="outofstock">אזל מהמלאי</option>
+              <option value="all">All Products</option>
+              <option value="processed">Processed</option>
+              <option value="pending">Pending</option>
+              <option value="outofstock">Out of Stock</option>
             </select>
           </div>
           
@@ -296,7 +303,7 @@ export default function ProductsPanel({ session, onboarding }) {
               }}
               className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
             >
-              נקה מסננים
+              Clear Filters
             </button>
           </div>
         </div>
@@ -306,7 +313,7 @@ export default function ProductsPanel({ session, onboarding }) {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-500 ml-2" />
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <span className="text-red-800">{error}</span>
           </div>
         </div>
@@ -316,31 +323,31 @@ export default function ProductsPanel({ session, onboarding }) {
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-6">
           <h2 className="text-lg font-semibold text-gray-800">
-            מוצרים ({filteredProducts.length})
+            Products ({filteredProducts.length})
           </h2>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  מוצר
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  קטגוריה
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  סוג
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  מחיר
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Price
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  סטטוס
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  פעולות
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -353,7 +360,7 @@ export default function ProductsPanel({ session, onboarding }) {
                         <img
                           src={product.image}
                           alt={product.name}
-                          className="h-10 w-10 rounded-lg object-cover ml-3"
+                          className="h-10 w-10 rounded-lg object-cover mr-3"
                         />
                       )}
                       <div>
@@ -361,7 +368,7 @@ export default function ProductsPanel({ session, onboarding }) {
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {product.description1 || product.description || 'אין תיאור'}
+                          {product.description1 || product.description || 'No description'}
                         </div>
                       </div>
                     </div>
@@ -397,18 +404,18 @@ export default function ProductsPanel({ session, onboarding }) {
                   <td className="px-6 py-4">
                     {product.embedding && product.description1 ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircle className="h-3 w-3 ml-1" />
-                        מעובד
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Processed
                       </span>
                     ) : product.stockStatus === 'outofstock' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        <Archive className="h-3 w-3 ml-1" />
-                        אזל מהמלאי
+                        <Archive className="h-3 w-3 mr-1" />
+                        Out of Stock
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        <AlertCircle className="h-3 w-3 ml-1" />
-                        ממתין
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Pending
                       </span>
                     )}
                   </td>
@@ -443,7 +450,7 @@ export default function ProductsPanel({ session, onboarding }) {
           <div className="bg-gray-50 px-6 py-4 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                מציג {startIndex + 1} עד {Math.min(startIndex + itemsPerPage, filteredProducts.length)} מתוך {filteredProducts.length} מוצרים
+                Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredProducts.length)} of {filteredProducts.length} products
               </div>
               <div className="flex items-center space-x-2">
                 <button
@@ -451,17 +458,17 @@ export default function ProductsPanel({ session, onboarding }) {
                   disabled={currentPage === 1}
                   className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
                 <span className="text-sm text-gray-700">
-                  עמוד {currentPage} מתוך {totalPages}
+                  Page {currentPage} of {totalPages}
                 </span>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -472,10 +479,10 @@ export default function ProductsPanel({ session, onboarding }) {
       {/* Edit Modal */}
       {showModal && editingProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">ערוך מוצר</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Product</h3>
                 <button
                   onClick={() => setShowModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -488,7 +495,7 @@ export default function ProductsPanel({ session, onboarding }) {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  שם המוצר
+                  Product Name
                 </label>
                 <input
                   type="text"
@@ -500,7 +507,7 @@ export default function ProductsPanel({ session, onboarding }) {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  תיאור
+                  Description
                 </label>
                 <textarea
                   value={editingProduct.description1 || ''}
@@ -513,7 +520,7 @@ export default function ProductsPanel({ session, onboarding }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    קטגוריה
+                    Category
                   </label>
                   <input
                     type="text"
@@ -525,7 +532,7 @@ export default function ProductsPanel({ session, onboarding }) {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    מחיר
+                    Price
                   </label>
                   <input
                     type="number"
@@ -539,17 +546,36 @@ export default function ProductsPanel({ session, onboarding }) {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  סוגים (מופרדים בפסיק)
+                  Types (comma-separated)
                 </label>
                 <input
                   type="text"
                   value={Array.isArray(editingProduct.type) ? editingProduct.type.join(', ') : (editingProduct.type || '')}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct, 
-                    type: e.target.value.split(',').map(t => t.trim()).filter(Boolean)
-                  })}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    // Store the raw input value temporarily for display
+                    setEditingProduct({
+                      ...editingProduct, 
+                      type: inputValue, // Keep as string while typing
+                      _typeInput: inputValue // Store raw input for reference
+                    });
+                  }}
+                  onBlur={(e) => {
+                    // Convert to array when user finishes typing
+                    const inputValue = e.target.value;
+                    const typesArray = inputValue.split(',').map(t => t.trim()).filter(Boolean);
+                    setEditingProduct({
+                      ...editingProduct, 
+                      type: typesArray,
+                      _typeInput: undefined // Clear temporary input
+                    });
+                  }}
+                  placeholder="e.g., כשר, במבצע, חדש, אורגני"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
+                <p className="mt-1 text-sm text-gray-500">
+                  Type new product types separated by commas. Press Tab or click elsewhere to save them.
+                </p>
               </div>
             </div>
             
@@ -558,14 +584,14 @@ export default function ProductsPanel({ session, onboarding }) {
                 onClick={() => setShowModal(false)}
                 className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                ביטול
+                Cancel
               </button>
               <button
                 onClick={handleSave}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center"
               >
-                <Save className="h-4 w-4 ml-2" />
-                שמור שינויים
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
               </button>
             </div>
           </div>
