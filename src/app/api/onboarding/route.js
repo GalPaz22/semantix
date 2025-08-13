@@ -3,9 +3,10 @@ import { getServerSession }  from "next-auth";
 import { authOptions }       from "../auth/[...nextauth]/route";
 import clientPromise         from "/lib/mongodb";
 import processShopify        from "/lib/processShopify";
-import processWooProducts    from "/lib/processWoo";
+import { processWooProducts } from "../../../../lib/processWoo.js";
 import processWooImages      from "/lib/processWooImages";
 import processShopifyImages from "/lib/processShopifyImages";
+import { setJobState } from "/lib/syncStatus.js";
 
 /* ---------- credential validation helpers ----------------------- */
 async function validateShopifyCredentials(domain, token) {
@@ -89,21 +90,49 @@ async function validateWooCredentials(wooUrl, wooKey, wooSecret) {
 }
 
 /* ---------- little helper – write state to Mongo ------------------- */
-async function setJobState(client, dbName, state, progressData = {}) {
-  const updateData = {
-    state,
-    updatedAt: new Date(),
-    ...progressData
-  };
+async function createProductIndexes(client, dbName) {
+  const collectionName = "products";
+  const db = client.db(dbName);
 
-  await client
-    .db("users")
-    .collection("sync_status")
-    .updateOne(
-      { dbName },
-      { $set: updateData },
-      { upsert: true }
-    );
+  try {
+    const collection = db.collection(collectionName);
+    
+    // Create compound indexes for efficient querying
+    const indexes = [
+      // Index for category filtering
+      { category: 1, fetchedAt: -1 },
+      // Index for type filtering (since type can be an array)
+      { type: 1, fetchedAt: -1 },
+      // Index for stock status filtering
+      { stockStatus: 1, fetchedAt: -1 },
+      // Index for processed/pending status filtering
+      { description1: 1, fetchedAt: -1 },
+      // Text index for search functionality
+      { name: "text", description1: "text" },
+      // Compound index for common filter combinations
+      { category: 1, stockStatus: 1, fetchedAt: -1 }
+    ];
+
+    // Create each index
+    for (const indexSpec of indexes) {
+      try {
+        await collection.createIndex(indexSpec);
+        console.log(`Created index:`, indexSpec);
+      } catch (error) {
+        // Index might already exist, which is fine
+        if (error.code !== 85) { // Not IndexAlreadyExists
+          console.warn(`Warning creating index ${JSON.stringify(indexSpec)}:`, error.message);
+        }
+      }
+    }
+
+    console.log("Product indexes created successfully");
+    return { acknowledged: true };
+  } catch (error) {
+    console.error("Error creating product indexes:", error);
+    // Don't fail the onboarding process for index creation errors
+    return { acknowledged: false, error: error.message };
+  }
 }
 
 async function createEmbeddingIndex(client, dbName) {
@@ -133,38 +162,34 @@ async function createEmbeddingIndex(client, dbName) {
 
   const indexConfig = {
     name: "vector_index",
-   
+    type: "vectorSearch",
     definition: {
-      mappings: {
-        dynamic: false,
-        fields: {
-          embedding: {
-            type: "knnVector",
-            dimensions: 3072,
-            similarity: "cosine"
-          },
-          category: {
-            type: "string",
-            analyzer: "lucene.keyword"
-          },
-          price: { 
-            type: "number" 
-          },
-          type: {
-            type: "string",
-            analyzer: "lucene.keyword"
-          }
+      fields: [
+        {
+          numDimensions: 3072,
+          path: "embedding",
+          similarity: "cosine",
+          type: "vector"
+        },
+        {
+          path: "category",
+          type: "filter"
+        },
+        {
+          path: "price",
+          type: "filter"
+        },
+        {
+          path: "type",
+          type: "filter"
         }
-      }
+      ]
     }
   };
 
   try {
-    // Use the createSearchIndexes command to create the Atlas Search index.
-    const result = await db.command({
-      createSearchIndexes: collectionName,
-      indexes: [indexConfig]
-    });
+    // Use the createSearchIndex method to create the vector search index.
+    const result = await db.collection(collectionName).createSearchIndex(indexConfig);
     console.log("Embedding search index created:", result);
     return result;
   } catch (error) {
@@ -281,6 +306,7 @@ export async function POST(req) {
       syncMode,
       type, 
       context,
+      explain,
       // "text" | "image"
     } = await req.json();
 
@@ -288,6 +314,16 @@ export async function POST(req) {
     if (!dbName) {
       return Response.json({ error: "missing dbName" }, { status: 400 });
     }
+
+    // Debug logging for type parameter
+    console.log("🔍 [Onboarding API] Received parameters:");
+    console.log("🔍 [Onboarding API] platform:", platform);
+    console.log("🔍 [Onboarding API] dbName:", dbName);
+    console.log("🔍 [Onboarding API] categories:", categories);
+    console.log("🔍 [Onboarding API] type:", type);
+    console.log("🔍 [Onboarding API] type is array:", Array.isArray(type));
+    console.log("🔍 [Onboarding API] type length:", Array.isArray(type) ? type.length : 'not array');
+    console.log("🔍 [Onboarding API] syncMode:", syncMode);
 
     /* 3) Validate platform credentials before proceeding */
     let isValidCredentials = false;
@@ -346,6 +382,7 @@ export async function POST(req) {
       platform,
       syncMode,
       context,
+      explain: explain ?? false,
       updatedAt: new Date()
     };
 
@@ -364,34 +401,45 @@ export async function POST(req) {
 
     await createEmbeddingIndex(client, dbName);
     await createAutocompleteIndex(client, dbName);
+    await createProductIndexes(client, dbName);
 
     /* 5)  mark job=running and launch the heavy lift in background  */
-    await setJobState(client, dbName, "running");
+    await setJobState(dbName, "running");
 
     // detach – we don't await so the request can return immediately
     (async () => {
       let logs = [];
       try {
+        console.log("🔍 [Onboarding API] Starting background processing with:");
+        console.log("🔍 [Onboarding API] Final type parameter:", type);
+        console.log("🔍 [Onboarding API] Final categories parameter:", categories);
+        
         if (platform === "woocommerce") {
+          console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
           if (syncMode === "image") {
-            logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, dbName });
+            console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, dbName });
+            logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, dbName });
           } else {
-            logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, dbName });
+            console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, dbName });
+            logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, dbName });
           }
         } else if (platform === "shopify") {
+          console.log("🔍 [Onboarding API] Calling Shopify processing...");
           if (syncMode === "image") {
-            logs = await processShopifyImages({ shopifyDomain, shopifyToken, userEmail, categories, dbName });
+            console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type });
+            logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type });
           } else {
-            logs = await processShopify({ shopifyDomain, shopifyToken, userEmail, categories, dbName });
+            console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type });
+            logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type });
           }
         }
-        await setJobState(client, dbName, "done");
+        await setJobState(dbName, "done");
 
         // Log the collected messages from the sync process.
         console.log("Sync logs:", logs);
       } catch (err) {
         console.error("sync error", err);
-        await setJobState(client, dbName, "error");
+        await setJobState(dbName, "error");
       }
     })();
 

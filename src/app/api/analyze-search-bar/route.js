@@ -1,5 +1,11 @@
 import puppeteer from 'puppeteer';
-import { OpenAI } from 'openai';
+import { GoogleGenAI } from '@google/genai';
+
+// Initialize Google AI if you have the API key
+const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+const ai = GOOGLE_AI_API_KEY && GOOGLE_AI_API_KEY !== "YOUR_GOOGLE_AI_KEY" 
+  ? new GoogleGenAI({apiKey: GOOGLE_AI_API_KEY})
+  : null;
 
 let browser = null;
 
@@ -104,24 +110,47 @@ async function findSearchBarSelectors(url) {
   }
 
   async function determineOptimalSelector(pageInfo) {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'Identify the best CSS selector to target the search bar on the page. i want you to aim for the search container. answer only with a CSS selector. Do not include any other text or explanation. The input is a JSON object containing the page information. if you cannot find a selector, return "no selector found".'
-        },
-        { role: 'user', content: JSON.stringify(pageInfo) }
-      ],
-      temperature: 0.2,
- 
-    });
+    // Check if Gemini AI is available
+    if (!ai) {
+      console.warn("Google AI client not initialized - falling back to basic selector detection");
+      return "no selector found";
+    }
+
     try {
-      return completion.choices[0].message.content;
-    } catch (e) {
-      console.error('AI JSON parse error:', e);
-      return { error: 'Invalid JSON', raw: completion.choices[0].message.content };
+      const messages = [
+        {
+          role: 'user',
+          parts: [{
+            text: `Identify the best CSS selector to target the search bar on the page. I want you to aim for the search container. Answer only with a CSS selector. Do not include any other text or explanation. The input is a JSON object containing the page information. If you cannot find a selector, return "no selector found".
+
+Page Information: ${JSON.stringify(pageInfo)}`
+          }]
+        }
+      ];
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-lite",
+        contents: messages,
+      });
+
+      // Handle response structure
+      let result;
+      if (response.candidates && Array.isArray(response.candidates) && response.candidates.length > 0) {
+        const candidate = response.candidates[0];
+        if (candidate && candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          result = candidate.content.parts[0].text;
+        }
+      } else if (response.response && response.response.candidates && Array.isArray(response.response.candidates) && response.response.candidates.length > 0) {
+        const candidate = response.response.candidates[0];
+        if (candidate && candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          result = candidate.content.parts[0].text;
+        }
+      }
+
+      return result?.trim() || "no selector found";
+    } catch (error) {
+      console.error('Gemini selector analysis failed:', error);
+      return "no selector found";
     }
   }
 

@@ -37,6 +37,15 @@ $image_height   = get_option( 'semantix_image_height', '240' );
 $card_bg        = get_option( 'semantix_card_bg_color', '#ffffff' );
 $title_color    = get_option( 'semantix_title_color', '#1a1a1a' );
 $price_color    = get_option( 'semantix_price_color', '#2563eb' );
+$grid_gap       = get_option( 'semantix_grid_gap', '2' );
+$card_border_radius = get_option( 'semantix_card_border_radius', '16' );
+$image_fit      = get_option( 'semantix_image_fit', 'contain' );
+
+// "Add to Cart" button settings
+$enable_add_to_cart = get_option('semantix_enable_add_to_cart', 1);
+$add_to_cart_text = get_option('semantix_add_to_cart_text', 'Add to Cart');
+$add_to_cart_bg = get_option('semantix_add_to_cart_bg', '#2563eb');
+$add_to_cart_color = get_option('semantix_add_to_cart_color', '#ffffff');
 
 // Get API settings
 $api_endpoint   = get_option( 'semantix_search_api_endpoint', 'https://dashboard-server-ae00.onrender.com/search' );
@@ -47,13 +56,15 @@ $c2             = get_option( 'semantix_collection2', 'queries' );
 
 // Prepare data for JavaScript
 $js_data = [
-    'nonce'        => wp_create_nonce( 'semantix_custom_search_nonce' ),
+    'nonce'        => wp_create_nonce( 'semantix_add_to_cart_nonce' ),
     'apiEndpoint'  => $api_endpoint,
     'apiKey'       => $api_key,
     'dbName'       => $dbname,
     'collection1'  => $c1,
     'collection2'  => $c2,
     'searchQuery'  => $search_query,
+    'enableAddToCart' => (bool) $enable_add_to_cart,
+    'addToCartText' => $add_to_cart_text
 ];
 
 get_header(); // Load the site header ?>
@@ -76,32 +87,38 @@ get_header(); // Load the site header ?>
         padding: 2rem 1rem;
     }
 
-    /* Page header - MODEST AND REFINED */
-    .semantix-page-header {
-        text-align: center;
-        margin-bottom: 2.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid #f0f0f0;
+    /* Hebrew header like search-custom.php */
+    .semantix-header {
+        direction: rtl;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding: 20px 0 15px 0;
+        border-bottom: 1px solid #eee;
     }
 
-    .semantix-page-title {
-        font-size: 1.25rem;
-        font-weight: 400;
-        color: #6b7280;
+    .semantix-search-title {
+        font-size: 24px;
         margin: 0;
+        color: inherit;
+        font-family: inherit;
     }
 
-    .semantix-page-title span {
-        font-weight: 600;
-        color: #1f2937;
-        margin-left: 0.5ch;
+    .semantix-powered-logo {
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+
+    .semantix-powered-logo:hover {
+        opacity: 1;
     }
 
     /* Results grid */
     #semantix-custom-results-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(<?php echo esc_attr( max(280, $card_width) ); ?>px, 1fr));
-        gap: 2rem;
+        gap: <?php echo esc_attr( $grid_gap ); ?>rem;
         justify-items: center;
         margin-top: 2rem;
     }
@@ -112,7 +129,7 @@ get_header(); // Load the site header ?>
         max-width: <?php echo esc_attr( $card_width ); ?>px;
         min-height: <?php echo esc_attr( $card_height ); ?>px;
         background: <?php echo esc_attr( $card_bg ); ?>;
-        border-radius: 16px; /* Slightly softer radius */
+        border-radius: <?php echo esc_attr( $card_border_radius ); ?>px;
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -138,7 +155,7 @@ get_header(); // Load the site header ?>
     }
 
     .semantix-product-image {
-        width: 100%; height: 100%; object-fit: contain; transition: transform 0.3s ease;
+        width: 100%; height: 100%; object-fit: <?php echo esc_attr( $image_fit ); ?>; transition: transform 0.3s ease;
     }
     .semantix-product-card:hover .semantix-product-image { transform: scale(1.05); }
     
@@ -168,7 +185,25 @@ get_header(); // Load the site header ?>
         font-weight: <?php echo esc_attr( $price_font_weight ); ?>;
         color: <?php echo esc_attr( $price_color ); ?>;
         font-size: 1.2rem;
-        margin: 0.5rem 0 0;
+        margin: 0.5rem 0 1rem;
+    }
+    
+    .semantix-add-to-cart-button {
+        background-color: <?php echo esc_attr($add_to_cart_bg); ?>;
+        color: <?php echo esc_attr($add_to_cart_color); ?>;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.2s;
+        margin-top: auto; /* Push to the bottom */
+    }
+
+    .semantix-add-to-cart-button:hover {
+        opacity: 0.9;
+        transform: scale(1.03);
     }
 
     /* Product Explanation - WITH AI STARS ICON */
@@ -194,11 +229,29 @@ get_header(); // Load the site header ?>
         color: #60a5fa;
     }
 
-    /* Badges */
+    /* Perfect Match Badge */
     .semantix-perfect-match-badge {
-        position: absolute; top: 12px; left: 12px; background: #1a1a1a; color: white;
-        padding: 4px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.05em; z-index: 2;
+        position: absolute; 
+        top: 12px; 
+        left: 12px; 
+        background: #1a1a1a; 
+        color: white;
+        padding: 6px 12px; 
+        border-radius: 12px; 
+        font-size: 0.75rem; 
+        font-weight: 700;
+        text-transform: uppercase; 
+        letter-spacing: 0.05em; 
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .semantix-perfect-match-badge::before {
+        content: '✨';
+        font-size: 0.9rem;
     }
     
     /* Loading, Empty, and Error States */
@@ -217,14 +270,14 @@ get_header(); // Load the site header ?>
 <div class="semantix-results-page-wrapper">
     <div id="semantix-custom-results-container">
         <?php if ($show_header_title) : ?>
-        <header class="semantix-page-header">
-            <h1 class="semantix-page-title">
-                <?php
-                /* translators: %s: search query. */
-                printf( esc_html__( 'Search Results for: %s', 'semantix-ai-search' ), '<span>' . esc_html( $search_query ) . '</span>' );
-                ?>
+        <div class="semantix-header">
+            <h1 class="semantix-search-title" id="semantix-search-title">
+                <?php echo esc_html( $search_query ? "תוצאות חיפוש עבור \"$search_query\"" : "תוצאות חיפוש" ); ?>
             </h1>
-        </header>
+            <a href="https://semantix.co.il" target="_blank" class="semantix-powered-logo">
+                <img src="https://semantix-ai.com/powered.png" alt="Semantix logo" width="120">
+            </a>
+        </div>
         <?php endif; ?>
 
         <div id="semantix-custom-results-grid">
@@ -233,99 +286,6 @@ get_header(); // Load the site header ?>
     </div>
 </div>
 
-<script id="semantix-custom-template-js">
-document.addEventListener('DOMContentLoaded', () => {
-    const SEMANTIX_DATA = <?php echo wp_json_encode( $js_data ); ?>;
-    const resultsGrid = document.getElementById('semantix-custom-results-grid');
-
-    async function fetchResults() {
-        if (!SEMANTIX_DATA.searchQuery || !SEMANTIX_DATA.apiEndpoint) {
-            showErrorState('Search configuration is incomplete.');
-            return;
-        }
-
-        try {
-            const response = await fetch(SEMANTIX_DATA.apiEndpoint, { 
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Accept': 'application/json',
-                    ...(SEMANTIX_DATA.apiKey && {'x-api-key': SEMANTIX_DATA.apiKey}) 
-                },
-                body: JSON.stringify({
-                    query: SEMANTIX_DATA.searchQuery,
-                    dbName: SEMANTIX_DATA.dbName,
-                    collectionName1: SEMANTIX_DATA.collection1,
-                    collectionName2: SEMANTIX_DATA.collection2
-                }),
-                mode: 'cors'
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API Error: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            const products = Array.isArray(data) ? data : (data.products || (data.data && Array.isArray(data.data)) || []);
-            
-            renderProducts(products);
-
-        } catch (error) {
-            console.error('Semantix Search Fetch Error:', error);
-            showErrorState(error.message);
-        }
-    }
-
-    function renderProducts(products) {
-        resultsGrid.innerHTML = '';
-        
-        if (!products || products.length === 0) {
-            showEmptyState();
-            return;
-        }
-
-        products.forEach(product => {
-            const card = document.createElement('div');
-            card.className = 'semantix-product-card';
-
-            const productLink = product.url || `/?p=${product.id}`;
-            const productImage = product.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            const productPrice = product.price ? `${product.price} ₪` : '';
-            const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
-            const productExplanation = product.explanation ? `<div class="semantix-product-explanation">${product.explanation}</div>` : '';
-
-            card.innerHTML = `
-                <a href="${productLink}" class="semantix-product-link" aria-label="View ${product.name || 'product'}">
-                    <div class="semantix-product-image-container">
-                        ${perfectMatchBadge}
-                        <img src="${productImage}" alt="${product.name || 'Product Image'}" class="semantix-product-image" loading="lazy">
-                    </div>
-                </a>
-                <div class="semantix-product-content">
-                    <h2 class="semantix-product-title">
-                        <a href="${productLink}">${product.name || 'Untitled Product'}</a>
-                    </h2>
-                    ${productExplanation}
-                    ${productPrice ? `<div class="semantix-product-price">${productPrice}</div>` : ''}
-                </div>
-            `;
-            
-            resultsGrid.appendChild(card);
-        });
-    }
-
-    function showEmptyState() {
-        resultsGrid.innerHTML = `<div class="semantix-empty-state"><h3>No products found</h3><p>We couldn't find any products matching your search. Try different keywords.</p></div>`;
-    }
-
-    function showErrorState(message) {
-        resultsGrid.innerHTML = `<div class="semantix-error-state"><h3>Something went wrong</h3><p>${message}</p></div>`;
-    }
-
-    fetchResults();
-});
-</script>
 <script id="semantix-custom-template-js">
 document.addEventListener('DOMContentLoaded', () => {
     const SEMANTIX_DATA = <?php echo wp_json_encode( $js_data ); ?>;
@@ -442,6 +402,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const productPrice = product.price ? `${product.price} ₪` : '';
             const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
             const productExplanation = product.explanation ? `<div class="semantix-product-explanation">${product.explanation}</div>` : '';
+            const addToCartButton = SEMANTIX_DATA.enableAddToCart ? `
+                <button class="semantix-add-to-cart-button" data-product-id="${product.id}">
+                    ${SEMANTIX_DATA.addToCartText}
+                </button>
+            ` : '';
 
             card.innerHTML = `
                 <a href="${productLink}" class="semantix-product-link" aria-label="View ${product.name || 'product'}">
@@ -456,11 +421,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     </h2>
                     ${productExplanation}
                     ${productPrice ? `<div class="semantix-product-price">${productPrice}</div>` : ''}
+                    ${addToCartButton}
                 </div>
             `;
             
             resultsGrid.appendChild(card);
         });
+
+        // Add event listeners for "Add to Cart" buttons
+        if (SEMANTIX_DATA.enableAddToCart) {
+            document.querySelectorAll('.semantix-add-to-cart-button').forEach(button => {
+                button.addEventListener('click', handleAddToCart);
+            });
+        }
     }
 
     function showEmptyState() {
@@ -483,5 +456,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchResults();
 });
+
+async function handleAddToCart(event) {
+    const button = event.target;
+    const productId = button.dataset.productId;
+    
+    button.textContent = 'Adding...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch('/wp-admin/admin-ajax.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                action: 'semantix_add_to_cart',
+                product_id: productId,
+                nonce: SEMANTIX_DATA.nonce
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok.');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            button.textContent = 'Added!';
+            // Optionally, update the cart icon/count here
+        } else {
+            button.textContent = 'Failed';
+        }
+    } catch (error) {
+        console.error('Add to Cart error:', error);
+        button.textContent = 'Error';
+    }
+}
 </script>
 <?php get_footer(); // Load the site footer ?>

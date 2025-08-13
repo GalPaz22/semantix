@@ -1345,6 +1345,10 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
           : onboarding.credentials.type
       : ""
   );
+  const [aiExplanationMode, setAiExplanationMode] = useState(
+    onboarding?.explain ?? false
+  );
+  const [context, setContext] = useState(onboarding?.context || "");
   const [platform] = useState(onboarding?.platform || "shopify");
   const [cred, setCred] = useState(
     platform === "shopify"
@@ -1367,10 +1371,14 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [resyncing, setResyncing] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner] = useState("");
   const canDownload = true;
+
+  const syncState = useSyncStatus(dbName, resyncing || reprocessing);
 
   // new analyzer state for CSS selector analysis
   const [analyzeUrl, setAnalyzeUrl] = useState("");
@@ -1430,6 +1438,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         categories: categories.split(",").map(s => s.trim()).filter(Boolean),
         type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
         syncMode: onboarding?.syncMode || "text",
+        explain: aiExplanationMode,
+        context: context,
         ...platformCredentials // Include credentials at top level for API compatibility
       };
 
@@ -1461,6 +1471,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       setTimeout(() => setMsg(""), 5000);
     }
   }
+
+  useEffect(() => {
+    if (syncState === 'running') {
+      setMsg("🔄 Sync in progress...");
+    } else if (syncState === 'done') {
+      setMsg("✅ Sync complete!");
+    } else if (syncState === 'error') {
+      setMsg("❌ Sync failed.");
+    }
+  }, [syncState]);
 
   // Save handler – update settings using the data from state.
   async function handleSave(e) {
@@ -1507,6 +1527,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         categories: categoriesArray,
         type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
         syncMode: onboarding?.syncMode || "text",
+        explain: aiExplanationMode,
+        context: context,
         ...platformCredentials
       };
 
@@ -1532,6 +1554,52 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       setTimeout(() => setMsg(""), 2000);
     }
   }
+
+  const handleReprocess = async () => {
+    if (!dbName) {
+      setMsg("❌ Store name is required to reprocess products.");
+      return;
+    }
+    setReprocessing(true);
+    setMsg("");
+    try {
+      const res = await fetch('/api/reprocess-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dbName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start reprocessing.");
+      setMsg("✅ Began reprocessing all products.");
+    } catch (err) {
+      setMsg(`❌ ${err.message}`);
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
+  const handleStopReprocess = async () => {
+    if (!dbName) {
+      setMsg("❌ Store name is required to stop reprocessing.");
+      return;
+    }
+    setStopping(true);
+    setMsg("");
+    try {
+      const res = await fetch('/api/reprocess-products/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dbName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to stop reprocessing.");
+      setMsg("🛑 Stopped reprocessing.");
+    } catch (err) {
+      setMsg(`❌ ${err.message}`);
+    } finally {
+      setStopping(false);
+    }
+  };
 
   // function to run analysis
   const runSelectorAnalysis = async () => {
@@ -1616,6 +1684,15 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
           </p>
         </div>
         
+        {syncState === 'running' && (
+          <div className="p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Processing Logs</h3>
+            <div className="h-64 bg-gray-900 text-white font-mono text-sm p-4 rounded-lg overflow-y-auto">
+              <p>Logs will appear here...</p>
+            </div>
+          </div>
+        )}
+
         <div className="p-6">
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -1665,6 +1742,48 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </p>
               </div>
               
+              <div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      מצב הסבר AI
+                    </label>
+                    <p className="text-sm text-gray-500">
+                      כאשר מופעל, המערכת תספק הסברים מפורטים על תוצאות החיפוש
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiExplanationMode(!aiExplanationMode)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${
+                      aiExplanationMode ? 'bg-indigo-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        aiExplanationMode ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  הקשר (מידע על החנות)
+                </label>
+                <textarea
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+                  value={context}
+                  onChange={e => setContext(e.target.value)}
+                  placeholder="לדוגמה: חנות יין המתמחה ביינות מאיטליה."
+                  rows="3"
+                ></textarea>
+                <p className="mt-1 text-sm text-gray-500">
+                  ספק מידע נוסף על החנות שלך כדי לשפר את תוצאות החיפוש.
+                </p>
+              </div>
+
               {platform === "shopify" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1794,6 +1913,22 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </div>
               </div>
               
+              <div>
+                <span className="block text-sm font-medium text-gray-700 mb-2">מצב הסבר AI</span>
+                <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                  <div className="flex items-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      aiExplanationMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {aiExplanationMode ? '✓ מופעל' : '✗ כבוי'}
+                    </span>
+                    <span className="mr-2 text-sm text-gray-600">
+                      {aiExplanationMode ? 'המערכת תספק הסברים מפורטים' : 'המערכת תפעל במצב רגיל'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
               {platform === "shopify" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1862,6 +1997,24 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     </>
                   )}
                 </button>
+                {dbName && (
+                  <>
+                    <button 
+                      onClick={handleReprocess} 
+                      disabled={reprocessing || stopping}
+                      className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {reprocessing ? 'מעבד מחדש...' : 'עבד מחדש את כל המוצרים'}
+                    </button>
+                    <button 
+                      onClick={handleStopReprocess} 
+                      disabled={stopping || reprocessing}
+                      className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {stopping ? 'עוצר...' : 'הפסק עיבוד מחדש'}
+                    </button>
+                  </>
+                )}
                 <button 
                   onClick={handleDownload} 
                   className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm flex items-center"
@@ -2577,3 +2730,26 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+function useSyncStatus(dbName, enabled) {
+  const [state, set] = useState("idle"); // idle | running | done | error
+  useEffect(() => {
+    if (!enabled || !dbName) return;
+    let t;
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/sync-status?dbName=${encodeURIComponent(dbName)}`);
+        const j = await r.json();
+        const nxt = j.state ?? "done";
+        set(nxt);
+        if (nxt === "running" || nxt === "reprocessing") t = setTimeout(poll, 3_000);
+      } catch {
+        t = setTimeout(poll, 8_000);
+      }
+    };
+    poll();
+    return () => clearTimeout(t);
+  }, [dbName, enabled]);
+  return state;
+}
+

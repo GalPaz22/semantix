@@ -28,6 +28,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // For input display
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, processed, pending
@@ -35,22 +36,56 @@ export default function ProductsPanel({ session, onboarding }) {
   const [editingProduct, setEditingProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [filtering, setFiltering] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    processed: 0,
+    pending: 0,
+    outOfStock: 0,
+    categories: 0,
+    avgPrice: 0
+  });
   
   const itemsPerPage = 20;
   const dbName = onboarding?.credentials?.dbName || '';
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   // Fetch products from the database
-  const fetchProducts = async () => {
+  const fetchProducts = async (isFilterChange = false) => {
     if (!dbName) return;
     
-    setLoading(true);
+    if (isFilterChange) {
+      setFiltering(true);
+    } else {
+      setLoading(true);
+    }
     setError('');
     
     try {
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dbName })
+        body: JSON.stringify({ 
+          dbName,
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchTerm,
+          category: selectedCategory,
+          type: selectedType,
+          status: statusFilter
+        })
       });
       
       if (!response.ok) {
@@ -59,58 +94,50 @@ export default function ProductsPanel({ session, onboarding }) {
       
       const data = await response.json();
       setProducts(data.products || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalProducts(data.total || 0);
+      setCategories(data.categories || []);
+      setTypes(data.types || []);
+      setStats(data.stats || {
+        total: 0,
+        processed: 0,
+        pending: 0,
+        outOfStock: 0,
+        categories: 0,
+        avgPrice: 0
+      });
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('Failed to load products. Please try again.');
     } finally {
       setLoading(false);
+      setFiltering(false);
     }
   };
 
-  // Initial load
+  // Load products when dbName changes (initial load)
   useEffect(() => {
-    fetchProducts();
+    if (dbName) {
+      fetchProducts(false);
+    }
   }, [dbName]);
 
-  // Filter products based on search and filters
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = !searchTerm || 
-      product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description1?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = !selectedCategory || 
-      product.category?.toLowerCase() === selectedCategory.toLowerCase();
-    
-    const matchesType = !selectedType || 
-      (Array.isArray(product.type) && product.type.some(t => t.toLowerCase() === selectedType.toLowerCase()));
-    
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'processed' && product.embedding && product.description1) ||
-      (statusFilter === 'pending' && (!product.embedding || !product.description1) && product.stockStatus !== 'outofstock') ||
-      (statusFilter === 'outofstock' && product.stockStatus === 'outofstock');
-    
-    return matchesSearch && matchesCategory && matchesType && matchesStatus;
-  });
+  // Load products when page changes
+  useEffect(() => {
+    if (dbName && currentPage > 1) {
+      fetchProducts(true);
+    }
+  }, [currentPage]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  // Load products when filters change
+  useEffect(() => {
+    if (dbName) {
+      setCurrentPage(1);
+      fetchProducts(true);
+    }
+  }, [searchTerm, selectedCategory, selectedType, statusFilter]);
 
-  // Get unique categories and types for filters
-  const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
-  const types = [...new Set(products.flatMap(p => Array.isArray(p.type) ? p.type : [p.type]).filter(Boolean))];
 
-  // Calculate statistics
-  const stats = {
-    total: products.length,
-    processed: products.filter(p => p.embedding && p.description1).length,
-    pending: products.filter(p => (!p.embedding || !p.description1) && p.stockStatus !== 'outofstock').length,
-    outOfStock: products.filter(p => p.stockStatus === 'outofstock').length,
-    categories: categories.length,
-    avgPrice: products.length > 0 ? 
-      (products.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0) / products.filter(p => p.price).length).toFixed(2) : 0
-  };
 
   // Handle product edit
   const handleEdit = (product) => {
@@ -242,8 +269,8 @@ export default function ProductsPanel({ session, onboarding }) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search products..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
@@ -320,10 +347,18 @@ export default function ProductsPanel({ session, onboarding }) {
       )}
 
       {/* Products Table */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 relative">
+        {filtering && (
+          <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex items-center space-x-2 text-indigo-600">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              <span>Filtering products...</span>
+            </div>
+          </div>
+        )}
         <div className="border-b border-gray-100 p-6">
           <h2 className="text-lg font-semibold text-gray-800">
-            Products ({filteredProducts.length})
+            Products ({totalProducts})
           </h2>
         </div>
         
@@ -352,7 +387,7 @@ export default function ProductsPanel({ session, onboarding }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginatedProducts.map((product) => (
+              {products.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -450,7 +485,7 @@ export default function ProductsPanel({ session, onboarding }) {
           <div className="bg-gray-50 px-6 py-4 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredProducts.length)} of {filteredProducts.length} products
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalProducts)} of {totalProducts} products
               </div>
               <div className="flex items-center space-x-2">
                 <button

@@ -38,7 +38,7 @@ export default function OnboardingPage() {
   /* ---------- initial values from session (may be empty) ---------- */
   const sCreds = session?.user?.credentials ?? {};
   const sDB = session?.user?.dbName ?? "";
-  const sCats = (sCreds.categories ?? []).join(", ");
+  const sCats = (sCreds.categories && Array.isArray(sCreds.categories)) ? sCreds.categories.join(", ") : "";
   const sType = Array.isArray(sCreds.type) ? sCreds.type.join(', ') : (sCreds.type ?? ""); // Ensure sType is a string
   const sContext = session?.user?.context ?? "";
   const sPreset = session?.user?.preset ?? "";
@@ -96,6 +96,7 @@ export default function OnboardingPage() {
   const [categories, setCategories] = useState(sCats);
   const [typeFilter, setTypeFilter] = useState(sType);
   const [dbName, setDbName] = useState(sDB);
+  const [context, setContext] = useState(sContext);
 
   /* ---------- when session lacks creds → fetch /api/get-onboarding ---------- */
   const [loadedOnboarding, setLoadedOnboarding] = useState(!!sDB || !!sCreds.platform);
@@ -122,6 +123,7 @@ export default function OnboardingPage() {
         const fetchedType = c.type ?? "";
         setTypeFilter(Array.isArray(fetchedType) ? fetchedType.join(', ') : fetchedType);
         setDbName(j.dbName ?? "");
+        setContext(j.onboarding.context ?? "");
       } catch (e) {
         console.warn("[onboarding] unable to load previous creds", e);
       } finally {
@@ -145,6 +147,8 @@ export default function OnboardingPage() {
   const [totalProducts, setTotalProducts] = useState(0);
   const [processedCount, setProcessedCount] = useState(0);
   const [processedProducts, setProcessedProducts] = useState(new Set());
+  const [logs, setLogs] = useState([]);
+  const logsContainerRef = useRef(null);
   const lastProcessedCount = useRef(0);
   const celebrationTimer = useRef(null);
   const lastCelebratedId = useRef(null);
@@ -249,6 +253,37 @@ export default function OnboardingPage() {
     };
   }, [syncState, dbName]);
 
+  // Poll for logs
+  useEffect(() => {
+    if (syncState !== "running" || !dbName) return;
+
+    let t;
+    const pollLogs = async () => {
+      try {
+        const r = await fetch(`/api/get-logs?dbName=${encodeURIComponent(dbName)}`);
+        const j = await r.json();
+        if (j.logs) {
+          setLogs(j.logs);
+        }
+      } catch (error) {
+        console.error('Error polling logs:', error);
+      } finally {
+        t = setTimeout(pollLogs, 2000); // Poll logs every 2 seconds
+      }
+    };
+
+    pollLogs();
+
+    return () => clearTimeout(t);
+  }, [syncState, dbName]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   // Reset progress when starting a new sync
   useEffect(() => {
     if (syncState === "running") {
@@ -301,7 +336,7 @@ export default function OnboardingPage() {
           dbName,
           categories: categories.split(",").map(s => s.trim()).filter(Boolean),
           type: typeFilter.split(",").map(s => s.trim()).filter(Boolean),
-          context: selectedPreset,
+          context,
           ...form
         })
       });
@@ -649,6 +684,18 @@ export default function OnboardingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
+          {processing && (
+            <div className="p-8 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Processing Logs</h3>
+              <div 
+                ref={logsContainerRef} 
+                className="h-64 bg-gray-900 text-white font-mono text-sm p-4 rounded-lg overflow-y-auto"
+              >
+                {logs.join('\n')}
+              </div>
+            </div>
+          )}
+          
           <div className={`${colors.main} py-4 px-6`}>
             <div className="flex items-center text-white">
               {platform === "shopify" ? (
@@ -884,6 +931,28 @@ export default function OnboardingPage() {
                   colors={colors}
                   hint="תן לחנות שלך שם ייחודי לזיהוי במערכת שלנו"
                 />
+
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className="flex items-center">
+                      <span>הקשר</span>
+                      <div className="relative ml-2 group">
+                        <div className="cursor-help w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300">?</div>
+                        <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-3 bg-white rounded-lg shadow-lg border border-gray-200 text-sm text-gray-600 z-10">
+                          ספק מידע נוסף על החנות שלך, כגון נושא החנות או מידע חשוב אחר שהמודל צריך לדעת.
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                  <textarea
+                    value={context}
+                    disabled={processing}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="הזן הקשר, למשל: חנות יין עם התמחות ביינות מאיטליה."
+                    className={`block w-full pl-4 pr-4 py-3 border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent rounded-lg transition-colors bg-white`}
+                    rows="3"
+                  />
+                </div>
               </div>
               
               {/* Action Buttons */}

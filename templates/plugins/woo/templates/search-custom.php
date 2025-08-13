@@ -1,6 +1,6 @@
 <?php
 /**
- * Template Name: Semantix AI – Native WooCommerce Search
+ * Template Name: Semantix AI – Native WooCommerce Search (Preserve Original Design)
  * File: search-custom.php
  * Place this file in: /wp-content/plugins/semantix-ai-search/templates/search-custom.php
  */
@@ -8,8 +8,9 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // API settings
-$semantix_api_key = get_option( 'semantix_api_key', '' );
-$ajax_url = admin_url('admin-ajax.php');
+$semantix_search_host = rtrim( get_option( 'semantix_api_endpoint', '' ), '/' );
+$semantix_api_key     = get_option( 'semantix_api_key', '' );
+$ajax_url   = admin_url('admin-ajax.php');
 $ajax_nonce = wp_create_nonce('semantix_nonce');
 
 get_header();
@@ -19,7 +20,6 @@ get_header();
 /* ===== MINIMAL STYLING - LET WOOCOMMERCE HANDLE EVERYTHING ===== */
 
 .semantix-wrapper {
-    /* Use theme's container styling */
     max-width: inherit;
     margin: 0;
     padding: 0;
@@ -41,11 +41,13 @@ get_header();
     margin: 0;
     color: inherit;
     font-family: inherit;
+    padding-right: 15px;
 }
 
 .semantix-powered-logo {
     opacity: 0.7;
     transition: opacity 0.3s ease;
+    padding-left: 15px;
 }
 
 .semantix-powered-logo:hover {
@@ -54,7 +56,6 @@ get_header();
 
 /* ===== CONTAINER - NO OVERRIDES ===== */
 .semantix-results-container {
-    /* Let WooCommerce and theme handle ALL styling */
     position: relative;
 }
 
@@ -95,27 +96,22 @@ get_header();
         text-align: center;
         gap: 15px;
     }
-    
     .semantix-search-title {
         font-size: 20px;
     }
 }
 </style>
 
-<!-- Use theme's content structure -->
 <div class="semantix-wrapper">
     <div class="semantix-header">
         <h1 class="semantix-search-title" id="semantix-search-title">תוצאות חיפוש</h1>
-        <a href="https://semantix.co.il" target="_blank" class="semantix-powered-logo">
-            <img src="https://semantix-ai.com/powered.png" alt="Semantix logo" width="120">
+        <a href="https://semantix.co.il" target="_blank" class="semantix-powered-logo" rel="noopener">
+            <img src="https://semantix-ai.com/powered.png" alt="Semantix logo" width="120" loading="lazy">
         </a>
     </div>
 
-    <!-- Let WooCommerce handle ALL product styling -->
     <div class="woocommerce">
-        <div id="semantix-results-container" class="semantix-results-container">
-            <!-- Native WooCommerce products will be inserted here -->
-        </div>
+        <div id="semantix-results-container" class="semantix-results-container"></div>
     </div>
 </div>
 
@@ -124,7 +120,7 @@ get_header();
     'use strict';
     
     // Configuration
-    const SEMANTIX_API_SEARCH_ENDPOINT = 'https://dashboard-server-ae00.onrender.com/search';
+    const SEMANTIX_API_SEARCH_ENDPOINT = <?php echo wp_json_encode( rtrim($semantix_search_host, '/') . '/search' ); ?>;
     const SEMANTIX_API_KEY = <?php echo wp_json_encode( $semantix_api_key ); ?>;
     const WP_AJAX_URL = <?php echo wp_json_encode( $ajax_url ); ?>;
     const WP_AJAX_NONCE = <?php echo wp_json_encode( $ajax_nonce ); ?>;
@@ -150,16 +146,9 @@ get_header();
         searchTitleEl.textContent = `תוצאות חיפוש עבור "${searchTerm}"`;
     }
 
-    // Check for cached results on page load
-    const cachedResults = getFromCache(getCacheKey(searchTerm));
-    if (cachedResults) {
-        console.log('Loading results from localStorage on page load');
-        renderProducts(cachedResults.semantixProducts, cachedResults.renderedHtml);
-    } else {
-        // Start search if no cached results
-        showLoading();
-        executeSearch();
-    }
+    // Start search
+    showLoading();
+    executeSearch();
 
     // Helper functions
     function showLoading() {
@@ -178,65 +167,85 @@ get_header();
     }
 
     function getCacheKey(term) {
-        return `semantix_local_search_${encodeURIComponent(term)}`;
+        return `semantix_native_${encodeURIComponent(term)}`;
     }
 
     function getFromCache(key) {
         try {
-            const cached = localStorage.getItem(key);
+            const cached = sessionStorage.getItem(key);
             if (cached) {
                 const { timestamp, data } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_DURATION) {
                     return data;
                 }
-                localStorage.removeItem(key);
+                sessionStorage.removeItem(key);
             }
         } catch (e) {
-            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
         }
         return null;
     }
 
     function saveToCache(key, data) {
         try {
-            localStorage.setItem(key, JSON.stringify({
+            sessionStorage.setItem(key, JSON.stringify({
                 timestamp: Date.now(),
                 data: data
             }));
         } catch (e) {
-            console.warn('Failed to save to localStorage:', e);
+            console.warn('Failed to save to cache:', e);
         }
+    }
+
+    // --- make theme CSS apply like native search/archive ---
+    function applyWooBodyClasses() {
+        const cls = [
+            'archive','search','woocommerce','woocommerce-page',
+            'post-type-archive','post-type-archive-product'
+        ];
+        cls.forEach(c => document.body.classList.add(c));
+    }
+
+    // Wrap raw <li class="product"> items with expected WooCommerce structure if needed
+    function ensureNativeWrappers(html) {
+        const hasProductsWrapper = /<ul[^>]*class="[^"]*\bproducts\b[^"]*"/i.test(html);
+        if (hasProductsWrapper) return html;
+
+        const items = html.match(/<li[^>]*class="[^"]*\bproduct\b[^"]*"[\s\S]*?<\/li>/gi) || [];
+        if (!items.length) return html;
+
+        const columns = 4; // adjust to your theme if needed
+        const wrapped = `
+            <div class="semantix-native-archive archive woocommerce woocommerce-page">
+              <div class="woocommerce-notices-wrapper"></div>
+              <ul class="products columns-${columns}">
+                ${items.join('\n')}
+              </ul>
+            </div>
+        `;
+        return wrapped;
     }
 
     // Fetch products from Semantix API
     async function fetchSemantixProducts() {
-        const cacheKey = getCacheKey(`semantix_${searchTerm}`);
-        const cached = getFromCache(cacheKey);
-        
-        if (cached) {
-            console.log('Loading Semantix results from localStorage');
-            return cached;
-        }
-
         try {
-            const response = await fetch(SEMANTIX_API_SEARCH_ENDPOINT, {
+            // use your endpoint if configured: SEMANTIX_API_SEARCH_ENDPOINT
+            const response = await fetch('https://dashboard-server-ae00.onrender.com/search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(SEMANTIX_API_KEY ? { 'x-api-key': SEMANTIX_API_KEY } : {})
                 },
-                body: JSON.stringify({ query: searchTerm, useImages: true })
+                body: JSON.stringify({ query: searchTerm, useImages: true }),
+                credentials: 'same-origin'
             });
 
             if (!response.ok) {
                 throw new Error(`Semantix API Error: ${response.status}`);
             }
 
-            const data = await response.json();
-            const products = data.results || [];
-            
-            saveToCache(cacheKey, products);
-            return products;
+            const products = await response.json();
+            return Array.isArray(products) ? products : [];
 
         } catch (error) {
             console.error('Semantix API Error:', error);
@@ -244,298 +253,147 @@ get_header();
         }
     }
 
+    // Send POST to admin-ajax with fallback
+    async function requestRendered(formData) {
+        const res = await fetch(WP_AJAX_URL, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        });
+
+        const text = await res.text();
+        if (!res.ok || text.trim() === '0') {
+            throw new Error(`WP ${res.status} - ${text.trim()}`);
+        }
+        return text;
+    }
+
     // Get rendered WooCommerce products using NATIVE theme styling
     async function fetchRenderedWooCommerceProducts(semantixProducts) {
-        console.log('Semantix products received:', semantixProducts);
-        
-        const productIds = semantixProducts.map(p => p.id).filter(id => id && Number.isInteger(Number(id)) && Number(id) > 0);
-        console.log('Filtered product IDs:', productIds);
-        
+        const productIds = semantixProducts
+            .map(p => p.id)
+            .filter(id => id && Number.isInteger(Number(id)) && Number(id) > 0);
+
         const highlightMap = {};
+        const explanationMap = {}; // <-- NEW
+
         semantixProducts.forEach(p => {
-            if (p.id) highlightMap[p.id] = p.highlighted || false;
+            if (p.id) {
+                highlightMap[p.id]  = p.highlight || false;
+                if (p.explanation) {
+                    explanationMap[p.id] = String(p.explanation);
+                }
+            }
         });
-        console.log('Highlight map:', highlightMap);
 
         if (productIds.length === 0) {
-            return '';
+            showMessage('לא נמצאו מוצרים תואמים במערכת לאחר סינון.');
+            return;
         }
-
-        const cacheKey = getCacheKey(`rendered_${searchTerm}`);
-        const cached = getFromCache(cacheKey);
-        
-        if (cached) {
-            console.log('Loading rendered WooCommerce products from localStorage');
-            return cached;
-        }
-        
-        const formData = new FormData();
-        formData.append('action', 'semantix_render_products');
-        formData.append('product_ids', JSON.stringify(productIds));
-        formData.append('highlight_map', JSON.stringify(highlightMap));
-        formData.append('search_term', searchTerm);
-        formData.append('nonce', WP_AJAX_NONCE);
-
-        console.log('Sending AJAX request with:', {
-            product_ids: productIds,
-            highlight_map: highlightMap,
-            search_term: searchTerm
-        });
 
         try {
-            const response = await fetch(WP_AJAX_URL, {
-                method: 'POST',
-                body: formData
-            });
+            // try "native" action if present
+            const fdNative = new URLSearchParams();
+            fdNative.append('action', 'semantix_render_products_native');
+            fdNative.append('product_ids', JSON.stringify(productIds));
+            fdNative.append('highlight_map', JSON.stringify(highlightMap));
+            fdNative.append('explanation_map', JSON.stringify(explanationMap)); // <-- NEW
+            fdNative.append('search_term', searchTerm);
+            fdNative.append('render_mode', 'native');
+            fdNative.append('use_theme_templates', '1');
+            fdNative.append('nonce', WP_AJAX_NONCE);
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('AJAX Response Error:', errorText);
-                throw new Error(`AJAX Error: ${response.status}`);
+            let html;
+            try {
+                html = await requestRendered(fdNative);
+            } catch (e) {
+                // fallback to existing action
+                console.warn('Native action failed, falling back. Reason:', e.message);
+                const fdFallback = new URLSearchParams();
+                fdFallback.append('action', 'semantix_render_products');
+                fdFallback.append('product_ids', JSON.stringify(productIds));
+                fdFallback.append('highlight_map', JSON.stringify(highlightMap));
+                fdFallback.append('explanation_map', JSON.stringify(explanationMap)); // <-- NEW
+                fdFallback.append('search_term', searchTerm);
+                fdFallback.append('render_mode', 'native');
+                fdFallback.append('nonce', WP_AJAX_NONCE);
+                html = await requestRendered(fdFallback);
             }
 
-            const data = await response.json();
-            const renderedHtml = data.success ? data.data : '';
-            
-            saveToCache(cacheKey, renderedHtml);
-            return renderedHtml;
+            if (!html || !html.trim()) {
+                showMessage('לא ניתן היה להציג את המוצרים (תשובה ריקה מהשרת).');
+                return;
+            }
+
+            // Ensure theme styling context
+            applyWooBodyClasses();
+
+            const nativeHtml = ensureNativeWrappers(html);
+            resultsContainer.innerHTML = nativeHtml;
+
         } catch (error) {
             console.error('WordPress AJAX Error:', error);
             showMessage(`שגיאה בהצגת המוצרים: ${error.message}`);
-            return ''; // Return empty string on error
+        } finally {
+            initializeNativeWooCommerce();
         }
     }
 
     function initializeNativeWooCommerce() {
-        // Let WooCommerce initialize everything naturally
         if (typeof jQuery !== 'undefined') {
             const $ = jQuery;
-            
-            // Trigger standard WooCommerce events
             $(document.body).trigger('wc_fragment_refresh');
             $(document.body).trigger('wc_fragments_loaded');
             $(document.body).trigger('woocommerce_update_order_review');
-            
-            // Initialize variation forms if present
+
             $('.variations_form').each(function() {
-                $(this).wc_variation_form();
+                if (typeof $(this).wc_variation_form === 'function') {
+                    $(this).wc_variation_form();
+                }
             });
-            
-            // Re-initialize add to cart functionality
+
             $('.add_to_cart_button').off('click.wc-add-to-cart');
-            
-            console.log('Native WooCommerce functionality initialized');
         }
         
-        // Custom event for theme compatibility
         document.dispatchEvent(new CustomEvent('semantix_native_products_loaded', { 
             bubbles: true,
-            detail: { searchTerm: searchTerm }
+            detail: { searchTerm }
         }));
         
-        // Let any theme scripts re-initialize
         setTimeout(() => {
-            if (window.wc_add_to_cart_params && jQuery) {
+            if (window.wc_add_to_cart_params && typeof jQuery !== 'undefined') {
                 jQuery(document.body).trigger('init_add_to_cart_button');
             }
         }, 100);
     }
 
-    // Main search function
+    // Main execution - preserve native WooCommerce experience
     async function executeSearch() {
+        const cacheKey = getCacheKey(searchTerm);
+        const cached = getFromCache(cacheKey);
+
+        if (cached) {
+            console.log('Loading results from cache');
+            await fetchRenderedWooCommerceProducts(cached);
+            return;
+        }
+
         try {
             const semantixProducts = await fetchSemantixProducts();
-
             if (semantixProducts.length === 0) {
-                showMessage('לא נמצאו מוצרים התואמים את החיפוש שלך.');
+                showMessage('לא נמצאו תוצאות עבור החיפוש שלך.');
                 return;
             }
-
-            const renderedHtml = await fetchRenderedWooCommerceProducts(semantixProducts);
-
-            if (!renderedHtml.trim()) {
-                showMessage('לא נמצאו מוצרים התואמים את החיפוש שלך.');
-                return;
-            }
-            
-            renderProducts(semantixProducts, renderedHtml);
+            saveToCache(cacheKey, semantixProducts);
+            await fetchRenderedWooCommerceProducts(semantixProducts);
 
         } catch (error) {
             console.error('Search execution error:', error);
-            showMessage('אירעה שגיאה בביצוע החיפוש. נסה שנית מאוחר יותר.');
+            showMessage(`שגיאה בטעינת התוצאות: ${error.message}`);
         }
-    }
-
-    function renderProducts(semantixProducts, renderedHtml) {
-        resultsContainer.innerHTML = renderedHtml;
-
-        // Save the combined results to cache for faster page load next time
-        const combinedCacheKey = getCacheKey(searchTerm);
-        saveToCache(combinedCacheKey, { semantixProducts, renderedHtml });
-
-        // Your existing logic for Add to Cart, etc. can go here
-        // For example, re-initializing any JS that needs to run on the new content.
-        initializeNativeWooCommerce();
     }
 
 })();
 </script>
-<script id="semantix-custom-template-js">
-document.addEventListener('DOMContentLoaded', () => {
-    const SEMANTIX_DATA = <?php echo wp_json_encode( $js_data ); ?>;
-    const resultsGrid = document.getElementById('semantix-custom-results-grid');
-    
-    // Configuration constants
-    const C = {
-        cacheKey: 'semantix_search_cache',
-        maxItems: 50, // Maximum number of results to cache
-        expiryHours: 24 // Cache expires after 24 hours
-    };
 
-    const query = SEMANTIX_DATA.searchQuery;
-
-    function loadCache() {
-        try { 
-            const cached = JSON.parse(sessionStorage.getItem(C.cacheKey));
-            
-            // Check if cache is valid and for the same query
-            if (cached && cached.query === query && cached.ts) {
-                const now = Date.now();
-                const expiryTime = cached.ts + (C.expiryHours * 60 * 60 * 1000);
-                
-                if (now < expiryTime) {
-                    console.log(`Semantix: Loaded ${cached.results.length} cached results for "${query}"`);
-                    return cached.results;
-                }
-            }
-            return null;
-        }
-        catch { return null; }
-    }
-
-    function saveCache(items) {
-        try {
-            sessionStorage.setItem(C.cacheKey,
-                JSON.stringify({ 
-                    query, 
-                    results: items.slice(0, C.maxItems), 
-                    ts: Date.now() 
-                })
-            );
-            console.log(`Semantix: Cached ${items.length} results for "${query}"`);
-        }
-        catch (error) {
-            console.warn('Semantix: Failed to save cache:', error);
-        }
-    }
-
-    async function fetchResults() {
-        if (!query || !SEMANTIX_DATA.apiEndpoint) {
-            showErrorState('Search configuration is incomplete.');
-            return;
-        }
-
-        // Try to load from cache first
-        const cachedResults = loadCache();
-        if (cachedResults) {
-            renderProducts(cachedResults);
-            return;
-        }
-
-        // If no cached results, fetch from API
-        try {
-            const response = await fetch(SEMANTIX_DATA.apiEndpoint, { 
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Accept': 'application/json',
-                    ...(SEMANTIX_DATA.apiKey && {'x-api-key': SEMANTIX_DATA.apiKey}) 
-                },
-                body: JSON.stringify({
-                    query: query,
-                    dbName: SEMANTIX_DATA.dbName,
-                    collectionName1: SEMANTIX_DATA.collection1,
-                    collectionName2: SEMANTIX_DATA.collection2
-                }),
-                mode: 'cors'
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API Error: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            const products = Array.isArray(data) ? data : (data.products || (data.data && Array.isArray(data.data)) || []);
-            
-            // Save results to cache
-            saveCache(products);
-            
-            renderProducts(products);
-
-        } catch (error) {
-            console.error('Semantix Search Fetch Error:', error);
-            showErrorState(error.message);
-        }
-    }
-
-    function renderProducts(products) {
-        resultsGrid.innerHTML = '';
-        
-        if (!products || products.length === 0) {
-            showEmptyState();
-            return;
-        }
-
-        products.forEach(product => {
-            const card = document.createElement('div');
-            card.className = 'semantix-product-card';
-
-            const productLink = product.url || `/?p=${product.id}`;
-            const productImage = product.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            const productPrice = product.price ? `${product.price} ₪` : '';
-            const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
-            const productExplanation = product.explanation ? `<div class="semantix-product-explanation">${product.explanation}</div>` : '';
-
-            card.innerHTML = `
-                <a href="${productLink}" class="semantix-product-link" aria-label="View ${product.name || 'product'}">
-                    <div class="semantix-product-image-container">
-                        ${perfectMatchBadge}
-                        <img src="${productImage}" alt="${product.name || 'Product Image'}" class="semantix-product-image" loading="lazy">
-                    </div>
-                </a>
-                <div class="semantix-product-content">
-                    <h2 class="semantix-product-title">
-                        <a href="${productLink}">${product.name || 'Untitled Product'}</a>
-                    </h2>
-                    ${productExplanation}
-                    ${productPrice ? `<div class="semantix-product-price">${productPrice}</div>` : ''}
-                </div>
-            `;
-            
-            resultsGrid.appendChild(card);
-        });
-    }
-
-    function showEmptyState() {
-        resultsGrid.innerHTML = `<div class="semantix-empty-state"><h3>No products found</h3><p>We couldn't find any products matching your search. Try different keywords.</p></div>`;
-    }
-
-    function showErrorState(message) {
-        resultsGrid.innerHTML = `<div class="semantix-error-state"><h3>Something went wrong</h3><p>${message}</p></div>`;
-    }
-
-    // Expose function to manually clear search cache (optional)
-    window.semantixClearSearchCache = function() {
-        try {
-            sessionStorage.removeItem(C.cacheKey);
-            console.log('Semantix: Search cache cleared');
-        } catch (error) {
-            console.warn('Semantix: Failed to clear search cache:', error);
-        }
-    };
-
-    fetchResults();
-});
-</script>
 <?php get_footer(); ?>

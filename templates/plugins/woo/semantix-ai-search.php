@@ -25,6 +25,15 @@ add_action('wp_enqueue_scripts', function(){
     );
 }, 999);  // priority 999 ensures it's last
 
+if (!function_exists('semantix_dequeue_cart_fragments')) {
+    function semantix_dequeue_cart_fragments() {
+        if (is_front_page() || is_single() || is_archive()) {
+            wp_dequeue_script('wc-cart-fragments');
+        }
+    }
+}
+add_action('wp_enqueue_scripts', 'semantix_dequeue_cart_fragments', 20);
+
 if (!function_exists('semantix_add_global_styles_and_scripts')) {
     function semantix_add_global_styles_and_scripts() {
     ?>
@@ -690,6 +699,8 @@ function semantix_render_products_ajax() {
     $product_ids_json     = isset($_POST['product_ids'])   ? stripslashes($_POST['product_ids'])   : '[]';
     $highlight_map_json   = isset($_POST['highlight_map']) ? stripslashes($_POST['highlight_map']) : '{}';
 
+    error_log('Semantix - Product IDs received for rendering: ' . $product_ids_json);
+
     $product_ids_arr      = json_decode( $product_ids_json,   true );
     $highlight_map_arr    = json_decode( $highlight_map_json, true );
 
@@ -1206,6 +1217,20 @@ function semantix_search_advanced_page() {
                     <h3><?php esc_html_e('Layout & Sizing', 'semantix-ai-search'); ?></h3>
                     <table class="form-table">
                         <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Grid Gap (rem)', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <input type="number" step="0.1" name="semantix_grid_gap" value="<?php echo esc_attr(get_option('semantix_grid_gap', '2')); ?>" />
+                                <p class="description"><?php esc_html_e('The space between product cards (e.g., 1.5).', 'semantix-ai-search'); ?></p>
+                            </td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Card Border Radius (px)', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <input type="number" name="semantix_card_border_radius" value="<?php echo esc_attr(get_option('semantix_card_border_radius', '16')); ?>" />
+                                <p class="description"><?php esc_html_e('The roundness of the product card corners (e.g., 12).', 'semantix-ai-search'); ?></p>
+                            </td>
+                        </tr>
+                        <tr valign="top">
                             <th scope="row"><?php esc_html_e('Card Width (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_card_width" value="<?php echo esc_attr(get_option('semantix_card_width', '280')); ?>" /></td>
                         </tr>
@@ -1213,7 +1238,7 @@ function semantix_search_advanced_page() {
                             <th scope="row"><?php esc_html_e('Card Height (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_card_height" value="<?php echo esc_attr(get_option('semantix_card_height', '420')); ?>" /></td>
                         </tr>
-                         <tr valign="top">
+                        <tr valign="top">
                             <th scope="row"><?php esc_html_e('Image Height (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_image_height" value="<?php echo esc_attr(get_option('semantix_image_height', '220')); ?>" /></td>
                         </tr>
@@ -1299,6 +1324,21 @@ function semantix_search_advanced_page() {
                     <p><?php esc_html_e('Configure how product images are handled in the custom template.', 'semantix-ai-search'); ?></p>
                     <table class="form-table">
                         <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Image Fit', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <select name="semantix_image_fit">
+                                    <?php
+                                    $fits = ['contain' => 'Contain (fit entirely inside)', 'cover' => 'Cover (fill the entire space)'];
+                                    $current_fit = get_option('semantix_image_fit', 'contain');
+                                    foreach($fits as $value => $label) {
+                                        echo '<option value="' . esc_attr($value) . '" ' . selected($current_fit, $value, false) . '>' . esc_html($label) . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                                <p class="description"><?php esc_html_e('How the image should resize to fit its container.', 'semantix-ai-search'); ?></p>
+                            </td>
+                        </tr>
+                        <tr valign="top">
                             <th scope="row"><?php esc_html_e('Maximum Image Width (px)', 'semantix-ai-search'); ?></th>
                             <td>
                                 <input type="number" name="semantix_max_image_width" value="<?php echo esc_attr(get_option('semantix_max_image_width', '800')); ?>" min="200" max="2000" />
@@ -1322,6 +1362,35 @@ function semantix_search_advanced_page() {
                                 </label>
                                 <p class="description"><?php esc_html_e('When enabled, this will set the image width to 0 and center it in the product card to fix layout issues caused by oversized images.', 'semantix-ai-search'); ?></p>
                             </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="semantix-admin-box">
+                    <h2><?php esc_html_e('Add to Cart Button', 'semantix-ai-search'); ?></h2>
+                    <p><?php esc_html_e('Configure the "Add to Cart" button on product cards.', 'semantix-ai-search'); ?></p>
+                    <table class="form-table">
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Enable Button', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <input type="hidden" name="semantix_enable_add_to_cart" value="0" />
+                                <label>
+                                    <input type="checkbox" name="semantix_enable_add_to_cart" value="1" <?php checked(get_option('semantix_enable_add_to_cart', 1), 1); ?> />
+                                    <?php esc_html_e('Show "Add to Cart" button on product cards.', 'semantix-ai-search'); ?>
+                                </label>
+                            </td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Button Text', 'semantix-ai-search'); ?></th>
+                            <td><input type="text" name="semantix_add_to_cart_text" value="<?php echo esc_attr(get_option('semantix_add_to_cart_text', 'Add to Cart')); ?>" /></td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Button Background Color', 'semantix-ai-search'); ?></th>
+                            <td><input type="text" name="semantix_add_to_cart_bg" value="<?php echo esc_attr(get_option('semantix_add_to_cart_bg', '#2563eb')); ?>" class="semantix-color-picker" /></td>
+                        </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Button Text Color', 'semantix-ai-search'); ?></th>
+                            <td><input type="text" name="semantix_add_to_cart_color" value="<?php echo esc_attr(get_option('semantix_add_to_cart_color', '#ffffff')); ?>" class="semantix-color-picker" /></td>
                         </tr>
                     </table>
                 </div>
@@ -1435,6 +1504,17 @@ if (!function_exists('semantix_register_settings')) {
         register_setting('semantix-advanced-group', 'semantix_collection2', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('semantix-advanced-group', 'semantix_custom_css', ['type' => 'string', 'sanitize_callback' => 'wp_strip_all_tags']);
         register_setting('semantix-advanced-group', 'semantix_show_header_title', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
+        register_setting('semantix-advanced-group', 'semantix_grid_gap', ['type' => 'number', 'sanitize_callback' => 'absint']);
+        register_setting('semantix-advanced-group', 'semantix_card_border_radius', ['type' => 'number', 'sanitize_callback' => 'absint']);
+        register_setting('semantix-advanced-group', 'semantix_image_fit', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
+        register_setting('semantix-advanced-group', 'semantix_enable_add_to_cart', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
+        register_setting('semantix-advanced-group', 'semantix_add_to_cart_text', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
+        register_setting('semantix-advanced-group', 'semantix_add_to_cart_bg', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
+        register_setting('semantix-advanced-group', 'semantix_add_to_cart_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
+        register_setting('semantix-advanced-group', 'semantix_image_height', ['type' => 'number', 'sanitize_callback' => 'absint']);
+        register_setting('semantix-advanced-group', 'semantix_card_bg_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
+        register_setting('semantix-advanced-group', 'semantix_title_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
+        register_setting('semantix-advanced-group', 'semantix_price_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
     }
 }
 add_action('admin_init', 'semantix_register_settings');
@@ -1619,6 +1699,32 @@ function semantix_add_search_to_cart_script() {
     }
 }
 add_action('wp_footer', 'semantix_add_search_to_cart_script', 99);
+
+if (!function_exists('semantix_clear_storage_script')) {
+    function semantix_clear_storage_script() {
+        ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    const keys = Object.keys(localStorage);
+                    const wc_fragment_keys = keys.filter(key => key.startsWith('wc_fragments_'));
+                    
+                    if (wc_fragment_keys.length) {
+                        console.log('Clearing WooCommerce fragment cache...');
+                        wc_fragment_keys.forEach(key => {
+                            localStorage.removeItem(key);
+                        });
+                        console.log('WooCommerce fragment cache cleared.');
+                    }
+                } catch (e) {
+                    console.error('Could not clear WooCommerce fragment cache:', e);
+                }
+            });
+        </script>
+        <?php
+    }
+}
+add_action('wp_footer', 'semantix_clear_storage_script', 100);
 
 if (!function_exists('semantix_ajax_search_to_cart_callback')) {
 function semantix_ajax_search_to_cart_callback() {
