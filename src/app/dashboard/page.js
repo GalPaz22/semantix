@@ -129,8 +129,8 @@ function SubscriptionPanel({ session, onboarding }) {
           price_id: SUBSCRIPTION_TIERS[tier].priceId, // Use the price ID from your config
           quantity: 1
         }],
-        successUrl: `${window.location.origin}/subscription/success`,
-        cancelUrl: `${window.location.origin}/subscription/cancele`,
+        successUrl: `₪{window.location.origin}/subscription/success`,
+        cancelUrl: `₪{window.location.origin}/subscription/cancele`,
         customer: {
           email: session.user.email
         },
@@ -146,7 +146,7 @@ function SubscriptionPanel({ session, onboarding }) {
 
     } catch (err) {
       console.error('Subscription error:', err);
-      setMessage(`נכשל להתחיל תהליך התשלום: ${err.message}`);
+      setMessage(`נכשל להתחיל תהליך התשלום: ₪{err.message}`);
     } finally {
       setUpgradeLoading(null);
     }
@@ -257,7 +257,7 @@ function SubscriptionPanel({ session, onboarding }) {
     }
 
     return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${badgeClass}`}>
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ₪{badgeClass}`}>
         {badgeText}
       </span>
     );
@@ -304,7 +304,7 @@ function SubscriptionPanel({ session, onboarding }) {
 
       {/* Message Display */}
       {message && (
-        <div className={`p-4 rounded-xl ${
+        <div className={`p-4 rounded-xl ₪{
           message.includes('נכשל') || message.includes('error')
             ? 'bg-red-50 text-red-800 border border-red-200'
             : 'bg-green-50 text-green-800 border border-green-200'
@@ -350,7 +350,7 @@ function SubscriptionPanel({ session, onboarding }) {
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">{currentTierConfig.name}</h3>
                       <p className="text-lg text-gray-600">
-                        {currentTierConfig.price > 0 ? `$${currentTierConfig.price}/חודש` : 'חינמי לתמיד'}
+                        {currentTierConfig.price > 0 ? `₪₪{currentTierConfig.price}/חודש` : 'חינמי לתמיד'}
                       </p>
                     </div>
                   </div>
@@ -450,7 +450,7 @@ function SubscriptionPanel({ session, onboarding }) {
             {Object.entries(SUBSCRIPTION_TIERS).map(([key, plan]) => (
               <div
                 key={key}
-                className={`relative rounded-xl border-2 p-6 transition-all ${
+                className={`relative rounded-xl border-2 p-6 transition-all ₪{
                   plan.tier === currentTier
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 hover:border-indigo-300 bg-white'
@@ -471,7 +471,7 @@ function SubscriptionPanel({ session, onboarding }) {
                 <div className="text-center mb-6">
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                   <div className="mb-4">
-                    <span className="text-3xl font-extrabold text-gray-900">${plan.price}</span>
+                    <span className="text-3xl font-extrabold text-gray-900">₪{plan.price}</span>
                     <span className="text-gray-500">/חודש</span>
                   </div>
                 </div>
@@ -498,11 +498,11 @@ function SubscriptionPanel({ session, onboarding }) {
                     <button
                       onClick={() => handleUpgrade(plan.tier)}
                       disabled={upgradeLoading === plan.tier}
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ${
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ₪{
                         plan.tier === 'pro'
                           ? 'bg-blue-600 hover:bg-blue-700 text-white'
                           : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                      } ${
+                      } ₪{
                         upgradeLoading === plan.tier ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
@@ -543,11 +543,11 @@ function SubscriptionPanel({ session, onboarding }) {
                 <div>
                   <p className="font-medium text-gray-900">תוכנית {currentTierConfig?.name}</p>
                   <p className="text-sm text-gray-500">
-                    {nextBillDate && `חיוב הבא: ${formatDate(nextBillDate)}`}
+                    {nextBillDate && `חיוב הבא: ₪{formatDate(nextBillDate)}`}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900">${currentTierConfig?.price}</p>
+                  <p className="font-medium text-gray-900">₪{currentTierConfig?.price}</p>
                   <p className="text-sm text-green-600">פעיל</p>
                 </div>
               </div>
@@ -803,14 +803,14 @@ function AnalyticsPanel({ session, onboarding }) {
     const headers = ["Query","Timestamp","Category","Price","Min Price","Max Price","Type","Entity"];
     const rows = filteredQueries.map(q =>
       [
-        `"${(q.query || "").replace(/"/g, '""')}"`,
-        `"${new Date(q.timestamp).toLocaleString()}"`,
-        `"${Array.isArray(q.category) ? q.category.join(", ") : (q.category || "")}"`,
-        `"${q.price || ""}"`,
-        `"${q.minPrice || ""}"`,
-        `"${q.maxPrice || ""}"`,
-        `"${q.type || ""}"`,
-        `"${q.entity || ""}"`
+        `"₪{(q.query || "").replace(/"/g, '""')}"`,
+        `"₪{new Date(q.timestamp).toLocaleString()}"`,
+        `"₪{Array.isArray(q.category) ? q.category.join(", ") : (q.category || "")}"`,
+        `"₪{q.price || ""}"`,
+        `"₪{q.minPrice || ""}"`,
+        `"₪{q.maxPrice || ""}"`,
+        `"₪{q.type || ""}"`,
+        `"₪{q.entity || ""}"`
       ].join(",")
     );
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -922,7 +922,7 @@ function AnalyticsPanel({ session, onboarding }) {
                 >
                   <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                   <span className="text-xs sm:text-sm">{getCurrentTimePeriodLabel()}</span>
-                  <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2 transition-transform ${timePeriodOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2 transition-transform ₪{timePeriodOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {timePeriodOpen && (
@@ -939,7 +939,7 @@ function AnalyticsPanel({ session, onboarding }) {
                         <button
                           key={period.value}
                           onClick={() => handleTimePeriodChange(period)}
-                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ${
+                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ₪{
                             selectedTimePeriod === period.value
                               ? 'bg-indigo-50 text-indigo-700 font-medium'
                               : 'text-gray-700'
@@ -1029,7 +1029,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       ))}
                       <div className="mt-2 pt-2 border-t border-white/20">
                         <p className="text-white/60 text-xs">
-                          {queriesToAnalyze.length} שאילתות {sourceLabel === "היום" ? "היום" : `ב${sourceLabel}`}
+                          {queriesToAnalyze.length} שאילתות {sourceLabel === "היום" ? "היום" : `ב₪{sourceLabel}`}
                         </p>
                       </div>
                     </div>
@@ -1172,7 +1172,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           {item.products}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          ${item.revenue.toFixed(2)}
+                          ₪{item.revenue.toFixed(2)}
                         </td>
                       </tr>
                     ))}
@@ -1194,7 +1194,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       <div key={index} className="flex flex-col items-center">
                         <div 
                           className="bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t-md w-16 shadow-md"
-                          style={{ height: `${height}%` }}
+                          style={{ height: `₪{height}%` }}
                         >
                           <div className="text-white text-center font-bold py-2">
                             {item.count}
@@ -1280,7 +1280,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   <button
                     onClick={handlePrevious}
                     disabled={currentPage === 1}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ₪{
                       currentPage === 1
                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                         : "bg-white text-gray-700 hover:bg-gray-50"
@@ -1294,7 +1294,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       <button
                         key={num}
                         onClick={() => handlePageClick(num)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ${
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ₪{
                           currentPage === num
                             ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
                             : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -1308,7 +1308,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   <button
                     onClick={handleNext}
                     disabled={currentPage === totalPages}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ₪{
                       currentPage === totalPages
                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                         : "bg-white text-gray-700 hover:bg-gray-50"
@@ -1329,6 +1329,12 @@ function AnalyticsPanel({ session, onboarding }) {
 
 
 function SettingsPanel({ session, onboarding, handleDownload: externalDownload }) {
+  
+  // Debug what we receive in props
+  console.log("🔍 SETTINGS PANEL PROPS:");
+  console.log("onboarding:", onboarding);
+  console.log("onboarding?.credentials:", onboarding?.credentials);
+  
   // Use the onboarding payload to populate initial state.
   const [dbName, setDbName] = useState(onboarding?.credentials?.dbName || "");
   const [categories, setCategories] = useState(
@@ -1350,6 +1356,13 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   );
   const [context, setContext] = useState(onboarding?.context || "");
   const [platform] = useState(onboarding?.platform || "shopify");
+  const [softCategories, setSoftCategories] = useState(
+    onboarding?.credentials?.softCategories
+      ? Array.isArray(onboarding.credentials.softCategories)
+          ? onboarding.credentials.softCategories.join(", ")
+          : onboarding.credentials.softCategories
+      : ""
+  );
   const [cred, setCred] = useState(
     platform === "shopify"
       ? {
@@ -1386,6 +1399,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
 
+
+
   // Resync handler – uses the onboard data from props.
   async function handleResync() {
     // Validate dbName before proceeding
@@ -1412,9 +1427,9 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       // Format Shopify domain if platform is shopify
       let formattedCred = { ...cred };
       if (platform === "shopify" && formattedCred.shopifyDomain) {
-        let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/₪/, '');
         if (!domain.includes('.myshopify.com')) {
-          domain = `${domain}.myshopify.com`;
+          domain = `₪{domain}.myshopify.com`;
         }
         formattedCred.shopifyDomain = domain;
       }
@@ -1437,6 +1452,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         dbName,
         categories: categories.split(",").map(s => s.trim()).filter(Boolean),
         type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
+        softCategories: softCategories.split(",").map(s => s.trim()).filter(Boolean),
         syncMode: onboarding?.syncMode || "text",
         explain: aiExplanationMode,
         context: context,
@@ -1459,13 +1475,13 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const data = await res.json();
       
       if (!res.ok) {
-        throw new Error(data.message || data.error || `Server returned ${res.status}`);
+        throw new Error(data.message || data.error || `Server returned ₪{res.status}`);
       }
 
       setMsg("🔄 Resync started!");
     } catch (err) {
       console.error("Resync error:", err);
-      setMsg(`❌ ${err.message || "Error starting resync"}`);
+      setMsg(`❌ ₪{err.message || "Error starting resync"}`);
     } finally {
       setResyncing(false);
       setTimeout(() => setMsg(""), 5000);
@@ -1498,13 +1514,15 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
     try {
       // Prepare the categories array
       const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
+      const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
+      const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
       
       // Format Shopify domain if platform is shopify
       let formattedCred = { ...cred };
       if (platform === "shopify" && formattedCred.shopifyDomain) {
-        let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/₪/, '');
         if (!domain.includes('.myshopify.com')) {
-          domain = `${domain}.myshopify.com`;
+          domain = `₪{domain}.myshopify.com`;
         }
         formattedCred.shopifyDomain = domain;
       }
@@ -1525,7 +1543,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         platform,
         dbName,
         categories: categoriesArray,
-        type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
+        type: typesArray,
+        softCategories: softCategoriesArray,
         syncMode: onboarding?.syncMode || "text",
         explain: aiExplanationMode,
         context: context,
@@ -1548,7 +1567,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       setEditing(false);
     } catch (err) {
       console.error("Save error:", err);
-      setMsg(`❌ ${err.message || "Error saving"}`);
+      setMsg(`❌ ₪{err.message || "Error saving"}`);
     } finally {
       setSaving(false);
       setTimeout(() => setMsg(""), 2000);
@@ -1563,10 +1582,36 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
     setReprocessing(true);
     setMsg("");
     try {
+      // Debug the raw state values
+      console.log("🔍 RAW STATE VALUES:");
+      console.log("dbName:", dbName);
+      console.log("categories:", categories);
+      console.log("productTypes:", productTypes);
+      console.log("softCategories:", softCategories);
+      
+      // Prepare the data arrays like in handleSave
+      const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
+      const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
+      const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
+      
+      console.log("🔍 PREPARED ARRAYS:");
+      console.log("categoriesArray:", categoriesArray);
+      console.log("typesArray:", typesArray);
+      console.log("softCategoriesArray:", softCategoriesArray);
+      
+      const payload = { 
+        dbName,
+        categories: categoriesArray,
+        type: typesArray,
+        softCategories: softCategoriesArray
+      };
+      
+      console.log("🔍 PAYLOAD TO SEND:", payload);
+      
       const res = await fetch('/api/reprocess-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dbName }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to start reprocessing.");
@@ -1595,7 +1640,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       if (!res.ok) throw new Error(data.error || "Failed to stop reprocessing.");
       setMsg("🛑 Stopped reprocessing.");
     } catch (err) {
-      setMsg(`❌ ${err.message}`);
+      setMsg(`❌ ₪{err.message}`);
     } finally {
       setStopping(false);
     }
@@ -1612,7 +1657,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: analyzeUrl, includeSnapshot: true })
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
       const json = await res.json();
       setSelectorResult(json.analysis);
     } catch (err) {
@@ -1636,7 +1681,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       
       // For WooCommerce, download the plugin as before
       const res = await fetch("/api/download-plugin", { method: "GET" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1649,6 +1694,22 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       setBanner("❌ Couldn't generate the plugin or install the app.");
     }
   }
+
+
+
+  const addSoftCategory = () => {
+    if (newSoftCategory.trim() && !softCategories.split(",").map(s => s.trim()).includes(newSoftCategory.trim())) {
+      const currentSoftCategories = softCategories.split(",").map(s => s.trim()).filter(Boolean);
+      setSoftCategories([...currentSoftCategories, newSoftCategory.trim()].join(", "));
+      setNewSoftCategory('');
+    }
+  };
+
+  const removeSoftCategory = (categoryToRemove) => {
+    const currentSoftCategories = softCategories.split(",").map(s => s.trim()).filter(Boolean);
+    const updatedSoftCategories = currentSoftCategories.filter(cat => cat !== categoryToRemove);
+    setSoftCategories(updatedSoftCategories.join(", "));
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -1743,6 +1804,21 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
               </div>
               
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  קטגוריות רכות (מופרדות בפסיקים)
+                </label>
+                <input
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+                  value={softCategories}
+                  onChange={e => setSoftCategories(e.target.value)}
+                  placeholder="מתנות, אירועים מיוחדים, קיץ, חורף"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  קטגוריות רכות מספקות שכבת סיווג נוספת גמישה למוצרים
+                </p>
+              </div>
+              
+              <div>
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1755,12 +1831,12 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   <button
                     type="button"
                     onClick={() => setAiExplanationMode(!aiExplanationMode)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ₪{
                       aiExplanationMode ? 'bg-indigo-600' : 'bg-gray-200'
                     }`}
                   >
                     <span
-                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ₪{
                         aiExplanationMode ? 'translate-x-4' : 'translate-x-0'
                       }`}
                     />
@@ -1875,7 +1951,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   ביטול
                 </button>
                 {msg && (
-                  <span className={`ml-3 py-2 px-4 rounded-lg text-sm font-medium ${msg.startsWith("✅") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                  <span className={`ml-3 py-2 px-4 rounded-lg text-sm font-medium ₪{msg.startsWith("✅") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
                     {msg}
                   </span>
                 )}
@@ -1917,7 +1993,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 <span className="block text-sm font-medium text-gray-700 mb-2">מצב הסבר AI</span>
                 <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
                   <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ₪{
                       aiExplanationMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
                       {aiExplanationMode ? '✓ מופעל' : '✗ כבוי'}
@@ -2028,7 +2104,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     onClick={async () => {
                       try {
                         const res = await fetch("/api/download-theme-extension", { method: "GET" });
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
                         const blob = await res.blob();
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
@@ -2048,7 +2124,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </button>
                 )}
                 {msg && (
-                  <span className={`py-2 px-4 rounded-lg text-sm font-medium ${msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                  <span className={`py-2 px-4 rounded-lg text-sm font-medium ₪{msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
                     {msg}
                   </span>
                 )}
@@ -2120,6 +2196,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
           )}
         </div>
       </div>
+
+
     </div>
   );
 }
@@ -2581,7 +2659,7 @@ export default function DashboardPage() {
 
       {/* Mobile menu */}
       <div
-        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
+        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ₪{
             mobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         style={{ direction: 'rtl' }}
@@ -2609,14 +2687,14 @@ export default function DashboardPage() {
                   setActive(item.id);
                   setMobileMenuOpen(false);
                 }}
-                className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ₪{
                   active === item.id
                     ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700"
                     : "text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 <item.icon
-                  className={`h-5 w-5 ml-4 ${
+                  className={`h-5 w-5 ml-4 ₪{
                     active === item.id ? "text-indigo-600" : "text-gray-400"
                   }`}
                 />
@@ -2663,7 +2741,7 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium max-w-[120px] truncate">
                     {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
                   </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform ₪{mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {/* Dropdown menu */}
@@ -2685,14 +2763,14 @@ export default function DashboardPage() {
                               setActive(item.id);
                               setMobileDropdownOpen(false);
                             }}
-                            className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ${
+                            className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ₪{
                               active === item.id
                                 ? "bg-indigo-50 text-indigo-700"
                                 : "text-gray-700"
                             }`}
                           >
                             <item.icon
-                              className={`h-5 w-5 ml-3 ${
+                              className={`h-5 w-5 ml-3 ₪{
                                 active === item.id ? "text-indigo-600" : "text-gray-400"
                               }`}
                             />
@@ -2738,7 +2816,7 @@ function useSyncStatus(dbName, enabled) {
     let t;
     const poll = async () => {
       try {
-        const r = await fetch(`/api/sync-status?dbName=${encodeURIComponent(dbName)}`);
+        const r = await fetch(`/api/sync-status?dbName=₪{encodeURIComponent(dbName)}`);
         const j = await r.json();
         const nxt = j.state ?? "done";
         set(nxt);

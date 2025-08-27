@@ -31,6 +31,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [searchInput, setSearchInput] = useState(''); // For input display
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedType, setSelectedType] = useState('');
+  const [selectedSoftCategory, setSelectedSoftCategory] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, processed, pending
   const [currentPage, setCurrentPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -41,17 +42,28 @@ export default function ProductsPanel({ session, onboarding }) {
   const [totalProducts, setTotalProducts] = useState(0);
   const [categories, setCategories] = useState([]);
   const [types, setTypes] = useState([]);
+  const [softCategories, setSoftCategories] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     processed: 0,
     pending: 0,
     outOfStock: 0,
     categories: 0,
+    softCategories: 0,
     avgPrice: 0
   });
   
   const itemsPerPage = 20;
   const dbName = onboarding?.credentials?.dbName || '';
+
+  // Helper: coerce any value to a safe string for rendering
+  const safeText = (value) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) return value.map((v) => (typeof v === 'string' ? v : String(v))).join(', ');
+    try { return String(value); } catch { return ''; }
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -84,6 +96,7 @@ export default function ProductsPanel({ session, onboarding }) {
           search: searchTerm,
           category: selectedCategory,
           type: selectedType,
+          softCategory: selectedSoftCategory,
           status: statusFilter
         })
       });
@@ -98,12 +111,14 @@ export default function ProductsPanel({ session, onboarding }) {
       setTotalProducts(data.total || 0);
       setCategories(data.categories || []);
       setTypes(data.types || []);
+      setSoftCategories(data.softCategories || []);
       setStats(data.stats || {
         total: 0,
         processed: 0,
         pending: 0,
         outOfStock: 0,
         categories: 0,
+        softCategories: 0,
         avgPrice: 0
       });
     } catch (err) {
@@ -135,7 +150,7 @@ export default function ProductsPanel({ session, onboarding }) {
       setCurrentPage(1);
       fetchProducts(true);
     }
-  }, [searchTerm, selectedCategory, selectedType, statusFilter]);
+  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter]);
 
 
 
@@ -262,7 +277,7 @@ export default function ProductsPanel({ session, onboarding }) {
           <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
             <div className="relative">
@@ -285,9 +300,12 @@ export default function ProductsPanel({ session, onboarding }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
+              {categories.map(cat => {
+                const label = safeText(cat);
+                return (
+                  <option key={label} value={label}>{label}</option>
+                );
+              })}
             </select>
           </div>
           
@@ -299,9 +317,29 @@ export default function ProductsPanel({ session, onboarding }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="">All Types</option>
-              {types.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
+              {types.map(type => {
+                const label = safeText(type);
+                return (
+                  <option key={label} value={label}>{label}</option>
+                );
+              })}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Soft Category</label>
+            <select
+              value={selectedSoftCategory}
+              onChange={(e) => setSelectedSoftCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">All Soft Categories</option>
+              {softCategories.map(softCat => {
+                const label = safeText(softCat);
+                return (
+                  <option key={label} value={label}>{label}</option>
+                );
+              })}
             </select>
           </div>
           
@@ -323,8 +361,10 @@ export default function ProductsPanel({ session, onboarding }) {
             <button
               onClick={() => {
                 setSearchTerm('');
+                setSearchInput('');
                 setSelectedCategory('');
                 setSelectedType('');
+                setSelectedSoftCategory('');
                 setStatusFilter('all');
                 setCurrentPage(1);
               }}
@@ -376,6 +416,9 @@ export default function ProductsPanel({ session, onboarding }) {
                   Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Soft Category
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Price
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -400,19 +443,26 @@ export default function ProductsPanel({ session, onboarding }) {
                       )}
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {product.name}
+                          {safeText(product.name)}
                         </div>
                         <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {product.description1 || product.description || 'No description'}
+                          {safeText(product.description1 || product.description) || 'No description'}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {product.category ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {product.category}
-                      </span>
+                    {Array.isArray(product.category) && product.category.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {product.category.map((cat, index) => (
+                          <span
+                            key={`${index}-${safeText(cat)}`}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                          >
+                            {safeText(cat)}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-gray-400">-</span>
                     )}
@@ -422,10 +472,26 @@ export default function ProductsPanel({ session, onboarding }) {
                       <div className="flex flex-wrap gap-1">
                         {product.type.map((type, index) => (
                           <span
-                            key={index}
+                            key={`${index}-${safeText(type)}`}
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
                           >
-                            {type}
+                            {safeText(type)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {Array.isArray(product.softCategory) && product.softCategory.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {product.softCategory.map((softCat, index) => (
+                          <span
+                            key={`${index}-${safeText(softCat)}`}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {safeText(softCat)}
                           </span>
                         ))}
                       </div>

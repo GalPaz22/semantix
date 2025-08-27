@@ -172,23 +172,23 @@ get_header();
 
     function getFromCache(key) {
         try {
-            const cached = sessionStorage.getItem(key);
+            const cached = localStorage.getItem(key);
             if (cached) {
                 const { timestamp, data } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_DURATION) {
                     return data;
                 }
-                sessionStorage.removeItem(key);
+                localStorage.removeItem(key);
             }
         } catch (e) {
-            sessionStorage.removeItem(key);
+            localStorage.removeItem(key);
         }
         return null;
     }
 
     function saveToCache(key, data) {
         try {
-            sessionStorage.setItem(key, JSON.stringify({
+            localStorage.setItem(key, JSON.stringify({
                 timestamp: Date.now(),
                 data: data
             }));

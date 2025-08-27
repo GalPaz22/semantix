@@ -10,6 +10,7 @@ export async function POST(request) {
       search = '', 
       category = '', 
       type = '', 
+      softCategory = '',
       status = 'all' 
     } = await request.json();
     
@@ -37,6 +38,11 @@ export async function POST(request) {
     // Type filter
     if (type) {
       filter.type = type;
+    }
+
+    // Soft Category filter
+    if (softCategory) {
+      filter.softCategory = softCategory;
     }
     
     // Status filter
@@ -75,29 +81,59 @@ export async function POST(request) {
     ]);
     
     // Get unique categories and types for filters + statistics
-    const [categories, types, stats] = await Promise.all([
-      collection.distinct('category', { category: { $ne: null, $exists: true } }),
-      collection.distinct('type', { type: { $ne: null, $exists: true } }),
-      // Calculate actual database statistics
-      Promise.all([
-        collection.countDocuments({ description1: { $exists: true, $ne: null } }), // processed
-        collection.countDocuments({ 
-          $or: [
-            { description1: { $exists: false } },
-            { description1: null }
-          ],
-          stockStatus: { $ne: 'outofstock' }
-        }), // pending
-        collection.countDocuments({ stockStatus: 'outofstock' }), // out of stock
+    const [categories, types, softCategories, stats] = await Promise.all([
         collection.aggregate([
-          { $match: { price: { $exists: true, $ne: null, $gt: 0 } } },
-          { $group: { _id: null, avgPrice: { $avg: "$price" } } }
-        ]).toArray() // average price
-      ])
+            { $match: { category: { $ne: null, $exists: true, $ne: [] } } },
+            { $group: { _id: null, allCategories: { $addToSet: "$category" } } },
+            { $project: {
+                _id: 0,
+                categories: {
+                    $reduce: {
+                        input: "$allCategories",
+                        initialValue: [],
+                        in: { 
+                            $setUnion: [
+                                "$$value", 
+                                { 
+                                    $cond: {
+                                        if: { $isArray: "$$this" },
+                                        then: "$$this",
+                                        else: ["$$this"]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }}
+        ]).toArray(),
+        collection.distinct('type', { type: { $ne: null, $exists: true, $ne: [] } }),
+        collection.distinct('softCategory', { softCategory: { $ne: null, $exists: true, $ne: [] } }),
+        // Calculate actual database statistics
+        Promise.all([
+            collection.countDocuments({ description1: { $exists: true, $ne: null } }), // processed
+            collection.countDocuments({
+                $or: [
+                    { description1: { $exists: false } },
+                    { description1: null }
+                ],
+                stockStatus: { $ne: 'outofstock' }
+            }), // pending
+            collection.countDocuments({ stockStatus: 'outofstock' }), // out of stock
+            collection.aggregate([
+                { $match: { price: { $exists: true, $ne: null, $gt: 0 } } },
+                { $group: { _id: null, avgPrice: { $avg: "$price" } } }
+            ]).toArray() // average price
+        ])
     ]);
-    
+
+    // Extract categories from aggregation result
+    const finalCategories = categories.length > 0 ? categories[0].categories : [];
+
     // Flatten types array since it can contain arrays
     const flattenedTypes = [...new Set(types.flat().filter(Boolean))];
+    // Flatten softCategories array since it can contain arrays
+    const flattenedSoftCategories = [...new Set(softCategories.flat().filter(Boolean))];
     
     // Process statistics
     const [processedCount, pendingCount, outOfStockCount, avgPriceResult] = stats;
@@ -109,8 +145,9 @@ export async function POST(request) {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      categories: categories.filter(Boolean),
+      categories: finalCategories.filter(Boolean),
       types: flattenedTypes,
+      softCategories: flattenedSoftCategories,
       hasNextPage: page < Math.ceil(total / limit),
       hasPrevPage: page > 1,
       stats: {
@@ -118,7 +155,8 @@ export async function POST(request) {
         processed: processedCount,
         pending: pendingCount,
         outOfStock: outOfStockCount,
-        categories: categories.filter(Boolean).length,
+        categories: finalCategories.filter(Boolean).length,
+        softCategories: flattenedSoftCategories.length,
         avgPrice
       }
     });

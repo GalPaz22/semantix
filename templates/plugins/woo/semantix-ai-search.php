@@ -375,10 +375,14 @@ window.semantix_displaySuggestions = function(suggestions, suggestionsDropdown) 
 
             // Attach a click event to perform the search with the selected suggestion
             li.onclick = () => {
+                
                 const searchWrapper = suggestionsDropdown.closest('.semantix-search-wrapper');
                 const searchInput = searchWrapper.querySelector('.search-field, .semantix-search-input');
                 searchInput.value = suggestion.suggestion;
                 window.semantix_performSearch(searchInput, suggestion.suggestion);
+                if(suggestion.source === "products"){
+                    window.location.href = suggestion.url;
+                }
             };
 
             suggestionsDropdown.appendChild(li);
@@ -690,22 +694,22 @@ add_action('wp_ajax_nopriv_semantix_render_products', 'semantix_render_products_
 
 if (!function_exists('semantix_render_products_ajax')) {
 function semantix_render_products_ajax() {
-    // Verify nonce for security
-    if ( ! isset($_POST['nonce']) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['nonce'])), 'semantix_nonce' ) ) {
-        wp_send_json_error( array('message' => 'Security check failed'), 403 );
+    // Verify nonce
+    if ( ! isset($_POST['nonce']) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'semantix_nonce' ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed' ), 403 );
         wp_die();
     }
 
-    $product_ids_json     = isset($_POST['product_ids'])   ? stripslashes($_POST['product_ids'])   : '[]';
-    $highlight_map_json   = isset($_POST['highlight_map']) ? stripslashes($_POST['highlight_map']) : '{}';
+    $product_ids_json    = isset($_POST['product_ids'])    ? stripslashes( $_POST['product_ids'] )    : '[]';
+    $highlight_map_json  = isset($_POST['highlight_map'])  ? stripslashes( $_POST['highlight_map'] )  : '{}';
+    $explanation_map_json= isset($_POST['explanation_map'])? stripslashes( $_POST['explanation_map'] ): '{}';
 
-    error_log('Semantix - Product IDs received for rendering: ' . $product_ids_json);
+    $product_ids_arr     = json_decode( $product_ids_json, true );
+    $highlight_map_arr   = json_decode( $highlight_map_json, true );
+    $explanation_map_arr = json_decode( $explanation_map_json, true );
 
-    $product_ids_arr      = json_decode( $product_ids_json,   true );
-    $highlight_map_arr    = json_decode( $highlight_map_json, true );
-
-    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $product_ids_arr ) || ! is_array( $highlight_map_arr ) ) {
-        wp_send_json_error( array('message' => 'Invalid product data format.'), 400 );
+    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $product_ids_arr ) ) {
+        wp_send_json_error( array( 'message' => 'Invalid product data format.' ), 400 );
         wp_die();
     }
 
@@ -716,16 +720,16 @@ function semantix_render_products_ajax() {
         wp_die();
     }
 
-    // Filter only published, visible & purchasable products
-    $final_product_ids         = [];
-    $highlighted_products_api  = [];
+    // Filter only published, visible & purchasable
+    $final_product_ids        = array();
+    $highlighted_products_api = array();
 
     foreach ( $product_ids_arr as $raw_id ) {
         $pid = intval( $raw_id );
         $product_obj = wc_get_product( $pid );
         if ( $product_obj && $product_obj->is_purchasable() && $product_obj->is_visible() ) {
             $final_product_ids[] = $pid;
-            if ( ! empty( $highlight_map_arr[ (string)$raw_id ] ) ) {
+            if ( ! empty( $highlight_map_arr[ (string) $raw_id ] ) ) {
                 $highlighted_products_api[] = $pid;
             }
         }
@@ -738,8 +742,13 @@ function semantix_render_products_ajax() {
         wp_die();
     }
 
-    // הכנת לולאת WooCommerce עם מספר העמודות של התבנית
-    $columns = wc_get_theme_support( 'product_grid::default_columns', wc_get_default_products_per_row() );
+    // Columns as theme expects
+    $columns = (int) wc_get_theme_support( 'product_grid::default_columns' );
+    if ( ! $columns ) {
+        $columns = (int) wc_get_default_products_per_row();
+        if ( ! $columns ) $columns = 4;
+    }
+
     wc_setup_loop( array(
         'name'         => 'semantix_native_search',
         'columns'      => $columns,
@@ -750,75 +759,68 @@ function semantix_render_products_ajax() {
         'current_page' => 1,
     ) );
 
-    // SQL לשליפת המוצרים
+    // Query products
     $products_query = new WP_Query( array(
         'post_type'           => 'product',
+        'post_status'         => 'publish',
         'post__in'            => $final_product_ids,
         'orderby'             => 'post__in',
         'posts_per_page'      => -1,
         'ignore_sticky_posts' => 1,
     ) );
 
-    // אם יש מוצרי הדגשה, תצוגת תווית AI
-   if ( ! empty( $highlighted_products_api ) ) {
-    echo '<style>';
-    foreach ( $highlighted_products_api as $hid ) {
-        // position list item for label
-        echo '.post-' . esc_attr( $hid ) . ' { position: relative; margin-bottom: 35px; }';
-        // professional minimal sparkle label
-        echo '.post-' . esc_attr( $hid ) . '::before {'
-           . 'content:"✨ AI PERFECT MATCH ✨"; '
-           . 'position:absolute; top:-30px; left:50%; transform:translateX(-50%); '
-           . 'background:#000; color:#fff; padding:8px 14px; border-radius:8px; '
-           . 'font-size:0.75rem; font-weight:600; text-transform:none; '
-           . 'z-index:15; border:1px solid #333; '
-           . 'white-space:nowrap; min-width:140px; text-align:center;'
-           . '}';
+    // Optional: AI highlight label
+    if ( ! empty( $highlighted_products_api ) ) {
+        echo '<style>';
+        foreach ( $highlighted_products_api as $hid ) {
+            echo '.post-' . esc_attr( $hid ) . '{position:relative;margin-bottom:35px;}';
+            echo '.post-' . esc_attr( $hid ) . '::before{content:"✨ AI PERFECT MATCH ✨";position:absolute;top:-30px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:8px 14px;border-radius:8px;font-size:.75rem;font-weight:600;z-index:15;border:1px solid #333;white-space:nowrap;min-width:160px;text-align:center;}';
+        }
+        echo '</style>';
     }
-    echo '</style>';
-}
 
+    // Inject explanation below title (native-safe)
+    // We capture the map in the closure and print only if exists for current product.
+    $explanations = is_array( $explanation_map_arr ) ? $explanation_map_arr : array();
+    $hook_priority = 999;
+    add_action( 'woocommerce_after_shop_loop_item_title', function() use ( $explanations ) {
+        $pid = get_the_ID();
+        if ( $pid && isset( $explanations[ (string) $pid ] ) && $explanations[ (string) $pid ] !== '' ) {
+            // Minimal safe styles; RTL; small; subtle
+            $allowed = array(
+                'br' => array(),
+                'em' => array(),
+                'strong' => array(),
+                'span' => array( 'class' => array() ),
+            );
+            $text = wp_kses( $explanations[ (string) $pid ], $allowed );
+            echo '<div class="semantix-product-explanation" style="direction:rtl;text-align:right;font-size:.9rem;line-height:1.5;color:#4b5563;background:#f9fafb;border-radius:8px;margin:.5rem 0;padding:.5rem .75rem;position:relative;">';
+            echo '<span style="position:absolute;right:.5rem;top:.5rem;">✨</span>';
+            echo '<span style="display:block;padding-right:1.25rem;">' . $text . '</span>';
+            echo '</div>';
+        }
+    }, $hook_priority );
 
-    // מתחילים את הלולאה הנייטיב של WooCommerce
     if ( $products_query->have_posts() ) {
-        // Using native WooCommerce thumbnail by not replacing it.
-
         woocommerce_product_loop_start();
 
         while ( $products_query->have_posts() ) {
             $products_query->the_post();
-            $current_id = get_the_ID();
-            $is_high    = in_array( $current_id, $highlighted_products_api, true );
-
-            if ( $is_high ) {
-                // מוסיפים class להדגשה
-                add_filter( 'woocommerce_post_class', function( $classes ) {
-                    $classes[] = 'semantix-highlighted-product';
-                    return $classes;
-                } );
-            }
-
-            // התבנית content-product של התבנית הפעילה
-            wc_get_template_part( 'content', 'product' );
-
-            if ( $is_high ) {
-                remove_all_filters( 'woocommerce_post_class' );
-            }
+            wc_get_template_part( 'content', 'product' ); // native theme card
         }
 
         woocommerce_product_loop_end();
-
-        // No longer need to restore the original thumbnail function.
+    } else {
+        wc_get_template( 'loop/no-products-found.php' );
     }
 
-    // סיום וניקוי
+    // Cleanup
     wp_reset_postdata();
     wc_reset_loop();
 
     wp_die();
-    }
 }
-
+}
 
 /**
  * Try to render product using Elementor template
@@ -1217,20 +1219,6 @@ function semantix_search_advanced_page() {
                     <h3><?php esc_html_e('Layout & Sizing', 'semantix-ai-search'); ?></h3>
                     <table class="form-table">
                         <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Grid Gap (rem)', 'semantix-ai-search'); ?></th>
-                            <td>
-                                <input type="number" step="0.1" name="semantix_grid_gap" value="<?php echo esc_attr(get_option('semantix_grid_gap', '2')); ?>" />
-                                <p class="description"><?php esc_html_e('The space between product cards (e.g., 1.5).', 'semantix-ai-search'); ?></p>
-                            </td>
-                        </tr>
-                        <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Card Border Radius (px)', 'semantix-ai-search'); ?></th>
-                            <td>
-                                <input type="number" name="semantix_card_border_radius" value="<?php echo esc_attr(get_option('semantix_card_border_radius', '16')); ?>" />
-                                <p class="description"><?php esc_html_e('The roundness of the product card corners (e.g., 12).', 'semantix-ai-search'); ?></p>
-                            </td>
-                        </tr>
-                        <tr valign="top">
                             <th scope="row"><?php esc_html_e('Card Width (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_card_width" value="<?php echo esc_attr(get_option('semantix_card_width', '280')); ?>" /></td>
                         </tr>
@@ -1238,7 +1226,7 @@ function semantix_search_advanced_page() {
                             <th scope="row"><?php esc_html_e('Card Height (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_card_height" value="<?php echo esc_attr(get_option('semantix_card_height', '420')); ?>" /></td>
                         </tr>
-                        <tr valign="top">
+                         <tr valign="top">
                             <th scope="row"><?php esc_html_e('Image Height (px)', 'semantix-ai-search'); ?></th>
                             <td><input type="number" name="semantix_image_height" value="<?php echo esc_attr(get_option('semantix_image_height', '220')); ?>" /></td>
                         </tr>
@@ -1324,21 +1312,6 @@ function semantix_search_advanced_page() {
                     <p><?php esc_html_e('Configure how product images are handled in the custom template.', 'semantix-ai-search'); ?></p>
                     <table class="form-table">
                         <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Image Fit', 'semantix-ai-search'); ?></th>
-                            <td>
-                                <select name="semantix_image_fit">
-                                    <?php
-                                    $fits = ['contain' => 'Contain (fit entirely inside)', 'cover' => 'Cover (fill the entire space)'];
-                                    $current_fit = get_option('semantix_image_fit', 'contain');
-                                    foreach($fits as $value => $label) {
-                                        echo '<option value="' . esc_attr($value) . '" ' . selected($current_fit, $value, false) . '>' . esc_html($label) . '</option>';
-                                    }
-                                    ?>
-                                </select>
-                                <p class="description"><?php esc_html_e('How the image should resize to fit its container.', 'semantix-ai-search'); ?></p>
-                            </td>
-                        </tr>
-                        <tr valign="top">
                             <th scope="row"><?php esc_html_e('Maximum Image Width (px)', 'semantix-ai-search'); ?></th>
                             <td>
                                 <input type="number" name="semantix_max_image_width" value="<?php echo esc_attr(get_option('semantix_max_image_width', '800')); ?>" min="200" max="2000" />
@@ -1362,35 +1335,6 @@ function semantix_search_advanced_page() {
                                 </label>
                                 <p class="description"><?php esc_html_e('When enabled, this will set the image width to 0 and center it in the product card to fix layout issues caused by oversized images.', 'semantix-ai-search'); ?></p>
                             </td>
-                        </tr>
-                    </table>
-                </div>
-
-                <div class="semantix-admin-box">
-                    <h2><?php esc_html_e('Add to Cart Button', 'semantix-ai-search'); ?></h2>
-                    <p><?php esc_html_e('Configure the "Add to Cart" button on product cards.', 'semantix-ai-search'); ?></p>
-                    <table class="form-table">
-                        <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Enable Button', 'semantix-ai-search'); ?></th>
-                            <td>
-                                <input type="hidden" name="semantix_enable_add_to_cart" value="0" />
-                                <label>
-                                    <input type="checkbox" name="semantix_enable_add_to_cart" value="1" <?php checked(get_option('semantix_enable_add_to_cart', 1), 1); ?> />
-                                    <?php esc_html_e('Show "Add to Cart" button on product cards.', 'semantix-ai-search'); ?>
-                                </label>
-                            </td>
-                        </tr>
-                        <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Button Text', 'semantix-ai-search'); ?></th>
-                            <td><input type="text" name="semantix_add_to_cart_text" value="<?php echo esc_attr(get_option('semantix_add_to_cart_text', 'Add to Cart')); ?>" /></td>
-                        </tr>
-                        <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Button Background Color', 'semantix-ai-search'); ?></th>
-                            <td><input type="text" name="semantix_add_to_cart_bg" value="<?php echo esc_attr(get_option('semantix_add_to_cart_bg', '#2563eb')); ?>" class="semantix-color-picker" /></td>
-                        </tr>
-                        <tr valign="top">
-                            <th scope="row"><?php esc_html_e('Button Text Color', 'semantix-ai-search'); ?></th>
-                            <td><input type="text" name="semantix_add_to_cart_color" value="<?php echo esc_attr(get_option('semantix_add_to_cart_color', '#ffffff')); ?>" class="semantix-color-picker" /></td>
                         </tr>
                     </table>
                 </div>
@@ -1504,17 +1448,6 @@ if (!function_exists('semantix_register_settings')) {
         register_setting('semantix-advanced-group', 'semantix_collection2', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('semantix-advanced-group', 'semantix_custom_css', ['type' => 'string', 'sanitize_callback' => 'wp_strip_all_tags']);
         register_setting('semantix-advanced-group', 'semantix_show_header_title', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
-        register_setting('semantix-advanced-group', 'semantix_grid_gap', ['type' => 'number', 'sanitize_callback' => 'absint']);
-        register_setting('semantix-advanced-group', 'semantix_card_border_radius', ['type' => 'number', 'sanitize_callback' => 'absint']);
-        register_setting('semantix-advanced-group', 'semantix_image_fit', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
-        register_setting('semantix-advanced-group', 'semantix_enable_add_to_cart', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
-        register_setting('semantix-advanced-group', 'semantix_add_to_cart_text', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
-        register_setting('semantix-advanced-group', 'semantix_add_to_cart_bg', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
-        register_setting('semantix-advanced-group', 'semantix_add_to_cart_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
-        register_setting('semantix-advanced-group', 'semantix_image_height', ['type' => 'number', 'sanitize_callback' => 'absint']);
-        register_setting('semantix-advanced-group', 'semantix_card_bg_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
-        register_setting('semantix-advanced-group', 'semantix_title_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
-        register_setting('semantix-advanced-group', 'semantix_price_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color']);
     }
 }
 add_action('admin_init', 'semantix_register_settings');

@@ -41,12 +41,6 @@ $grid_gap       = get_option( 'semantix_grid_gap', '2' );
 $card_border_radius = get_option( 'semantix_card_border_radius', '16' );
 $image_fit      = get_option( 'semantix_image_fit', 'contain' );
 
-// "Add to Cart" button settings
-$enable_add_to_cart = get_option('semantix_enable_add_to_cart', 1);
-$add_to_cart_text = get_option('semantix_add_to_cart_text', 'Add to Cart');
-$add_to_cart_bg = get_option('semantix_add_to_cart_bg', '#2563eb');
-$add_to_cart_color = get_option('semantix_add_to_cart_color', '#ffffff');
-
 // Get API settings
 $api_endpoint   = get_option( 'semantix_search_api_endpoint', 'https://dashboard-server-ae00.onrender.com/search' );
 $api_key        = get_option( 'semantix_api_key', '' );
@@ -56,20 +50,17 @@ $c2             = get_option( 'semantix_collection2', 'queries' );
 
 // Prepare data for JavaScript
 $js_data = [
-    'nonce'        => wp_create_nonce( 'semantix_add_to_cart_nonce' ),
     'apiEndpoint'  => $api_endpoint,
     'apiKey'       => $api_key,
     'dbName'       => $dbname,
     'collection1'  => $c1,
     'collection2'  => $c2,
-    'searchQuery'  => $search_query,
-    'enableAddToCart' => (bool) $enable_add_to_cart,
-    'addToCartText' => $add_to_cart_text
+    'searchQuery'  => $search_query
 ];
 
 get_header(); // Load the site header ?>
 
-<style>
+<style id="semantix-custom-styles">
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
     /* This wrapper replaces the theme's <main> container */
@@ -149,13 +140,13 @@ get_header(); // Load the site header ?>
     .semantix-product-image-container {
         position: relative;
         width: 100%;
-        height: <?php echo esc_attr( $image_height ); ?>px;
+        height: <?php echo esc_attr( $image_height ); ?>px !important;
         overflow: hidden;
         background: #fdfdfd;
     }
 
     .semantix-product-image {
-        width: 100%; height: 100%; object-fit: <?php echo esc_attr( $image_fit ); ?>; transition: transform 0.3s ease;
+        width: 100%; height: 100% !important; object-fit: <?php echo esc_attr( $image_fit ); ?>; transition: transform 0.3s ease;
     }
     .semantix-product-card:hover .semantix-product-image { transform: scale(1.05); }
     
@@ -188,24 +179,6 @@ get_header(); // Load the site header ?>
         margin: 0.5rem 0 1rem;
     }
     
-    .semantix-add-to-cart-button {
-        background-color: <?php echo esc_attr($add_to_cart_bg); ?>;
-        color: <?php echo esc_attr($add_to_cart_color); ?>;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        font-size: 1rem;
-        font-weight: 600;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background-color 0.3s, transform 0.2s;
-        margin-top: auto; /* Push to the bottom */
-    }
-
-    .semantix-add-to-cart-button:hover {
-        opacity: 0.9;
-        transform: scale(1.03);
-    }
-
     /* Product Explanation - WITH AI STARS ICON */
     .semantix-product-explanation {
         font-size: 0.875rem;
@@ -264,6 +237,29 @@ get_header(); // Load the site header ?>
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+    :root {
+        --semantix-grid-template-columns: repeat(<?php echo esc_attr(get_option('semantix_products_per_row', '4')); ?>, 1fr);
+        --semantix-column-gap: <?php echo esc_attr(get_option('semantix_grid_gap', '1')); ?>rem;
+        --semantix-card-border-radius: <?php echo esc_attr(get_option('semantix_card_border_radius', '8')); ?>px;
+        --semantix-image-fit: <?php echo esc_attr(get_option('semantix_image_fit', 'cover')); ?>;
+    }
+    #semantix-search-results-container .products {
+        display: grid;
+        grid-template-columns: var(--semantix-grid-template-columns);
+        gap: 1rem; /* Default row gap */
+        column-gap: var(--semantix-column-gap);
+    }
+    #semantix-search-results-container .product .woocommerce-loop-product__link {
+        border-radius: var(--semantix-card-border-radius);
+        overflow: hidden;
+        display: block;
+        border: 1px solid #eee;
+    }
+    #semantix-search-results-container .product img {
+        width: 100%;
+        height: 250px; /* Example height, consider making this an option */
+        object-fit: var(--semantix-image-fit);
+    }
 </style>
 
 <!-- This is the main container that renders instead of the theme's <main> element -->
@@ -281,7 +277,7 @@ get_header(); // Load the site header ?>
         <?php endif; ?>
 
         <div id="semantix-custom-results-grid">
-            <div class="semantix-loader">Loading products...</div>
+            <div class="semantix-loader">טוען תוצאות...</div>
         </div>
     </div>
 </div>
@@ -402,11 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const productPrice = product.price ? `${product.price} ₪` : '';
             const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
             const productExplanation = product.explanation ? `<div class="semantix-product-explanation">${product.explanation}</div>` : '';
-            const addToCartButton = SEMANTIX_DATA.enableAddToCart ? `
-                <button class="semantix-add-to-cart-button" data-product-id="${product.id}">
-                    ${SEMANTIX_DATA.addToCartText}
-                </button>
-            ` : '';
 
             card.innerHTML = `
                 <a href="${productLink}" class="semantix-product-link" aria-label="View ${product.name || 'product'}">
@@ -421,19 +412,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </h2>
                     ${productExplanation}
                     ${productPrice ? `<div class="semantix-product-price">${productPrice}</div>` : ''}
-                    ${addToCartButton}
                 </div>
             `;
             
             resultsGrid.appendChild(card);
         });
-
-        // Add event listeners for "Add to Cart" buttons
-        if (SEMANTIX_DATA.enableAddToCart) {
-            document.querySelectorAll('.semantix-add-to-cart-button').forEach(button => {
-                button.addEventListener('click', handleAddToCart);
-            });
-        }
     }
 
     function showEmptyState() {
@@ -456,41 +439,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchResults();
 });
-
-async function handleAddToCart(event) {
-    const button = event.target;
-    const productId = button.dataset.productId;
-    
-    button.textContent = 'Adding...';
-    button.disabled = true;
-
-    try {
-        const response = await fetch('/wp-admin/admin-ajax.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                action: 'semantix_add_to_cart',
-                product_id: productId,
-                nonce: SEMANTIX_DATA.nonce
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Network response was not ok.');
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-            button.textContent = 'Added!';
-            // Optionally, update the cart icon/count here
-        } else {
-            button.textContent = 'Failed';
-        }
-    } catch (error) {
-        console.error('Add to Cart error:', error);
-        button.textContent = 'Error';
-    }
-}
 </script>
 <?php get_footer(); // Load the site footer ?>

@@ -38,8 +38,7 @@ async function validateShopifyCredentials(domain, token) {
         'User-Agent': 'Semantix/1.0'
       },
       // Add SSL/TLS configuration
-      cache: 'no-store',
-      next: { revalidate: 0 },
+      cache: 'no-store'
     });
     
     if (!response.ok) {
@@ -49,11 +48,33 @@ async function validateShopifyCredentials(domain, token) {
         domain: cleanDomain
       });
       try {
-        const errorData = await response.json();
-        console.error('Shopify error details:', errorData);
+        const responseText = await response.text();
+        console.error('Shopify error response:', responseText.substring(0, 200));
+        // Try to parse as JSON if possible
+        try {
+          const errorData = JSON.parse(responseText);
+          console.error('Shopify error details:', errorData);
+        } catch (jsonError) {
+          console.error('Response is not JSON, likely HTML error page');
+        }
       } catch (e) {
-        // Ignore json parse error
+        console.error('Could not read error response:', e.message);
       }
+      return false;
+    }
+    
+    // For successful responses, validate JSON content
+    try {
+      const responseText = await response.text();
+      const shopData = JSON.parse(responseText);
+      console.log('Shopify validation successful:', shopData.shop?.name || 'Shop name not found');
+      return true;
+    } catch (jsonError) {
+      console.error('Shopify returned invalid JSON:', {
+        error: jsonError.message,
+        domain: cleanDomain
+      });
+      return false;
     }
     
     return response.ok;
@@ -103,6 +124,8 @@ async function createProductIndexes(client, dbName) {
       { category: 1, fetchedAt: -1 },
       // Index for type filtering (since type can be an array)
       { type: 1, fetchedAt: -1 },
+      // Index for softCategory filtering (since softCategory can be an array)
+      { softCategory: 1, fetchedAt: -1 },
       // Index for stock status filtering
       { stockStatus: 1, fetchedAt: -1 },
       // Index for processed/pending status filtering
@@ -110,7 +133,8 @@ async function createProductIndexes(client, dbName) {
       // Text index for search functionality
       { name: "text", description1: "text" },
       // Compound index for common filter combinations
-      { category: 1, stockStatus: 1, fetchedAt: -1 }
+      { category: 1, stockStatus: 1, fetchedAt: -1 },
+      { softCategory: 1, stockStatus: 1, fetchedAt: -1 }
     ];
 
     // Create each index
@@ -181,6 +205,10 @@ async function createEmbeddingIndex(client, dbName) {
         },
         {
           path: "type",
+          type: "filter"
+        },
+        {
+          path: "softCategory",
           type: "filter"
         }
       ]
@@ -307,6 +335,7 @@ export async function POST(req) {
       type, 
       context,
       explain,
+      softCategories
       // "text" | "image"
     } = await req.json();
 
@@ -324,6 +353,7 @@ export async function POST(req) {
     console.log("🔍 [Onboarding API] type is array:", Array.isArray(type));
     console.log("🔍 [Onboarding API] type length:", Array.isArray(type) ? type.length : 'not array');
     console.log("🔍 [Onboarding API] syncMode:", syncMode);
+    console.log("🔍 [Onboarding API] softCategories:", softCategories);
 
     /* 3) Validate platform credentials before proceeding */
     let isValidCredentials = false;
@@ -371,8 +401,8 @@ export async function POST(req) {
     // Remove platform from credentials.
     const credentials =
       platform === "shopify"
-        ? { shopifyDomain, shopifyToken, categories, dbName, type }
-        : { wooUrl, wooKey, wooSecret, categories, dbName, type };
+        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories }
+        : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories };
 
     // Update the user record with credentials and trial information
     const updateData = {
@@ -417,20 +447,20 @@ export async function POST(req) {
         if (platform === "woocommerce") {
           console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
           if (syncMode === "image") {
-            console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, dbName });
-            logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, dbName });
+            console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
+            logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
           } else {
-            console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, dbName });
-            logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, dbName });
+            console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
+            logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
           }
         } else if (platform === "shopify") {
           console.log("🔍 [Onboarding API] Calling Shopify processing...");
           if (syncMode === "image") {
-            console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type });
-            logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type });
+            console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
+            logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
           } else {
-            console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type });
-            logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type });
+            console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
+            logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
           }
         }
         await setJobState(dbName, "done");
