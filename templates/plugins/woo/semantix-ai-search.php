@@ -34,6 +34,127 @@ if (!function_exists('semantix_dequeue_cart_fragments')) {
 }
 add_action('wp_enqueue_scripts', 'semantix_dequeue_cart_fragments', 20);
 
+// Auto-disable FiboSearch (DGWT WCAS) when Semantix is active
+if (!function_exists('semantix_disable_fibosearch')) {
+    function semantix_disable_fibosearch() {
+        // Check if auto-disable is enabled (default: true)
+        $auto_disable = get_option('semantix_auto_disable_fibosearch', true);
+        if (!$auto_disable) {
+            return; // Don't disable if setting is turned off
+        }
+        
+        // Check if FiboSearch is active
+        if (class_exists('DgotwWcasAjaxSearch') || function_exists('dgwt_wcas_init')) {
+            // Disable FiboSearch JavaScript
+            add_action('wp_enqueue_scripts', function() {
+                wp_dequeue_script('dgwt-wcas-scripts');
+                wp_dequeue_script('dgwt-wcas-ajax-search');
+                wp_dequeue_script('dgwt_wcas');
+                wp_dequeue_script('dgwt-wcas');
+                wp_dequeue_style('dgwt-wcas-style');
+                wp_dequeue_style('dgwt-wcas-css');
+            }, 999);
+            
+            // Remove FiboSearch hooks and filters (more targeted approach)
+            add_action('init', function() {
+                // Only disable FiboSearch AJAX handlers, not all AJAX
+                remove_action('wp_ajax_dgwt_wcas_ajax_search', 'dgwt_wcas_ajax_search_action');
+                remove_action('wp_ajax_nopriv_dgwt_wcas_ajax_search', 'dgwt_wcas_ajax_search_action');
+                
+                // Disable FiboSearch shortcode
+                remove_shortcode('wcas-search-form');
+                
+                // Override FiboSearch settings to disable it
+                add_filter('dgwt/wcas/settings', function($settings) {
+                    $settings['enable_search'] = false;
+                    $settings['enable_submit_button'] = false;
+                    $settings['enable_ajax_search'] = false;
+                    return $settings;
+                });
+                
+                // Disable FiboSearch widgets
+                add_action('widgets_init', function() {
+                    unregister_widget('DGWT_WCAS_Search_Widget');
+                }, 11);
+            }, 0);
+            
+            // Add CSS to hide FiboSearch elements
+            add_action('wp_head', function() {
+                echo '<style>
+                    /* Hide FiboSearch elements */
+                    .dgwt-wcas-search-wrapp,
+                    .dgwt-wcas-sf-wrapp,
+                    .dgwt-wcas-search-form,
+                    .dgwt-wcas-suggestions-wrapp,
+                    .dgwt-wcas-preloader,
+                    .js-dgwt-wcas-enable-mobile-form {
+                        display: none !important;
+                        visibility: hidden !important;
+                    }
+                    
+                    /* Override FiboSearch search inputs */
+                    input.dgwt-wcas-search-input {
+                        display: none !important;
+                    }
+                </style>';
+            });
+            
+            // Add JavaScript to disable FiboSearch functionality (only on search pages)
+            add_action('wp_footer', function() {
+                if (!is_search()) return; // Only run on search pages
+                ?>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Only disable FiboSearch on search pages to avoid interfering with AJAX
+                    if (typeof DgwtWcasAjaxSearch !== 'undefined') {
+                        console.log('Semantix: Auto-disabling FiboSearch on search page to prevent conflicts');
+                        
+                        // Only hide FiboSearch search inputs, don't touch AJAX functionality
+                        document.querySelectorAll('.dgwt-wcas-search-input, input[name="dgwt_wcas"]').forEach(function(input) {
+                            input.style.display = 'none';
+                            input.disabled = true;
+                        });
+                        
+                        // Hide FiboSearch suggestion containers
+                        document.querySelectorAll('.dgwt-wcas-suggestions-wrapp, .dgwt-wcas-preloader').forEach(function(el) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                        });
+                    }
+                });
+                </script>
+                <?php
+            }, 999);
+        }
+    }
+}
+add_action('plugins_loaded', 'semantix_disable_fibosearch', 1);
+
+// Add admin notice when FiboSearch is being auto-disabled
+if (!function_exists('semantix_fibosearch_notice')) {
+    function semantix_fibosearch_notice() {
+        $auto_disable = get_option('semantix_auto_disable_fibosearch', true);
+        
+        if ($auto_disable && (class_exists('DgotwWcasAjaxSearch') || function_exists('dgwt_wcas_init'))) {
+            $screen = get_current_screen();
+            if ($screen && in_array($screen->id, ['plugins', 'dashboard', 'toplevel_page_semantix-ai-search'])) {
+                ?>
+                <div class="notice notice-info is-dismissible">
+                    <p>
+                        <strong><?php esc_html_e('Semantix AI Search:', 'semantix-ai-search'); ?></strong>
+                        <?php esc_html_e('FiboSearch (AJAX Search for WooCommerce) is being automatically disabled to prevent conflicts.', 'semantix-ai-search'); ?>
+                        <a href="<?php echo admin_url('admin.php?page=semantix-ai-search&tab=advanced'); ?>">
+                            <?php esc_html_e('Change this setting', 'semantix-ai-search'); ?>
+                        </a>
+                    </p>
+                </div>
+                <?php
+            }
+        }
+    }
+}
+add_action('admin_notices', 'semantix_fibosearch_notice');
+
 if (!function_exists('semantix_add_global_styles_and_scripts')) {
     function semantix_add_global_styles_and_scripts() {
     ?>
@@ -61,6 +182,13 @@ if (!function_exists('semantix_add_global_styles_and_scripts')) {
         pointer-events: none;
         transition: opacity 0.5s ease-in-out;
         z-index: 1; /* Placeholder is behind the input field text */
+    }
+
+    /* Hide dynamic placeholders on mobile devices */
+    @media (max-width: 768px) {
+        .semantix-dynamic-placeholder {
+            display: none !important;
+        }
     }
 
     .semantix-fade-in { opacity: 1; }
@@ -232,11 +360,27 @@ window.semantix_performSearch = function(inputElement, searchQuery = null) {
     }
 };
 
+// Function to detect if device is mobile
+window.semantix_isMobile = function() {
+    return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 // Function to handle rotating placeholders in the search bar
 window.semantix_changePlaceholder = function(searchWrapper) {
     const searchInput = searchWrapper.querySelector('input[type="search"], input[type="text"][name="s"], .search-field, .semantix-search-input');
     const dynamicPlaceholder = searchWrapper.querySelector('.semantix-dynamic-placeholder');
     if (!dynamicPlaceholder || !searchInput) return;
+
+    // Check if mobile - if so, hide dynamic placeholder and restore original
+    if (window.semantix_isMobile()) {
+        dynamicPlaceholder.style.display = 'none';
+        // Restore original placeholder if it was stored
+        const originalPlaceholder = searchInput.dataset.originalPlaceholder;
+        if (originalPlaceholder) {
+            searchInput.setAttribute('placeholder', originalPlaceholder);
+        }
+        return;
+    }
 
     let currentIndex = 0;
     let intervalId = null;
@@ -260,6 +404,11 @@ window.semantix_changePlaceholder = function(searchWrapper) {
         return;
     }
 
+    // Store original placeholder before clearing it
+    if (!searchInput.dataset.originalPlaceholder) {
+        searchInput.dataset.originalPlaceholder = searchInput.getAttribute('placeholder') || '';
+    }
+    
     dynamicPlaceholder.textContent = dynamicTexts[0];
     searchInput.setAttribute('placeholder', ''); // Clear native placeholder
 
@@ -449,6 +598,20 @@ document.addEventListener("DOMContentLoaded", function() {
                         wrapper.dataset.rotationSpeed = container.dataset.rotationSpeed;
                     }
                 }
+
+                // Add resize listener to handle mobile/desktop switching
+                const handleResize = () => {
+                    if (window.semantix_changePlaceholder) {
+                        window.semantix_changePlaceholder(wrapper);
+                    }
+                };
+                
+                // Add resize listener (throttled)
+                let resizeTimeout;
+                window.addEventListener('resize', () => {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(handleResize, 250);
+                });
 
                 if (!wrapper.dataset.semantixInitialized) {
                      wrapper.dataset.semantixInitialized = 'true';
@@ -692,6 +855,10 @@ remove_action( 'activate_' . plugin_basename( __FILE__ ), 'semantix_create_nativ
 add_action('wp_ajax_semantix_render_products', 'semantix_render_products_ajax');
 add_action('wp_ajax_nopriv_semantix_render_products', 'semantix_render_products_ajax');
 
+// Add the native action handler (same as the regular one)
+add_action('wp_ajax_semantix_render_products_native', 'semantix_render_products_ajax');
+add_action('wp_ajax_nopriv_semantix_render_products_native', 'semantix_render_products_ajax');
+
 if (!function_exists('semantix_render_products_ajax')) {
 function semantix_render_products_ajax() {
     // Verify nonce
@@ -720,14 +887,13 @@ function semantix_render_products_ajax() {
         wp_die();
     }
 
-    // Filter only published, visible & purchasable
+    // No filtering - show all products returned by API
     $final_product_ids        = array();
     $highlighted_products_api = array();
 
     foreach ( $product_ids_arr as $raw_id ) {
         $pid = intval( $raw_id );
-        $product_obj = wc_get_product( $pid );
-        if ( $product_obj && $product_obj->is_purchasable() && $product_obj->is_visible() ) {
+        if ( $pid > 0 ) {
             $final_product_ids[] = $pid;
             if ( ! empty( $highlight_map_arr[ (string) $raw_id ] ) ) {
                 $highlighted_products_api[] = $pid;
@@ -759,10 +925,10 @@ function semantix_render_products_ajax() {
         'current_page' => 1,
     ) );
 
-    // Query products
+    // Query products (no status filtering - show all)
     $products_query = new WP_Query( array(
         'post_type'           => 'product',
-        'post_status'         => 'publish',
+        'post_status'         => array('publish', 'private', 'draft'),
         'post__in'            => $final_product_ids,
         'orderby'             => 'post__in',
         'posts_per_page'      => -1,
@@ -1240,6 +1406,19 @@ function semantix_search_advanced_page() {
                                 </label>
                             </td>
                         </tr>
+                        <tr valign="top">
+                            <th scope="row"><?php esc_html_e('Auto-Disable FiboSearch', 'semantix-ai-search'); ?></th>
+                            <td>
+                                <input type="hidden" name="semantix_auto_disable_fibosearch" value="0" />
+                                <label>
+                                    <input type="checkbox" name="semantix_auto_disable_fibosearch" value="1" <?php checked(get_option('semantix_auto_disable_fibosearch', 1), 1); ?> />
+                                    <?php esc_html_e('Automatically disable FiboSearch (AJAX Search for WooCommerce) to prevent conflicts with Semantix search.', 'semantix-ai-search'); ?>
+                                </label>
+                                <p class="description">
+                                    <?php esc_html_e('When enabled, Semantix will automatically override FiboSearch functionality to prevent search conflicts. Disable this if you want to manually manage both plugins.', 'semantix-ai-search'); ?>
+                                </p>
+                            </td>
+                        </tr>
                     </table>
 
                     <h3><?php esc_html_e('Colors', 'semantix-ai-search'); ?></h3>
@@ -1448,6 +1627,7 @@ if (!function_exists('semantix_register_settings')) {
         register_setting('semantix-advanced-group', 'semantix_collection2', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('semantix-advanced-group', 'semantix_custom_css', ['type' => 'string', 'sanitize_callback' => 'wp_strip_all_tags']);
         register_setting('semantix-advanced-group', 'semantix_show_header_title', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
+    register_setting('semantix-advanced-group', 'semantix_auto_disable_fibosearch', ['type' => 'boolean', 'sanitize_callback' => 'semantix_sanitize_checkbox']);
     }
 }
 add_action('admin_init', 'semantix_register_settings');
@@ -1580,6 +1760,42 @@ function semantix_track_search_to_cart_query() {
 }
 add_action('template_redirect', 'semantix_track_search_to_cart_query', 9);
 
+// Track checkout initiation for better conversion tracking
+if (!function_exists('semantix_track_checkout_initiation')) {
+function semantix_track_checkout_initiation() {
+    $search_query = semantix_get_search_query();
+    if (!empty($search_query)) {
+        $cart_items = WC()->cart->get_cart();
+        $total_value = WC()->cart->get_cart_contents_total();
+        
+        $products_data = array();
+        foreach ($cart_items as $cart_item) {
+            $product = $cart_item['data'];
+            $products_data[] = array(
+                'product_id' => $cart_item['product_id'],
+                'product_name' => $product->get_name(),
+                'quantity' => $cart_item['quantity'],
+                'price' => $product->get_price()
+            );
+        }
+        
+        $data = array(
+            'timestamp' => time(),
+            'search_query' => $search_query,
+            'products' => $products_data,
+            'cart_total' => $total_value,
+            'cart_count' => WC()->cart->get_cart_contents_count(),
+            'site_url' => home_url(),
+            'event_type' => 'checkout_initiated',
+            'source' => 'server_side'
+        );
+        semantix_send_to_mongodb($data);
+    }
+}
+}
+add_action('woocommerce_before_checkout_form', 'semantix_track_checkout_initiation');
+
+// Also track when users click "Proceed to Checkout" button
 if (!function_exists('semantix_track_add_to_cart')) {
 function semantix_track_add_to_cart($cart_item_key, $product_id, $quantity, $variation_id, $variation, $cart_item_data) {
     $search_query = semantix_get_search_query();
@@ -1605,27 +1821,139 @@ function semantix_add_search_to_cart_script() {
     ?>
 <script>
 (function($) { // Pass jQuery as $
-    function getSemanticCookie(name) { /* ... as before ... */ var value = "; " + document.cookie; var parts = value.split("; " + name + "="); if (parts.length == 2) return decodeURIComponent(parts.pop().split(";").shift()); return "";}
-    function trackSearchToCartEvent(productId, productName, productPrice, quantity) {
+    function getSemanticCookie(name) { var value = "; " + document.cookie; var parts = value.split("; " + name + "="); if (parts.length == 2) return decodeURIComponent(parts.pop().split(";").shift()); return "";}
+    
+    // Enhanced tracking function for checkout initiation
+    function trackSearchToCheckoutEvent(eventType, data) {
         var lastSearch = getSemanticCookie('semantix_last_search');
-        var urlParams = new URLSearchParams(window.location.search); var urlSearch = urlParams.get('s');
+        var urlParams = new URLSearchParams(window.location.search); 
+        var urlSearch = urlParams.get('s');
         var searchQuery = window.location.href.includes('/?s=') && urlSearch ? urlSearch : lastSearch;
+        
         if (searchQuery) {
-            var searchToCartData = { timestamp: Math.floor(Date.now()/1000), search_query: searchQuery, product_id: productId, product_name: productName, product_price: productPrice, quantity: quantity, site_url: window.location.hostname, event_type: 'add_to_cart', source: 'client_side' };
-            fetch('<?php echo esc_url($mongodb_api_url); ?>', { method: 'POST', headers: {'Content-Type': 'application/json', 'x-api-key': '<?php echo esc_attr($api_key); ?>'}, body: JSON.stringify({document: searchToCartData})})
-            .then(response => { if (!response.ok) throw new Error('Network response was not ok ' + response.status); return response.json(); }).then(data => console.log('Search to cart event saved (MongoDB):', data))
-            .catch(error => { console.error('Error saving search to cart event (MongoDB):', error);
-                $.ajax({ url: '<?php echo admin_url('admin-ajax.php'); ?>', type: 'POST', data: {action: 'semantix_track_search_to_cart', search_query: searchQuery, product_id: productId, product_name: productName, product_price: productPrice, quantity: quantity}, success: function(response){ console.log('Search to cart event tracked (AJAX fallback):', response);}});
+            var trackingData = {
+                timestamp: Math.floor(Date.now()/1000),
+                search_query: searchQuery,
+                site_url: window.location.hostname,
+                event_type: eventType,
+                source: 'client_side',
+                ...data
+            };
+            
+            fetch('<?php echo esc_url($mongodb_api_url); ?>', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json', 'x-api-key': '<?php echo esc_attr($api_key); ?>'}, 
+                body: JSON.stringify({document: trackingData})
+            })
+            .then(response => { 
+                if (!response.ok) throw new Error('Network response was not ok ' + response.status); 
+                return response.json(); 
+            })
+            .then(data => console.log('Semantix tracking event saved:', eventType, data))
+            .catch(error => { 
+                console.error('Error saving tracking event:', error);
+                // Fallback to AJAX
+                $.ajax({ 
+                    url: '<?php echo admin_url('admin-ajax.php'); ?>', 
+                    type: 'POST', 
+                    data: {
+                        action: 'semantix_track_search_event', 
+                        search_query: searchQuery, 
+                        event_type: eventType,
+                        event_data: JSON.stringify(data)
+                    }, 
+                    success: function(response){ 
+                        console.log('Tracking event via AJAX fallback:', response);
+                    }
+                });
             });
         }
     }
+    
+    // Legacy add to cart tracking (keep for historical data)
+    function trackSearchToCartEvent(productId, productName, productPrice, quantity) {
+        trackSearchToCheckoutEvent('add_to_cart', {
+            product_id: productId,
+            product_name: productName,
+            product_price: productPrice,
+            quantity: quantity
+        });
+    }
+    
+    // NEW: Track checkout initiation - PRIMARY CONVERSION EVENT
+    function trackCheckoutInitiation() {
+        var cartData = {
+            cart_total: $('.cart-subtotal .amount, .order-total .amount').first().text().trim(),
+            cart_count: $('.cart-contents-count').text() || $('tbody tr').length,
+            checkout_step: 'initiated'
+        };
+        trackSearchToCheckoutEvent('checkout_initiated', cartData);
+        console.log('🎯 Checkout initiated - Primary conversion tracked!');
+    }
+    
+    // NEW: Track checkout completion - FINAL CONVERSION EVENT  
+    function trackCheckoutCompletion(orderId, orderTotal) {
+        trackSearchToCheckoutEvent('checkout_completed', {
+            order_id: orderId,
+            order_total: orderTotal,
+            checkout_step: 'completed'
+        });
+        console.log('🎉 Purchase completed - Final conversion tracked!');
+    }
+    
+    // Track checkout initiation when user reaches checkout page
+    if (window.location.href.includes('/checkout/') && !window.location.href.includes('/order-received/')) {
+        $(document).ready(function() {
+            trackCheckoutInitiation();
+        });
+    }
+    
+    // Track checkout completion on thank you page
+    if (window.location.href.includes('/order-received/') || $('body').hasClass('woocommerce-order-received')) {
+        $(document).ready(function() {
+            var orderId = $('.woocommerce-order-overview__order strong, .order-number').text().trim();
+            var orderTotal = $('.woocommerce-order-overview__total .amount, .order-total .amount').text().trim();
+            trackCheckoutCompletion(orderId, orderTotal);
+        });
+    }
+    
+    // Track "Proceed to Checkout" button clicks
+    $(document).on('click', 'a[href*="checkout"], .checkout-button, .wc-proceed-to-checkout a', function(e) {
+        setTimeout(trackCheckoutInitiation, 100); // Small delay to ensure cart data is available
+    });
+    
+    // Legacy add to cart tracking (keep existing functionality)
     $(document).on('added_to_cart', function(event, fragments, cart_hash, $button) {
-        if (!$button || !$button.length) return; // Ensure $button is valid
-        var productId = $button.data('product_id'); var productName = $button.closest('.product').find('.woocommerce-loop-product__title').text() || $button.closest('.product-container').find('.product-name').text() || 'N/A'; var quantity = $button.data('quantity') || 1; var productPrice = ($button.closest('.product').find('.price .amount').first().text() || '').trim();
+        if (!$button || !$button.length) return;
+        var productId = $button.data('product_id'); 
+        var productName = $button.closest('.product').find('.woocommerce-loop-product__title').text() || $button.closest('.product-container').find('.product-name').text() || 'N/A'; 
+        var quantity = $button.data('quantity') || 1; 
+        var productPrice = ($button.closest('.product').find('.price .amount').first().text() || '').trim();
         trackSearchToCartEvent(productId, productName, productPrice, quantity);
     });
-    $(document).on('click', '.add_to_cart_button', function(e) { if (window.location.href.includes('/?s=')) { var urlParams = new URLSearchParams(window.location.search); var searchQuery = urlParams.get('s'); if (searchQuery) { document.cookie = "semantix_last_search=" + encodeURIComponent(searchQuery) + "; path=/; max-age=1800; SameSite=Lax";}}});
-    $('form.cart').on('submit', function(e) { var searchQuery = getSemanticCookie('semantix_last_search'); if (searchQuery) { var productId = $('input[name="product_id"]').val() || $('button[name="add-to-cart"]').val(); var productName = $('.product_title').text(); var quantity = $('input.qty').val() || 1; var productPrice = ($('.price .amount').first().text() || '').trim(); setTimeout(function(){ trackSearchToCartEvent(productId, productName, productPrice, quantity); }, 100);}});
+    
+    $(document).on('click', '.add_to_cart_button', function(e) { 
+        if (window.location.href.includes('/?s=')) { 
+            var urlParams = new URLSearchParams(window.location.search); 
+            var searchQuery = urlParams.get('s'); 
+            if (searchQuery) { 
+                document.cookie = "semantix_last_search=" + encodeURIComponent(searchQuery) + "; path=/; max-age=1800; SameSite=Lax";
+            }
+        }
+    });
+    
+    $('form.cart').on('submit', function(e) { 
+        var searchQuery = getSemanticCookie('semantix_last_search'); 
+        if (searchQuery) { 
+            var productId = $('input[name="product_id"]').val() || $('button[name="add-to-cart"]').val(); 
+            var productName = $('.product_title').text(); 
+            var quantity = $('input.qty').val() || 1; 
+            var productPrice = ($('.price .amount').first().text() || '').trim(); 
+            setTimeout(function(){ 
+                trackSearchToCartEvent(productId, productName, productPrice, quantity); 
+            }, 100);
+        }
+    });
 })(jQuery);
 </script>
     <?php
@@ -1672,6 +2000,44 @@ function semantix_ajax_search_to_cart_callback() {
 }
 add_action('wp_ajax_semantix_track_search_to_cart', 'semantix_ajax_search_to_cart_callback');
 add_action('wp_ajax_nopriv_semantix_track_search_to_cart', 'semantix_ajax_search_to_cart_callback');
+
+// New AJAX handler for enhanced tracking events
+add_action('wp_ajax_semantix_track_search_event', 'semantix_ajax_search_event_callback');
+add_action('wp_ajax_nopriv_semantix_track_search_event', 'semantix_ajax_search_event_callback');
+
+if (!function_exists('semantix_ajax_search_event_callback')) {
+function semantix_ajax_search_event_callback() {
+    $search_query = isset($_POST['search_query']) ? sanitize_text_field($_POST['search_query']) : '';
+    $event_type = isset($_POST['event_type']) ? sanitize_text_field($_POST['event_type']) : '';
+    $event_data_json = isset($_POST['event_data']) ? stripslashes($_POST['event_data']) : '{}';
+    $event_data = json_decode($event_data_json, true);
+    
+    if (!empty($search_query) && !empty($event_type)) {
+        $data = array(
+            'timestamp' => time(),
+            'search_query' => $search_query,
+            'event_type' => $event_type,
+            'site_url' => home_url(),
+            'source' => 'ajax_fallback'
+        );
+        
+        // Merge in the event-specific data
+        if (is_array($event_data)) {
+            $data = array_merge($data, $event_data);
+        }
+        
+        $result = semantix_send_to_mongodb($data);
+        if ($result) {
+            wp_send_json_success('Search event sent to MongoDB: ' . $event_type);
+        } else {
+            wp_send_json_error('Failed to send data to MongoDB');
+        }
+    } else {
+        wp_send_json_error('Missing required data');
+    }
+    wp_die();
+}
+}
 
 if (!function_exists('semantix_get_search_query')) {
 function semantix_get_search_query() {

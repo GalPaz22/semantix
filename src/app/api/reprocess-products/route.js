@@ -5,11 +5,13 @@ export async function POST(request) {
   console.log("🚀 REPROCESS API: Starting...");
   
   try {
-    const { dbName: dbNameFromRequest, categories, type: userTypes, softCategories } = await request.json();
+    const { dbName: dbNameFromRequest, categories, type: userTypes, softCategories, targetCategory, missingSoftCategoryOnly } = await request.json();
     console.log(`📝 DB Name from request: ${dbNameFromRequest}`);
     console.log("📝 Categories from request:", categories);
     console.log("📝 Types from request:", userTypes);
     console.log("📝 Soft Categories from request:", softCategories);
+    console.log("📝 Target Category from request:", targetCategory);
+    console.log("📝 Missing Soft Category Only from request:", missingSoftCategoryOnly);
     
     const client = await clientPromise;
     const usersDb = client.db("users");
@@ -38,6 +40,8 @@ export async function POST(request) {
     console.log("categories:", categories ? `Array(${categories.length})` : "UNDEFINED");
     console.log("userTypes:", userTypes ? `Array(${userTypes.length})` : "UNDEFINED");
     console.log("softCategories:", softCategories ? `Array(${softCategories.length})` : "UNDEFINED");
+    console.log("targetCategory:", targetCategory || "NONE");
+    console.log("missingSoftCategoryOnly:", missingSoftCategoryOnly || false);
 
     // Basic validation
     if (!userDbName || !categories) {
@@ -57,7 +61,9 @@ export async function POST(request) {
       dbName: userDbName,
       categories: categories,
       userTypes: userTypes || [],  // Fallback to empty array
-      softCategories: softCategories || []  // Fallback to empty array
+      softCategories: softCategories || [],  // Fallback to empty array
+      targetCategory: targetCategory || null,  // Optional category filter
+      missingSoftCategoryOnly: missingSoftCategoryOnly || false  // Optional missing field filter
     };
 
     console.log("🚀 PAYLOAD BEING SENT TO REPROCESS:");
@@ -65,6 +71,8 @@ export async function POST(request) {
     console.log("categories length:", payload.categories.length);
     console.log("userTypes length:", payload.userTypes.length);
     console.log("softCategories length:", payload.softCategories.length);
+    console.log("targetCategory:", payload.targetCategory);
+    console.log("missingSoftCategoryOnly:", payload.missingSoftCategoryOnly);
 
     // Background processing
     (async () => {

@@ -106,7 +106,7 @@ export default function RootLayout({ children }) {
               {/* Logo and Main Nav Links */}
               <div className="flex items-center space-x-8">
                 <Link href="/" className="flex items-center">
-                  <img src="/main-logo.svg" alt="לוגו Semantix - חיפוש סמנטי לעסק שלך" className="h-12 w-auto [&>path]:fill-purple-600" style={{ filter: "none" }} />
+                  <img src="/main-logo.svg" alt="Semantix - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך" className="h-12 w-auto [&>path]:fill-purple-600" style={{ filter: "none" }} />
                 </Link>
               </div>
 

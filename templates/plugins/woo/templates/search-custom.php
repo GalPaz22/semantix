@@ -229,14 +229,18 @@ get_header();
     // Fetch products from Semantix API
     async function fetchSemantixProducts() {
         try {
-            // use your endpoint if configured: SEMANTIX_API_SEARCH_ENDPOINT
-            const response = await fetch('https://dashboard-server-ae00.onrender.com/search', {
+            const response = await fetch(SEMANTIX_API_SEARCH_ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(SEMANTIX_API_KEY ? { 'x-api-key': SEMANTIX_API_KEY } : {})
                 },
-                body: JSON.stringify({ query: searchTerm, useImages: true }),
+                body: JSON.stringify({ 
+                    query: searchTerm, 
+                    dbName: 'alcohome',
+                    collectionName1: 'products',
+                    collectionName2: 'queries'
+                }),
                 credentials: 'same-origin'
             });
 

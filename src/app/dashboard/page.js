@@ -1386,6 +1386,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [resyncing, setResyncing] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [targetCategory, setTargetCategory] = useState(""); // For category-specific reprocessing
+  const [missingSoftCategoryOnly, setMissingSoftCategoryOnly] = useState(false); // For products missing softCategory field
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner] = useState("");
@@ -1603,7 +1605,9 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         dbName,
         categories: categoriesArray,
         type: typesArray,
-        softCategories: softCategoriesArray
+        softCategories: softCategoriesArray,
+        targetCategory: targetCategory.trim() || null,
+        missingSoftCategoryOnly: missingSoftCategoryOnly
       };
       
       console.log("🔍 PAYLOAD TO SEND:", payload);
@@ -2075,12 +2079,60 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </button>
                 {dbName && (
                   <>
+                    {/* Category Selection for Reprocessing */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        עיבוד מחדש לפי קטגוריה ספציפית (אופציונלי)
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select
+                          value={targetCategory}
+                          onChange={(e) => setTargetCategory(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          disabled={reprocessing || stopping}
+                        >
+                          <option value="">כל הקטגוריות (עיבוד מחדש רגיל)</option>
+                          {categories.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-gray-500 sm:self-end sm:pb-2">
+                          {targetCategory ? `יעבד רק מוצרים מקטגוריה: ${targetCategory}` : 'יעבד את כל המוצרים'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Missing Soft Category Option */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                      <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                        <input
+                          type="checkbox"
+                          checked={missingSoftCategoryOnly}
+                          onChange={(e) => setMissingSoftCategoryOnly(e.target.checked)}
+                          disabled={reprocessing || stopping}
+                          className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-700">
+                            עיבד רק מוצרים עם קטגוריות קשות אבל ללא שדה צבעי-רכות
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            יתמקד במוצרים שיש להם קטגוריות אבל חסר להם לגמרי שדה צבעי-רכות (לא מערך ריק)
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
                     <button 
                       onClick={handleReprocess} 
                       disabled={reprocessing || stopping}
                       className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {reprocessing ? 'מעבד מחדש...' : 'עבד מחדש את כל המוצרים'}
+                      {reprocessing ? 'מעבד מחדש...' : (
+                        missingSoftCategoryOnly ? 'עבד מחדש מוצרים ללא צבעי-רכות' : 
+                        targetCategory ? `עבד מחדש קטגוריה: ${targetCategory}` : 
+                        'עבד מחדש את כל המוצרים'
+                      )}
                     </button>
                     <button 
                       onClick={handleStopReprocess} 
