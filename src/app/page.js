@@ -275,6 +275,8 @@ const HomePage = () => {
       <Head>
         <meta name="robots" content="noimageindex" />
         <meta name="googlebot" content="noimageindex" />
+        <title>Semantix AI - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך</title>
+        
       </Head>
       <div className="relative">
         {/* Navigation Bar */}

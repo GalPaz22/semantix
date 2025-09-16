@@ -26,11 +26,8 @@ export async function POST(request) {
     }
     console.log("✅ User found!");
 
-    if (!userDoc.credentials) {
-      console.error("❌ No credentials found!");
-      throw new Error(`Credentials not found`);
-    }
-    console.log("✅ Credentials exist!");
+    // Note: Reprocessing doesn't require credentials, only dbName
+    console.log("✅ User found, proceeding with reprocessing");
 
     // Use data from request body instead of database
     const userDbName = dbNameFromRequest;
