@@ -1388,6 +1388,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [stopping, setStopping] = useState(false);
   const [targetCategory, setTargetCategory] = useState(""); // For category-specific reprocessing
   const [missingSoftCategoryOnly, setMissingSoftCategoryOnly] = useState(false); // For products missing softCategory field
+  
+  // Advanced reprocessing options
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [reprocessHardCategories, setReprocessHardCategories] = useState(true);
+  const [reprocessSoftCategories, setReprocessSoftCategories] = useState(true);
+  const [reprocessTypes, setReprocessTypes] = useState(true);
+  const [reprocessVariants, setReprocessVariants] = useState(true);
+  const [reprocessEmbeddings, setReprocessEmbeddings] = useState(false);
+  const [reprocessDescriptions, setReprocessDescriptions] = useState(false);
+  const [reprocessAll, setReprocessAll] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner] = useState("");
@@ -1607,7 +1617,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         type: typesArray,
         softCategories: softCategoriesArray,
         targetCategory: targetCategory.trim() || null,
-        missingSoftCategoryOnly: missingSoftCategoryOnly
+        missingSoftCategoryOnly: missingSoftCategoryOnly,
+        
+        // Advanced reprocessing options
+        reprocessHardCategories,
+        reprocessSoftCategories,
+        reprocessTypes,
+        reprocessVariants,
+        reprocessEmbeddings,
+        reprocessDescriptions,
+        reprocessAll
       };
       
       console.log("🔍 PAYLOAD TO SEND:", payload);
@@ -2122,6 +2141,123 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                         </div>
                       </label>
                     </div>
+                    
+                    {/* Advanced Reprocessing Options Toggle */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                        className="flex items-center justify-between w-full text-right"
+                      >
+                        <span className="text-sm font-medium text-blue-800">
+                          אפשרויות מתקדמות לעיבוד מחדש
+                        </span>
+                        <svg 
+                          className={`w-5 h-5 transition-transform ${showAdvancedOptions ? 'transform rotate-180' : ''}`} 
+                          fill="currentColor" 
+                          viewBox="0 0 20 20"
+                        >
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"></path>
+                        </svg>
+                      </button>
+                      
+                      {showAdvancedOptions && (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-3">
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessAll}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setReprocessAll(checked);
+                                  if (checked) {
+                                    // Select all options when "All" is checked
+                                    setReprocessHardCategories(true);
+                                    setReprocessSoftCategories(true);
+                                    setReprocessTypes(true);
+                                    setReprocessVariants(true);
+                                    setReprocessEmbeddings(true);
+                                    setReprocessDescriptions(true);
+                                  }
+                                }}
+                                disabled={reprocessing || stopping}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm font-bold text-blue-900">עיבוד מחדש של הכל (כולל מידע)</span>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessHardCategories}
+                                onChange={(e) => setReprocessHardCategories(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">קטגוריות קשות</span>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessSoftCategories}
+                                onChange={(e) => setReprocessSoftCategories(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">קטגוריות רכות/צבעים</span>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessTypes}
+                                onChange={(e) => setReprocessTypes(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">סוגי מוצרים</span>
+                            </label>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessVariants}
+                                onChange={(e) => setReprocessVariants(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">וריאציות מוצרים</span>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessEmbeddings}
+                                onChange={(e) => setReprocessEmbeddings(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">אמבדינג/וקטורים</span>
+                            </label>
+                            
+                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                              <input
+                                type="checkbox"
+                                checked={reprocessDescriptions}
+                                onChange={(e) => setReprocessDescriptions(e.target.checked)}
+                                disabled={reprocessing || stopping || reprocessAll}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                              />
+                              <span className="text-sm text-gray-700">תיאור/תרגום</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     <button 
                       onClick={handleReprocess} 
@@ -2129,9 +2265,15 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                       className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {reprocessing ? 'מעבד מחדש...' : (
+                        // Button text reflects what's being reprocessed
+                        reprocessAll ? 'עיבוד מחדש מלא של כל המידע' :
                         missingSoftCategoryOnly ? 'עבד מחדש מוצרים ללא צבעי-רכות' : 
                         targetCategory ? `עבד מחדש קטגוריה: ${targetCategory}` : 
-                        'עבד מחדש את כל המוצרים'
+                        (!reprocessHardCategories && !reprocessSoftCategories && !reprocessTypes) ? 
+                          (reprocessEmbeddings ? 'עדכן וקטורים בלבד' : 
+                           reprocessDescriptions ? 'עדכן תיאורים בלבד' : 
+                           reprocessVariants ? 'עדכן וריאציות בלבד' : 'עבד מחדש את כל המוצרים') :
+                          'עבד מחדש קטגוריות וסוגים'
                       )}
                     </button>
                     <button 

@@ -5,13 +5,38 @@ export async function POST(request) {
   console.log("🚀 REPROCESS API: Starting...");
   
   try {
-    const { dbName: dbNameFromRequest, categories, type: userTypes, softCategories, targetCategory, missingSoftCategoryOnly } = await request.json();
+    const { 
+      dbName: dbNameFromRequest, 
+      categories, 
+      type: userTypes, 
+      softCategories, 
+      targetCategory, 
+      missingSoftCategoryOnly,
+      // New reprocessing options
+      reprocessHardCategories,
+      reprocessSoftCategories,
+      reprocessTypes,
+      reprocessVariants,
+      reprocessEmbeddings,
+      reprocessDescriptions,
+      reprocessAll
+    } = await request.json();
     console.log(`📝 DB Name from request: ${dbNameFromRequest}`);
     console.log("📝 Categories from request:", categories);
     console.log("📝 Types from request:", userTypes);
     console.log("📝 Soft Categories from request:", softCategories);
     console.log("📝 Target Category from request:", targetCategory);
     console.log("📝 Missing Soft Category Only from request:", missingSoftCategoryOnly);
+    
+    // Log reprocessing options
+    console.log("📝 Reprocess Options:");
+    console.log("- Hard Categories:", reprocessHardCategories !== undefined ? reprocessHardCategories : "default (true)");
+    console.log("- Soft Categories:", reprocessSoftCategories !== undefined ? reprocessSoftCategories : "default (true)");
+    console.log("- Types:", reprocessTypes !== undefined ? reprocessTypes : "default (true)");
+    console.log("- Variants:", reprocessVariants !== undefined ? reprocessVariants : "default (true)");
+    console.log("- Embeddings:", reprocessEmbeddings !== undefined ? reprocessEmbeddings : "default (false)");
+    console.log("- Descriptions:", reprocessDescriptions !== undefined ? reprocessDescriptions : "default (false)");
+    console.log("- All:", reprocessAll !== undefined ? reprocessAll : "default (false)");
     
     const client = await clientPromise;
     const usersDb = client.db("users");
@@ -60,7 +85,18 @@ export async function POST(request) {
       userTypes: userTypes || [],  // Fallback to empty array
       softCategories: softCategories || [],  // Fallback to empty array
       targetCategory: targetCategory || null,  // Optional category filter
-      missingSoftCategoryOnly: missingSoftCategoryOnly || false  // Optional missing field filter
+      missingSoftCategoryOnly: missingSoftCategoryOnly || false,  // Optional missing field filter
+      
+      // Add reprocessing options if provided
+      options: {
+        reprocessHardCategories: reprocessHardCategories !== undefined ? reprocessHardCategories : true,
+        reprocessSoftCategories: reprocessSoftCategories !== undefined ? reprocessSoftCategories : true,
+        reprocessTypes: reprocessTypes !== undefined ? reprocessTypes : true,
+        reprocessVariants: reprocessVariants !== undefined ? reprocessVariants : true,
+        reprocessEmbeddings: reprocessEmbeddings !== undefined ? reprocessEmbeddings : false,
+        reprocessDescriptions: reprocessDescriptions !== undefined ? reprocessDescriptions : false,
+        reprocessAll: reprocessAll !== undefined ? reprocessAll : false
+      }
     };
 
     console.log("🚀 PAYLOAD BEING SENT TO REPROCESS:");
@@ -70,6 +106,7 @@ export async function POST(request) {
     console.log("softCategories length:", payload.softCategories.length);
     console.log("targetCategory:", payload.targetCategory);
     console.log("missingSoftCategoryOnly:", payload.missingSoftCategoryOnly);
+    console.log("reprocessing options:", payload.options);
 
     // Background processing
     (async () => {

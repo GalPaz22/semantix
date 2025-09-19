@@ -27,7 +27,7 @@ const HomePage = () => {
       ]
     },
     {
-      query: "תכשיט בצורת לב ליום ההולדת של בתי, שיהיה בהנחה",
+      query: "תכשיט בצורת לב או צדף ליום ההולדת של הבת שלי, שיהיה בהנחה",
       images: [
         "https://theydream-online.com/wp-content/uploads/2024/06/1717340426_I8PsgQ_C-1.jpeg.webp",
         "https://theydream-online.com/wp-content/uploads/2023/07/1690810117_1690117322_06-652x652.jpg.webp",
@@ -312,13 +312,12 @@ const HomePage = () => {
             
               <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold mb-6">
                 <span className="bg-gradient-to-b from-gray-500 to-purple-600 text-transparent bg-clip-text block mb-2 sm:mb-0 sm:inline">
-                 המשתמשים שלכם יודעים מה הם מחפשים
+                 המשתמשים שלכם יודעים מה הם מחפשים.
                 </span>
-                <br className="hidden sm:block" />
-                <span className="text-black">עזרו להם למצוא</span>
               </h1>
+              
               <p className="text-xl sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
-                תנו ללקוחות לחפש באופן טבעי, למצוא בדיוק מה שהם רוצים, ולקנות בביטחון. 
+              טכנולוגיית החיפוש באתרי אי קומרס לא השתנתה מהותית ב-20 שנה האחרונות. אנחנו כאן לשנות אותה.
                 
               </p>
             </div>
@@ -398,7 +397,7 @@ const HomePage = () => {
         <section className="py-20 px-4 bg-white" dir="rtl">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-4xl font-bold text-gray-800 mb-6">
-              הלקוחות שלך לא חושבים במילות מפתח
+              הלקוחות שלכם לא חושבים במילות מפתח
             </h2>
             <div className="space-y-6 mb-8">
               <div>
