@@ -150,7 +150,7 @@ const HomePage = () => {
 
   useEffect(() => {
     const animateNumbers = () => {
-      const queriesTarget = 45000;
+      const queriesTarget = 1000000;
       const productsTarget = 10000;
       const duration = 2000; // 2 seconds
       const steps = 60;
@@ -310,7 +310,7 @@ const HomePage = () => {
           <div className="max-w-7xl mx-auto relative z-10">
             <div className="text-center mb-12">
             
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold mb-6">
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold mb-6">
                 <span className="bg-gradient-to-b from-gray-500 to-purple-600 text-transparent bg-clip-text block mb-2 sm:mb-0 sm:inline">
                  המשתמשים שלכם יודעים מה הם מחפשים.
                 </span>
@@ -404,9 +404,7 @@ const HomePage = () => {
                 <p className="font-semibold text-gray-800 text-xl mb-4">הם רוצים לחפש כמו שהם חושבים.</p>
                 <p className="text-gray-600 text-lg leading-relaxed"> כולנו מכירים את חווית החיפוש המתסכלת באתרי אי קומרס. ההבנה שאם לא נתאים באופן מדויק את מילות המפתח, נקבל את את ה׳׳אין תוצאות׳׳ הידוע והמבאס.</p>
               </div>
-              <div>
-                <p className="text-gray-600 text-lg leading-relaxed">טכנולוגיית החיפוש לאתרי אי קומרס לא השתנתה מהותית ב-30 שנה האחרונות. אנחנו כאן לשנות אותה.</p>
-              </div>
+             
             </div>
             <button onClick={() => router.push('/product')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-full hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-lg">
               ראה את הההבדל ←
