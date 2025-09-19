@@ -1,12 +1,12 @@
 /* eslint-disable consistent-return */
 import { getServerSession }  from "next-auth";
 import { authOptions }       from "../auth/[...nextauth]/route";
-import clientPromise         from "/lib/mongodb";
-import processShopify        from "/lib/processShopify";
+import clientPromise         from "../../../../lib/mongodb.js";
+import processShopify        from "../../../../lib/processShopify.js";
 import { processWooProducts } from "../../../../lib/processWoo.js";
-import processWooImages      from "/lib/processWooImages";
-import processShopifyImages from "/lib/processShopifyImages";
-import { setJobState } from "/lib/syncStatus.js";
+import processWooImages      from "../../../../lib/processWooImages.js";
+import processShopifyImages from "../../../../lib/processShopifyImages.js";
+import { setJobState } from "../../../../lib/syncStatus.js";
 
 /* ---------- credential validation helpers ----------------------- */
 async function validateShopifyCredentials(domain, token) {
@@ -436,49 +436,54 @@ export async function POST(req) {
     /* 5)  mark job=running and launch the heavy lift in background  */
     await setJobState(dbName, "running");
 
-    // detach – we don't await so the request can return immediately
-    (async () => {
-      let logs = [];
-      try {
-        console.log("🔍 [Onboarding API] Starting background processing with:");
-        console.log("🔍 [Onboarding API] Final type parameter:", type);
-        console.log("🔍 [Onboarding API] Final categories parameter:", categories);
-        
-        if (platform === "woocommerce") {
-          console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
-          if (syncMode === "image") {
-            console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-            logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
-          } else {
-            console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-            logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
-          }
-        } else if (platform === "shopify") {
-          console.log("🔍 [Onboarding API] Calling Shopify processing...");
-          if (syncMode === "image") {
-            console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, context });
-            logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, context });
-          } else {
-            console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
-            logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
-          }
+    // Process sync synchronously with timeout protection
+    let logs = [];
+    try {
+      console.log("🔍 [Onboarding API] Starting sync processing with:");
+      console.log("🔍 [Onboarding API] Final type parameter:", type);
+      console.log("🔍 [Onboarding API] Final categories parameter:", categories);
+      
+      if (platform === "woocommerce") {
+        console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
+        if (syncMode === "image") {
+          console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
+          logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
+        } else {
+          console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
+          logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
         }
-        await setJobState(dbName, "done");
-
-        // Log the collected messages from the sync process.
-        console.log("Sync logs:", logs);
-      } catch (err) {
-        console.error("sync error", err);
-        await setJobState(dbName, "error");
+      } else if (platform === "shopify") {
+        console.log("🔍 [Onboarding API] Calling Shopify processing...");
+        if (syncMode === "image") {
+          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, context });
+          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, context });
+        } else {
+          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
+          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
+        }
       }
-    })();
+      await setJobState(dbName, "done");
 
-    /* 6)  send the client away – 202 Accepted = "working on it" */
-    return Response.json({ 
-      success: true, 
-      state: "running",
-      isNewTrial: isFirstTimeOnboarding 
-    }, { status: 202 });
+      // Log the collected messages from the sync process.
+      console.log("Sync logs:", logs);
+      
+      return Response.json({ 
+        success: true, 
+        state: "done",
+        isNewTrial: isFirstTimeOnboarding,
+        logs: logs
+      }, { status: 200 });
+      
+    } catch (err) {
+      console.error("sync error", err);
+      await setJobState(dbName, "error");
+      
+      return Response.json({ 
+        success: false, 
+        error: err.message,
+        state: "error"
+      }, { status: 500 });
+    }
   } catch (err) {
     console.error("[onboarding error]", err);
     return Response.json({ error: "Something went wrong" }, { status: 500 });
@@ -490,13 +495,29 @@ export async function POST(req) {
 /* /api/onboarding?dbName=myStore&check=true                          */
 export async function GET(req) {
   const dbName = req.nextUrl.searchParams.get("dbName");
-  if (!dbName) return Response.json({ error: "missing dbName" }, { status: 400 });
+  const check = req.nextUrl.searchParams.get("check");
 
-  const client = await clientPromise;
-  const doc = await client
-    .db()
-    .collection("sync_status")
-    .findOne({ dbName }, { projection: { _id: 0 } });
+  if (!dbName || check !== "true") {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
 
-  return Response.json({ state: doc?.state || "pending" });
+  try {
+    const client = await clientPromise;
+    const db = client.db(dbName);
+    const statusCol = db.collection("sync_status");
+
+    const status = await statusCol.findOne({ dbName });
+    return Response.json({ 
+      state: status?.state || "idle", 
+      progress: status?.progress || 0,
+      done: status?.done || 0,
+      total: status?.total || 0
+    });
+  } catch (err) {
+    console.error("GET /api/onboarding error:", err);
+    return Response.json({ error: "Database error" }, { status: 500 });
+  }
 }
+
+// Increase function timeout for Vercel (max 60 seconds for Pro plan)
+export const maxDuration = 60;

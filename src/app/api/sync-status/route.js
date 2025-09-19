@@ -1,6 +1,6 @@
-import { getServerSession }   from "next-auth";
-import { authOptions }        from "../auth/[...nextauth]/route";
-import clientPromise          from "/lib/mongodb";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import clientPromise from "../../../../lib/mongodb.js";
 
 /* GET /api/sync-status?dbName=<n> */
 export async function GET(req) {
