@@ -1367,14 +1367,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
     platform === "shopify"
       ? {
           shopifyDomain: onboarding?.credentials?.shopifyDomain || "",
-          shopifyToken: onboarding?.credentials?.shopifyToken || "",
+          shopifyApiKey: onboarding?.credentials?.shopifyApiKey || "",
+          shopifyApiPassword: onboarding?.credentials?.shopifyApiPassword || "",
           wooUrl: "",
           wooKey: "",
           wooSecret: ""
         }
       : {
           shopifyDomain: "",
-          shopifyToken: "",
+          shopifyApiKey: "",
+          shopifyApiPassword: "",
           wooUrl: onboarding?.credentials?.wooUrl || "",
           wooKey: onboarding?.credentials?.wooKey || "",
           wooSecret: onboarding?.credentials?.wooSecret || ""
@@ -1423,8 +1425,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
     }
 
     // Validate platform-specific credentials
-    if (platform === "shopify" && (!cred.shopifyDomain || !cred.shopifyToken)) {
-      setMsg("❌ Shopify domain and access token are required");
+    if (platform === "shopify" && (!cred.shopifyDomain || !cred.shopifyApiKey || !cred.shopifyApiPassword)) {
+      setMsg("❌ Shopify domain, API key, and API password are required");
       setTimeout(() => setMsg(""), 2000);
       return;
     } else if (platform === "woocommerce" && (!cred.wooUrl || !cred.wooKey || !cred.wooSecret)) {
@@ -1450,7 +1452,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const platformCredentials = platform === "shopify" 
         ? {
             shopifyDomain: formattedCred.shopifyDomain,
-            shopifyToken: formattedCred.shopifyToken,
+            shopifyApiKey: formattedCred.shopifyApiKey,
+            shopifyApiPassword: formattedCred.shopifyApiPassword,
           }
         : {
             wooUrl: formattedCred.wooUrl,
@@ -1473,7 +1476,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
 
       console.log('Sending resync request with payload:', {
         ...payload,
-        shopifyToken: payload.shopifyToken ? '***' : undefined,
+        shopifyApiKey: payload.shopifyApiKey ? '***' : undefined,
+        shopifyApiPassword: payload.shopifyApiPassword ? '***' : undefined,
         wooSecret: payload.wooSecret ? '***' : undefined
       });
 
@@ -1543,7 +1547,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const platformCredentials = platform === "shopify" 
         ? {
             shopifyDomain: formattedCred.shopifyDomain,
-            shopifyToken: formattedCred.shopifyToken,
+            shopifyApiKey: formattedCred.shopifyApiKey,
+            shopifyApiPassword: formattedCred.shopifyApiPassword,
           }
         : {
             wooUrl: formattedCred.wooUrl,
@@ -1899,13 +1904,25 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      מפתח API של אדמין
+                      API Key (מפתח API)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+                      value={cred.shopifyApiKey}
+                      onChange={e => setCred({ ...cred, shopifyApiKey: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      API Password (סיסמת API)
                     </label>
                     <input
                       type="password"
                       className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
-                      value={cred.shopifyToken}
-                      onChange={e => setCred({ ...cred, shopifyToken: e.target.value })}
+                      value={cred.shopifyApiPassword}
+                      onChange={e => setCred({ ...cred, shopifyApiPassword: e.target.value })}
                       required
                     />
                   </div>
@@ -2037,9 +2054,15 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     </div>
                   </div>
                   <div>
-                    <span className="block text-sm font-medium text-gray-700 mb-2">מפתח API של אדמין</span>
+                    <span className="block text-sm font-medium text-gray-700 mb-2">API Key (מפתח API)</span>
                     <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
-                      {cred.shopifyToken ? "••••••••••••••••" : "לא הוגדר"}
+                      {cred.shopifyApiKey ? "••••••••••••••••" : "לא הוגדר"}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700 mb-2">API Password (סיסמת API)</span>
+                    <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                      {cred.shopifyApiPassword ? "••••••••••••••••" : "לא הוגדר"}
                     </div>
                   </div>
                 </div>
