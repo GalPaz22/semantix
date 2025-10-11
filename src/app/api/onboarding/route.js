@@ -9,10 +9,10 @@ import processShopifyImages from "../../../../lib/processShopifyImages.js";
 import { setJobState } from "../../../../lib/syncStatus.js";
 
 /* ---------- credential validation helpers ----------------------- */
-async function validateShopifyCredentials(domain, token) {
+async function validateShopifyCredentialsWithApiKey(domain, authToken) {
   try {
-    if (!domain || !token) {
-      console.error('Missing Shopify credentials:', { domain: !!domain, token: !!token });
+    if (!domain || !authToken) {
+      console.error('Missing Shopify credentials:', { domain: !!domain, authToken: !!authToken });
       return false;
     }
 
@@ -33,7 +33,7 @@ async function validateShopifyCredentials(domain, token) {
     
     const response = await fetch(url, {
       headers: {
-        'X-Shopify-Access-Token': token,
+        'Authorization': `Basic ${authToken}`,
         'Content-Type': 'application/json',
         'User-Agent': 'Semantix/1.0'
       },
@@ -325,7 +325,8 @@ export async function POST(req) {
     const {
       platform,
       shopifyDomain,
-      shopifyToken,
+      shopifyApiKey,
+      shopifyApiPassword,
       wooUrl,
       wooKey,
       wooSecret,
@@ -359,13 +360,15 @@ export async function POST(req) {
     let isValidCredentials = false;
     
     if (platform === "shopify") {
-      if (!shopifyDomain || !shopifyToken) {
+      if (!shopifyDomain || !shopifyApiKey || !shopifyApiPassword) {
         return Response.json({ 
           error: "Invalid credentials", 
-          message: "Shopify domain and access token are required" 
+          message: "Shopify domain, API key, and API password are required" 
         }, { status: 401 });
       }
-      isValidCredentials = await validateShopifyCredentials(shopifyDomain, shopifyToken);
+      // Create Basic Auth token for validation
+      const authToken = Buffer.from(`${shopifyApiKey}:${shopifyApiPassword}`).toString('base64');
+      isValidCredentials = await validateShopifyCredentialsWithApiKey(shopifyDomain, authToken);
     } else if (platform === "woocommerce") {
       if (!wooUrl || !wooKey || !wooSecret) {
         return Response.json({ 
@@ -401,7 +404,7 @@ export async function POST(req) {
     // Remove platform from credentials.
     const credentials =
       platform === "shopify"
-        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories }
+        ? { shopifyDomain, shopifyApiKey, shopifyApiPassword, categories, dbName, type, softCategories }
         : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories };
 
     // Update the user record with credentials and trial information
@@ -455,11 +458,11 @@ export async function POST(req) {
       } else if (platform === "shopify") {
         console.log("🔍 [Onboarding API] Calling Shopify processing...");
         if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, context });
-          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, context });
+          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyApiKey: !!shopifyApiKey, shopifyApiPassword: !!shopifyApiPassword, dbName, categories, type, softCategories, context });
+          logs = await processShopifyImages({ shopifyDomain, shopifyApiKey, shopifyApiPassword, dbName, categories, userTypes: type, softCategories, context });
         } else {
-          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
-          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
+          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyApiKey: !!shopifyApiKey, shopifyApiPassword: !!shopifyApiPassword, dbName, categories, type, softCategories });
+          logs = await processShopify({ shopifyDomain, shopifyApiKey, shopifyApiPassword, dbName, categories, userTypes: type, softCategories });
         }
       }
       await setJobState(dbName, "done");
