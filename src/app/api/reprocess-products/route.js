@@ -70,10 +70,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing required data" }, { status: 400 });
     }
 
-    // Import modules
+    // Import setJobState
     const { setJobState } = await import("../../../../lib/syncStatus.js");
-    const reprocessModule = await import("../../../../lib/reprocess-products.js");
-    const reprocessProducts = reprocessModule.default;
 
     // Set job state
     await setJobState(userDbName, "running");
@@ -99,7 +97,7 @@ export async function POST(request) {
       }
     };
 
-    console.log("🚀 PAYLOAD BEING SENT TO REPROCESS:");
+    console.log("🚀 FORWARDING PAYLOAD TO BACKEND:");
     console.log("dbName:", payload.dbName);
     console.log("categories length:", payload.categories.length);
     console.log("userTypes length:", payload.userTypes.length);
@@ -108,27 +106,41 @@ export async function POST(request) {
     console.log("missingSoftCategoryOnly:", payload.missingSoftCategoryOnly);
     console.log("reprocessing options:", payload.options);
 
-    // Background processing
-    (async () => {
-      try {
-        await reprocessProducts(payload);
-        await setJobState(userDbName, "done");
-        console.log("✅ Background processing completed");
-      } catch (err) {
-        console.error("❌ Background processing error:", err);
-        await setJobState(userDbName, "error");
-      }
-    })();
+    // Forward to backend server
+    try {
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      console.log(`📡 Forwarding to ${backendUrl}/api/reprocess-products`);
+      
+      const backendResponse = await fetch(`${backendUrl}/api/reprocess-products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
 
-    return NextResponse.json({ 
-      state: "running",
-      debug: {
-        foundUserTypes: userTypes !== undefined,
-        foundSoftCategories: softCategories !== undefined,
-        userTypesLength: userTypes?.length || 0,
-        softCategoriesLength: softCategories?.length || 0
+      const result = await backendResponse.json();
+      
+      if (!backendResponse.ok) {
+        throw new Error(result.error || 'Backend reprocessing failed');
       }
-    });
+
+      console.log("✅ Backend reprocessing request accepted");
+      
+      return NextResponse.json({ 
+        state: "running",
+        debug: {
+          foundUserTypes: userTypes !== undefined,
+          foundSoftCategories: softCategories !== undefined,
+          userTypesLength: userTypes?.length || 0,
+          softCategoriesLength: softCategories?.length || 0
+        }
+      });
+    } catch (err) {
+      console.error("❌ Backend forwarding error:", err);
+      await setJobState(userDbName, "error");
+      throw err;
+    }
 
   } catch (error) {
     console.error("💥 MAIN ERROR:", error);

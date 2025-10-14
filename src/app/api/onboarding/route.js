@@ -2,10 +2,6 @@
 import { getServerSession }  from "next-auth";
 import { authOptions }       from "../auth/[...nextauth]/route";
 import clientPromise         from "../../../../lib/mongodb.js";
-import processShopify        from "../../../../lib/processShopify.js";
-import { processWooProducts } from "../../../../lib/processWoo.js";
-import processWooImages      from "../../../../lib/processWooImages.js";
-import processShopifyImages from "../../../../lib/processShopifyImages.js";
 import { setJobState } from "../../../../lib/syncStatus.js";
 
 /* ---------- credential validation helpers ----------------------- */
@@ -433,45 +429,49 @@ export async function POST(req) {
     await createAutocompleteIndex(client, dbName);
     await createProductIndexes(client, dbName);
 
-    /* 5)  mark job=running and launch the heavy lift in background  */
+    /* 5)  Forward request to backend server on localhost:3001  */
     await setJobState(dbName, "running");
 
-    // Process sync synchronously with timeout protection
-    let logs = [];
     try {
-      console.log("🔍 [Onboarding API] Starting sync processing with:");
-      console.log("🔍 [Onboarding API] Final type parameter:", type);
-      console.log("🔍 [Onboarding API] Final categories parameter:", categories);
+      console.log("🔍 [Onboarding API] Forwarding request to backend server localhost:3001");
       
-      if (platform === "woocommerce") {
-        console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
-        if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-          logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
-        } else {
-          console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-          logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
-        }
-      } else if (platform === "shopify") {
-        console.log("🔍 [Onboarding API] Calling Shopify processing...");
-        if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, context });
-          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, context });
-        } else {
-          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
-          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
-        }
-      }
-      await setJobState(dbName, "done");
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      const backendResponse = await fetch(`${backendUrl}/api/onboarding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform,
+          shopifyDomain,
+          shopifyToken,
+          wooUrl,
+          wooKey,
+          wooSecret,
+          dbName,
+          categories,
+          syncMode,
+          type,
+          context,
+          explain,
+          softCategories,
+          userEmail
+        })
+      });
 
-      // Log the collected messages from the sync process.
-      console.log("Sync logs:", logs);
+      const result = await backendResponse.json();
+      
+      if (!backendResponse.ok) {
+        throw new Error(result.error || 'Backend processing failed');
+      }
+
+      console.log("✅ [Onboarding API] Backend processing completed");
       
       return Response.json({ 
         success: true, 
-        state: "done",
+        state: result.state || "done",
         isNewTrial: isFirstTimeOnboarding,
-        logs: logs
+        logs: result.logs || []
       }, { status: 200 });
       
     } catch (err) {
