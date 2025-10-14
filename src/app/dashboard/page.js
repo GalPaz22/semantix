@@ -1478,7 +1478,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       });
 
       // Get API key for authentication
-      const apiKey = onboarding?.credentials?.apiKey;
+      const apiKey = session?.user?.apiKey;
       if (!apiKey) {
         throw new Error("API key not found. Please regenerate your API key.");
       }
@@ -1487,7 +1487,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          "x-api-key": apiKey
         },
         credentials: "include",
         body: JSON.stringify(payload)
