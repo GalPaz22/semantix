@@ -1477,7 +1477,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         wooSecret: payload.wooSecret ? '***' : undefined
       });
 
-      const res = await fetch("/api/onboarding", {
+      const res = await fetch("http://localhost:3001/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

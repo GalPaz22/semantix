@@ -41,12 +41,13 @@ const nextConfig = {
               // fonts: Paddle webfonts
               "font-src 'self' data: https://cdn.paddle.com https://fonts.gstatic.com",
 
-              // XHR/websocket/etc: Paddle APIs + your servers + Google Analytics
-              "connect-src 'self' https://checkout.paddle.com https://buy.paddle.com " +
+              // XHR/websocket/etc: Paddle APIs + your servers + Google Analytics + external image sources
+              "connect-src 'self' https: blob: " +
+                "https://checkout.paddle.com https://buy.paddle.com " +
                 "https://vendors.paddle.com https://sandbox-vendors.paddle.com " +
                 "https://api.paddle.com https://sandbox-api.paddle.com " +
                 "https://dashboard-server-ae00.onrender.com https://shopifyserver-1.onrender.com " +
-                "https://*.google-analytics.com https://region1.google-analytics.com blob:",
+                "https://*.google-analytics.com https://region1.google-analytics.com",
 
               // iframes: allow the overlay host (live + sandbox)
               "frame-src 'self' https://checkout.paddle.com https://buy.paddle.com https://sandbox-buy.paddle.com https://js.paddle.com",
