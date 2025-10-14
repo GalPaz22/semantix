@@ -1477,9 +1477,18 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         wooSecret: payload.wooSecret ? '***' : undefined
       });
 
+      // Get API key for authentication
+      const apiKey = onboarding?.credentials?.apiKey;
+      if (!apiKey) {
+        throw new Error("API key not found. Please regenerate your API key.");
+      }
+
       const res = await fetch("http://localhost:3001/api/onboarding", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
         credentials: "include",
         body: JSON.stringify(payload)
       });
