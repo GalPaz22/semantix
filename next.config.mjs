@@ -42,7 +42,7 @@ const nextConfig = {
               "font-src 'self' data: https://cdn.paddle.com https://fonts.gstatic.com",
 
               // XHR/websocket/etc: Paddle APIs + your servers + Google Analytics + external image sources
-              "connect-src 'self' https: blob: " +
+              "connect-src 'self' https: http://localhost:* http://127.0.0.1:* blob: " +
                 "https://checkout.paddle.com https://buy.paddle.com " +
                 "https://vendors.paddle.com https://sandbox-vendors.paddle.com " +
                 "https://api.paddle.com https://sandbox-api.paddle.com " +
