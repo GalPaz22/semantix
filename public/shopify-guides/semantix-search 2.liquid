@@ -1,0 +1,1414 @@
+{% comment %}
+  Semantix AI Native Search Results Section for Shopify
+  Final Production Version with Complete Yotpo Integration
+  Renders search results as highly customizable cards with full control over
+  layout, fonts, positioning, and styling using Shopify's built-in fonts.
+  Drop `semantix-search.js` into `/assets/`.
+{% endcomment %}
+
+<style>
+  /* Grid */
+  .semantix-results-container {
+    margin-top: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax({{ section.settings.card_width }}px,1fr));
+    gap: {{ section.settings.card_gap | default: 24 }}px;
+    padding: {{ section.settings.container_padding | default: 0 }}px;
+  }
+
+  /* Card */
+  .semantix-product-card {
+    position: relative;
+    background: {{ section.settings.card_bg_color | json }};
+    border: {{ section.settings.card_border_width | default: 1 }}px solid {{ section.settings.card_border_color | default: '#e5e7eb' | json }};
+    border-radius: {{ section.settings.card_border_radius | default: 8 }}px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: {{ section.settings.card_direction | default: 'column' }};
+    transition: transform .2s, box-shadow .2s;
+    box-shadow: {{ section.settings.card_shadow | default: '0 1px 3px rgba(0,0,0,0.1)' }};
+  }
+  
+  .semantix-product-card:hover {
+    transform: translateY(-{{ section.settings.hover_lift | default: 4 }}px);
+    box-shadow: {{ section.settings.hover_shadow | default: '0 4px 8px rgba(0,0,0,0.1)' }};
+  }
+
+  /* Ribbon - Simplified for single ribbon only */
+  .semantix-type-ribbon {
+    position: absolute;
+    top: {{ section.settings.ribbon_top | default: 12 }}px;
+    left: {{ section.settings.ribbon_left | default: -40 }}px;
+    background: {{ section.settings.ribbon_bg_color | json }};
+    color: {{ section.settings.ribbon_text_color | json }};
+    padding: {{ section.settings.ribbon_padding | default: '4px 60px' }};
+    font-family: {{ section.settings.ribbon_font.family }}, {{ section.settings.ribbon_font.fallback_families }};
+    font-size: {{ section.settings.ribbon_font_size | default: 12 }}px;
+    font-weight: {{ section.settings.ribbon_font.weight }};
+    font-style: {{ section.settings.ribbon_font.style }};
+    text-transform: {{ section.settings.ribbon_text_transform | default: 'uppercase' }};
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 2;
+    white-space: nowrap;
+    min-width: 80px;
+  }
+
+  /* Perfect Match Badge */
+  .semantix-perfect-match-badge {
+    position: absolute;
+    top: {{ section.settings.badge_top | default: 10 }}px;
+    right: {{ section.settings.badge_right | default: 10 }}px;
+    background: {{ section.settings.badge_bg_color | default: '#10b981' | json }};
+    color: {{ section.settings.badge_text_color | default: '#ffffff' | json }};
+    padding: {{ section.settings.badge_padding | default: '4px 8px' }};
+    border-radius: {{ section.settings.badge_border_radius | default: 12 }}px;
+    font-size: {{ section.settings.badge_font_size | default: 11 }}px;
+    font-weight: {{ section.settings.badge_font_weight | default: '600' }};
+    z-index: 3;
+  }
+
+  /* Image Container */
+  .semantix-product-image-container {
+    background: {{ section.settings.image_bg_color | default: '#f9fafb' | json }};
+    height: {{ section.settings.image_height }}px;
+    display: flex;
+    align-items: {{ section.settings.image_align_v | default: 'center' }};
+    justify-content: {{ section.settings.image_align_h | default: 'center' }};
+    padding: {{ section.settings.image_padding | default: '0.5rem' }};
+    {% if section.settings.card_direction == 'row' %}
+    flex: 0 0 {{ section.settings.image_width | default: 200 }}px;
+    {% endif %}
+  }
+  
+  .semantix-product-image-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: {{ section.settings.image_fit | default: 'contain' }};
+    border-radius: {{ section.settings.image_border_radius | default: 0 }}px;
+  }
+
+  /* Content Container */
+  .semantix-product-content {
+    padding: {{ section.settings.content_padding | default: '1rem' }};
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: {{ section.settings.content_align_h | default: 'center' }};
+    justify-content: {{ section.settings.content_align_v | default: 'flex-start' }};
+    gap: {{ section.settings.content_gap | default: 8 }}px;
+    min-height: 0; /* Allow content to be flexible */
+    position: relative; /* Enable better positioning */
+    {% if section.settings.content_vertical_offset != 0 %}
+    margin-top: {{ section.settings.content_vertical_offset | default: 0 }}px;
+    {% endif %}
+  }
+
+  /* Product Elements Base Styles */
+  .semantix-product-title,
+  .semantix-product-price,
+  .semantix-product-explanation {
+    line-height: {{ section.settings.line_height | default: 1.4 }};
+  }
+
+  /* Title Specific */
+  .semantix-product-title {
+    order: {{ section.settings.title_order | default: 1 }};
+    /* Margin applied via JavaScript from admin settings */
+  }
+
+  .semantix-product-title a {
+    text-decoration: {{ section.settings.title_decoration | default: 'none' }};
+    transition: opacity 0.2s;
+  }
+
+  .semantix-product-title a:hover {
+    opacity: {{ section.settings.title_hover_opacity | default: 0.8 }};
+  }
+
+  /* Price Specific */
+  .semantix-product-price {
+    order: {{ section.settings.price_order | default: 3 }};
+    /* Margin applied via JavaScript from admin settings */
+    {% if section.settings.price_bg_color %}
+    background: {{ section.settings.price_bg_color | json }};
+    padding: {{ section.settings.price_padding | default: '4px 8px' }};
+    border-radius: {{ section.settings.price_border_radius | default: 4 }}px;
+    {% endif %}
+  }
+
+  /* Explanation Specific - Always bright gray background */
+  .semantix-product-explanation {
+    order: {{ section.settings.explanation_order | default: 2 }};
+    background-color: #f5f5f5 !important; /* Bright gray, always */
+    color: {{ section.settings.explanation_color | default: '#4a5568' | json }};
+    border-radius: {{ section.settings.explanation_border_radius | default: 12 }}px;
+    padding: {{ section.settings.explanation_padding | default: '12px 16px' }};
+    line-height: {{ section.settings.explanation_line_height | default: 1.5 }};
+    box-shadow: {{ section.settings.explanation_shadow | default: 'none' }};
+    border: {{ section.settings.explanation_border | default: 'none' }};
+    /* Margin applied via JavaScript from admin settings */
+  }
+
+  .semantix-product-explanation .icon {
+    margin-right: {{ section.settings.explanation_icon_spacing | default: 8 }}px;
+    {% if section.settings.explanation_icon_color %}
+    color: {{ section.settings.explanation_icon_color | json }};
+    {% endif %}
+  }
+
+  /* Loading states - Enhanced centering */
+  .semantix-loader,
+  .semantix-empty-state,
+  .semantix-error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    min-height: 200px;
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  /* Loading Spinner - Enhanced centering */
+  .semantix-loading-spinner {
+    display: block;
+    width: {{ section.settings.spinner_size | default: 40 }}px;
+    height: {{ section.settings.spinner_size | default: 40 }}px;
+    border: {{ section.settings.spinner_thickness | default: 4 }}px solid {{ section.settings.spinner_bg_color | default: '#f3f3f3' | json }};
+    border-top: {{ section.settings.spinner_thickness | default: 4 }}px solid {{ section.settings.spinner_color | default: '#3498db' | json }};
+    border-radius: 50%;
+    animation: semantix-spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+
+  @keyframes semantix-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .semantix-loading-text {
+    color: {{ section.settings.loading_text_color | default: '#6b7280' | json }};
+    font-size: {{ section.settings.loading_text_size | default: 14 }}px;
+    font-weight: 400;
+  }
+
+  .semantix-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    min-height: 200px;
+  }
+
+  /* Yotpo Reviews Styling */
+  .semantix-reviews-section {
+    margin-top: {{ section.settings.reviews_margin_top | default: 16 }}px;
+    padding-top: {{ section.settings.reviews_padding_top | default: 16 }}px;
+    border-top: {{ section.settings.reviews_border | default: '1px solid #e5e7eb' }};
+  }
+
+  .semantix-reviews-container {
+    display: flex;
+    flex-direction: column;
+    gap: {{ section.settings.review_item_gap | default: 12 }}px;
+  }
+
+  .semantix-review-item {
+    background: {{ section.settings.review_bg_color | default: '#f9fafb' | json }};
+    border-radius: {{ section.settings.review_border_radius | default: 8 }}px;
+    padding: {{ section.settings.review_padding | default: '12px' }};
+    border: {{ section.settings.review_border | default: '1px solid #f0f0f0' }};
+  }
+
+  .semantix-review-stars {
+    color: {{ section.settings.review_stars_color | default: '#fbbf24' | json }};
+    font-size: {{ section.settings.review_stars_size | default: 14 }}px;
+    margin-bottom: 6px;
+  }
+
+  .semantix-review-text {
+    color: {{ section.settings.review_text_color | default: '#374151' | json }};
+    font-size: {{ section.settings.review_text_size | default: 13 }}px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+
+  .semantix-review-author {
+    color: {{ section.settings.review_author_color | default: '#6b7280' | json }};
+    font-size: {{ section.settings.review_author_size | default: 11 }}px;
+    font-style: italic;
+  }
+
+  .semantix-reviews-loading,
+  .semantix-reviews-error,
+  .semantix-no-reviews {
+    text-align: center;
+    color: {{ section.settings.review_meta_color | default: '#9ca3af' | json }};
+    font-size: {{ section.settings.review_meta_size | default: 12 }}px;
+    padding: 8px;
+    font-style: italic;
+  }
+
+  .semantix-reviews-error {
+    color: {{ section.settings.review_error_color | default: '#ef4444' | json }};
+  }
+
+  /* Semantix Powered Logo */
+  .semantix-powered-logo {
+    text-align: center;
+    margin-top: 2rem;
+    padding: 1rem;
+    grid-column: 1 / -1;
+  }
+
+  .semantix-powered-logo img {
+    max-height: 40px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+
+  }
+
+  .semantix-powered-logo img:hover {
+    opacity: 1;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .semantix-results-container {
+      grid-template-columns: repeat(auto-fill, minmax({{ section.settings.mobile_card_width | default: 250 }}px, 1fr));
+      gap: {{ section.settings.mobile_gap | default: 16 }}px;
+    }
+    
+    .semantix-product-card {
+      flex-direction: column;
+    }
+    
+    .semantix-product-image-container {
+      height: {{ section.settings.mobile_image_height | default: 150 }}px;
+      flex: none;
+    }
+  }
+</style>
+
+<div class="semantix-wrapper">
+  <div class="semantix-header" style="text-align:{{ section.settings.header_align | default: 'center' }}; margin-bottom:{{ section.settings.header_margin | default: 16 }}px;">
+
+    <h1 id="semantix-search-title" 
+        style="margin:0; 
+               font-size:{{ section.settings.header_size | default: 24 }}px;
+               font-family:{{ section.settings.header_font.family }}, {{ section.settings.header_font.fallback_families }};
+               font-weight:{{ section.settings.header_font.weight }};
+               font-style:{{ section.settings.header_font.style }};
+               color:{{ section.settings.header_color | default: '#000000' | json }};">
+      {{ section.settings.header_text }}
+    </h1>
+  </div>
+  <div id="semantix-results-container" class="semantix-results-container"></div>
+</div>
+
+<script>
+  window.SEMANTIX_SETTINGS = {
+    apiEndpoint:  {{ section.settings.api_endpoint | json }},
+    apiKey:       {{ section.settings.api_key | json }},
+    cardWidth:    {{ section.settings.card_width }},
+    cardHeight:   {{ section.settings.card_height }},
+    imageHeight:  {{ section.settings.image_height }},
+    
+    // Font families with Shopify font system
+    titleFont:    "{{ section.settings.title_font.family }}, {{ section.settings.title_font.fallback_families }}",
+    priceFont:    "{{ section.settings.price_font.family }}, {{ section.settings.price_font.fallback_families }}",
+    explanationFont: "{{ section.settings.explanation_font.family }}, {{ section.settings.explanation_font.fallback_families }}",
+    
+    // Font weights and styles from Shopify font picker
+    titleWeight:  "{{ section.settings.title_font.weight }}",
+    priceWeight:  "{{ section.settings.price_font.weight }}",
+    explanationWeight: "{{ section.settings.explanation_font.weight }}",
+    titleStyle:   "{{ section.settings.title_font.style }}",
+    priceStyle:   "{{ section.settings.price_font.style }}",
+    explanationStyle: "{{ section.settings.explanation_font.style }}",
+    
+    // Font sizes
+    titleSize:    {{ section.settings.title_size | default: 18 }},
+    priceSize:    {{ section.settings.price_size | default: 20 }},
+    explanationSize: {{ section.settings.explanation_size | default: 14 }},
+    
+    // Text alignment
+    titleAlign:   {{ section.settings.title_align | default: 'center' | json }},
+    priceAlign:   {{ section.settings.price_align | default: 'center' | json }},
+    explanationAlign: {{ section.settings.explanation_align | default: 'right' | json }},
+    
+    // Colors
+    titleColor:   {{ section.settings.title_color | json }},
+    priceColor:   {{ section.settings.price_color | json }},
+    explanationColor: {{ section.settings.explanation_color | default: '#4a5568' | json }},
+    
+    // Content order
+    contentOrder: {{ section.settings.content_order | default: 'title,explanation,price' | json }},
+    
+    // Vertical positioning offsets
+    titleTopOffset: {{ section.settings.title_top_offset | default: 0 }},
+    priceTopOffset: {{ section.settings.price_top_offset | default: 0 }},
+    explanationTopOffset: {{ section.settings.explanation_top_offset | default: 0 }},
+    contentVerticalOffset: {{ section.settings.content_vertical_offset | default: 0 }},
+    
+    // Element margins
+    titleMargin: {{ section.settings.title_margin | json }},
+    priceMargin: {{ section.settings.price_margin | json }},
+    explanationMargin: {{ section.settings.explanation_margin | json }},
+    
+    ribbonSpacing: {{ section.settings.ribbon_spacing | default: 35 }},
+    
+    // Yotpo integration settings
+    yotpoEnabled: {{ section.settings.yotpo_enabled | default: false }},
+    yotpoAppKey: {{ section.settings.yotpo_app_key | json }},
+    yotpoStoreId: {{ section.settings.yotpo_store_id | json }},
+    yotpoApiUrl: {{ section.settings.yotpo_api_url | json }},
+    reviewsToShow: {{ section.settings.reviews_to_show | default: 3 }}
+  };
+</script>
+
+{% schema %}
+{
+  "name": "Semantix AI Search",
+  "settings": [
+    {
+      "type": "header",
+      "content": "API Configuration"
+    },
+    {
+      "type": "text",
+      "id": "api_endpoint",
+      "label": "API Endpoint",
+      "default": "https://dashboard-server-ae00.onrender.com/search"
+    },
+    {
+      "type": "text",
+      "id": "api_key",
+      "label": "API Key"
+    },
+    {
+      "type": "header",
+      "content": "Header Settings"
+    },
+    {
+      "type": "text",
+      "id": "header_text",
+      "label": "Heading Text",
+      "default": "Search results"
+    },
+    {
+      "type": "font_picker",
+      "id": "header_font",
+      "label": "Header Font",
+      "default": "assistant_n4"
+    },
+    {
+      "type": "range",
+      "id": "header_size",
+      "label": "Header Font Size",
+      "min": 14,
+      "max": 48,
+      "step": 1,
+      "unit": "px",
+      "default": 24
+    },
+    {
+      "type": "color",
+      "id": "header_color",
+      "label": "Header Color",
+      "default": "#000000"
+    },
+    {
+      "type": "select",
+      "id": "header_align",
+      "label": "Header Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "header_margin",
+      "label": "Header Bottom Margin",
+      "min": 0,
+      "max": 48,
+      "step": 4,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "header",
+      "content": "Card Layout"
+    },
+    {
+      "type": "range",
+      "id": "card_width",
+      "label": "Card Width",
+      "min": 200,
+      "max": 500,
+      "step": 10,
+      "unit": "px",
+      "default": 280
+    },
+    {
+      "type": "range",
+      "id": "card_height",
+      "label": "Card Min Height",
+      "min": 300,
+      "max": 600,
+      "step": 10,
+      "unit": "px",
+      "default": 400
+    },
+    {
+      "type": "select",
+      "id": "card_direction",
+      "label": "Card Layout Direction",
+      "options": [
+        { "value": "column", "label": "Vertical (Image Top)" },
+        { "value": "row", "label": "Horizontal (Image Left)" }
+      ],
+      "default": "column"
+    },
+    {
+      "type": "range",
+      "id": "card_gap",
+      "label": "Gap Between Cards",
+      "min": 8,
+      "max": 48,
+      "step": 4,
+      "unit": "px",
+      "default": 24
+    },
+    {
+      "type": "range",
+      "id": "container_padding",
+      "label": "Container Padding",
+      "min": 0,
+      "max": 48,
+      "step": 4,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Card Styling"
+    },
+    {
+      "type": "color",
+      "id": "card_bg_color",
+      "label": "Card Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "card_border_color",
+      "label": "Card Border Color",
+      "default": "#e5e7eb"
+    },
+    {
+      "type": "range",
+      "id": "card_border_width",
+      "label": "Card Border Width",
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "unit": "px",
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "card_border_radius",
+      "label": "Card Border Radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 8
+    },
+    {
+      "type": "text",
+      "id": "card_shadow",
+      "label": "Card Shadow (CSS)",
+      "default": "0 1px 3px rgba(0,0,0,0.1)",
+      "info": "Use CSS box-shadow syntax"
+    },
+    {
+      "type": "text",
+      "id": "hover_shadow",
+      "label": "Hover Shadow (CSS)",
+      "default": "0 4px 8px rgba(0,0,0,0.1)"
+    },
+    {
+      "type": "range",
+      "id": "hover_lift",
+      "label": "Hover Lift Effect",
+      "min": 0,
+      "max": 12,
+      "step": 1,
+      "unit": "px",
+      "default": 4
+    },
+    {
+      "type": "header",
+      "content": "Image Settings"
+    },
+    {
+      "type": "range",
+      "id": "image_height",
+      "label": "Image Height",
+      "min": 100,
+      "max": 400,
+      "step": 10,
+      "unit": "px",
+      "default": 200
+    },
+    {
+      "type": "range",
+      "id": "image_width",
+      "label": "Image Width (for horizontal layout)",
+      "min": 150,
+      "max": 300,
+      "step": 10,
+      "unit": "px",
+      "default": 200
+    },
+    {
+      "type": "color",
+      "id": "image_bg_color",
+      "label": "Image Background Color",
+      "default": "#f9fafb"
+    },
+    {
+      "type": "text",
+      "id": "image_padding",
+      "label": "Image Padding",
+      "default": "0.5rem"
+    },
+    {
+      "type": "select",
+      "id": "image_fit",
+      "label": "Image Fit",
+      "options": [
+        { "value": "contain", "label": "Contain (fit entirely)" },
+        { "value": "cover", "label": "Cover (fill container)" },
+        { "value": "fill", "label": "Fill (stretch)" },
+        { "value": "scale-down", "label": "Scale Down" }
+      ],
+      "default": "contain"
+    },
+    {
+      "type": "select",
+      "id": "image_align_h",
+      "label": "Image Horizontal Alignment",
+      "options": [
+        { "value": "flex-start", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "flex-end", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "select",
+      "id": "image_align_v",
+      "label": "Image Vertical Alignment",
+      "options": [
+        { "value": "flex-start", "label": "Top" },
+        { "value": "center", "label": "Center" },
+        { "value": "flex-end", "label": "Bottom" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "image_border_radius",
+      "label": "Image Border Radius",
+      "min": 0,
+      "max": 20,
+      "step": 2,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Content Layout"
+    },
+    {
+      "type": "text",
+      "id": "content_padding",
+      "label": "Content Padding",
+      "default": "1rem"
+    },
+    {
+      "type": "range",
+      "id": "content_gap",
+      "label": "Gap Between Content Elements",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 8
+    },
+    {
+      "type": "select",
+      "id": "content_align_h",
+      "label": "Content Horizontal Alignment",
+      "options": [
+        { "value": "flex-start", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "flex-end", "label": "Right" },
+        { "value": "stretch", "label": "Stretch" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "select",
+      "id": "content_align_v",
+      "label": "Content Vertical Alignment",
+      "options": [
+        { "value": "flex-start", "label": "Top" },
+        { "value": "center", "label": "Center" },
+        { "value": "flex-end", "label": "Bottom" },
+        { "value": "space-between", "label": "Space Between" },
+        { "value": "space-around", "label": "Space Around" },
+        { "value": "space-evenly", "label": "Space Evenly" }
+      ],
+      "default": "flex-start"
+    },
+    {
+      "type": "text",
+      "id": "content_order",
+      "label": "Content Order",
+      "default": "title,explanation,price",
+      "info": "Comma-separated list: title, explanation, price"
+    },
+    {
+      "type": "range",
+      "id": "content_vertical_offset",
+      "label": "Whole Content Vertical Position",
+      "min": -100,
+      "max": 100,
+      "step": 5,
+      "unit": "px",
+      "default": 0,
+      "info": "Move ALL content elements up (negative) or down (positive) together"
+    },
+    {
+      "type": "range",
+      "id": "line_height",
+      "label": "Global Line Height",
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": 1.4
+    },
+    {
+      "type": "header",
+      "content": "Product Title"
+    },
+    {
+      "type": "font_picker",
+      "id": "title_font",
+      "label": "Title Font",
+      "default": "assistant_n4"
+    },
+    {
+      "type": "range",
+      "id": "title_size",
+      "label": "Title Font Size",
+      "min": 12,
+      "max": 32,
+      "step": 1,
+      "unit": "px",
+      "default": 18
+    },
+    {
+      "type": "color",
+      "id": "title_color",
+      "label": "Title Color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "select",
+      "id": "title_align",
+      "label": "Title Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" },
+        { "value": "justify", "label": "Justify" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "title_order",
+      "label": "Title Display Order",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "text",
+      "id": "title_margin",
+      "label": "Title Margin (CSS)",
+      "info": "e.g., '8px 0' or '0.5rem'"
+    },
+    {
+      "type": "select",
+      "id": "title_decoration",
+      "label": "Title Text Decoration",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "underline", "label": "Underline" },
+        { "value": "overline", "label": "Overline" },
+        { "value": "line-through", "label": "Line Through" }
+      ],
+      "default": "none"
+    },
+    {
+      "type": "range",
+      "id": "title_hover_opacity",
+      "label": "Title Hover Opacity",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "default": 0.8
+    },
+    {
+      "type": "range",
+      "id": "title_top_offset",
+      "label": "Title Vertical Position",
+      "min": -100,
+      "max": 100,
+      "step": 5,
+      "unit": "px",
+      "default": 0,
+      "info": "Negative values push up, positive values push down"
+    },
+    {
+      "type": "header",
+      "content": "Product Price"
+    },
+    {
+      "type": "font_picker",
+      "id": "price_font",
+      "label": "Price Font",
+      "default": "assistant_n6"
+    },
+    {
+      "type": "range",
+      "id": "price_size",
+      "label": "Price Font Size",
+      "min": 12,
+      "max": 36,
+      "step": 1,
+      "unit": "px",
+      "default": 20
+    },
+    {
+      "type": "color",
+      "id": "price_color",
+      "label": "Price Color",
+      "default": "#2563eb"
+    },
+    {
+      "type": "select",
+      "id": "price_align",
+      "label": "Price Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "range",
+      "id": "price_order",
+      "label": "Price Display Order",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "text",
+      "id": "price_margin",
+      "label": "Price Margin (CSS)",
+      "info": "e.g., '8px 0' or '0.5rem'"
+    },
+    {
+      "type": "color",
+      "id": "price_bg_color",
+      "label": "Price Background Color (Optional)"
+    },
+    {
+      "type": "text",
+      "id": "price_padding",
+      "label": "Price Padding (if background set)",
+      "default": "4px 8px"
+    },
+    {
+      "type": "range",
+      "id": "price_border_radius",
+      "label": "Price Border Radius (if background set)",
+      "min": 0,
+      "max": 20,
+      "step": 2,
+      "unit": "px",
+      "default": 4
+    },
+    {
+      "type": "range",
+      "id": "price_top_offset",
+      "label": "Price Vertical Position",
+      "min": -100,
+      "max": 100,
+      "step": 5,
+      "unit": "px",
+      "default": 0,
+      "info": "Negative values push up, positive values push down"
+    },
+    {
+      "type": "header",
+      "content": "Product Explanation"
+    },
+    {
+      "type": "font_picker",
+      "id": "explanation_font",
+      "label": "Explanation Font",
+      "default": "assistant_n4"
+    },
+    {
+      "type": "range",
+      "id": "explanation_size",
+      "label": "Explanation Font Size",
+      "min": 10,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "color",
+      "id": "explanation_color",
+      "label": "Explanation Text Color",
+      "default": "#4a5568"
+    },
+    {
+      "type": "select",
+      "id": "explanation_align",
+      "label": "Explanation Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" },
+        { "value": "justify", "label": "Justify" }
+      ],
+      "default": "right"
+    },
+    {
+      "type": "range",
+      "id": "explanation_order",
+      "label": "Explanation Display Order",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "text",
+      "id": "explanation_padding",
+      "label": "Explanation Padding",
+      "default": "12px 16px"
+    },
+    {
+      "type": "range",
+      "id": "explanation_border_radius",
+      "label": "Explanation Border Radius",
+      "min": 0,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "text",
+      "id": "explanation_margin",
+      "label": "Explanation Margin (CSS)",
+      "info": "e.g., '8px 0' or '0.5rem'"
+    },
+    {
+      "type": "text",
+      "id": "explanation_shadow",
+      "label": "Explanation Shadow (CSS)",
+      "default": "none",
+      "info": "Use CSS box-shadow syntax"
+    },
+    {
+      "type": "text",
+      "id": "explanation_border",
+      "label": "Explanation Border (CSS)",
+      "default": "none",
+      "info": "e.g., '1px solid #ddd'"
+    },
+    {
+      "type": "range",
+      "id": "explanation_line_height",
+      "label": "Explanation Line Height",
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.1,
+      "default": 1.5
+    },
+    {
+      "type": "range",
+      "id": "explanation_icon_spacing",
+      "label": "Icon Spacing",
+      "min": 4,
+      "max": 20,
+      "step": 2,
+      "unit": "px",
+      "default": 8
+    },
+    {
+      "type": "color",
+      "id": "explanation_icon_color",
+      "label": "Icon Color (Optional)"
+    },
+    {
+      "type": "range",
+      "id": "explanation_top_offset",
+      "label": "Explanation Vertical Position",
+      "min": -100,
+      "max": 100,
+      "step": 5,
+      "unit": "px",
+      "default": 0,
+      "info": "Negative values push up, positive values push down"
+    },
+    {
+      "type": "header",
+      "content": "Ribbons & Badges"
+    },
+    {
+      "type": "color",
+      "id": "ribbon_bg_color",
+      "label": "Ribbon Background Color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "color",
+      "id": "ribbon_text_color",
+      "label": "Ribbon Text Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "font_picker",
+      "id": "ribbon_font",
+      "label": "Ribbon Font",
+      "default": "assistant_n7"
+    },
+    {
+      "type": "range",
+      "id": "ribbon_font_size",
+      "label": "Ribbon Font Size",
+      "min": 8,
+      "max": 16,
+      "step": 1,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "select",
+      "id": "ribbon_text_transform",
+      "label": "Ribbon Text Transform",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "uppercase", "label": "UPPERCASE" },
+        { "value": "lowercase", "label": "lowercase" },
+        { "value": "capitalize", "label": "Capitalize" }
+      ],
+      "default": "uppercase"
+    },
+    {
+      "type": "text",
+      "id": "ribbon_padding",
+      "label": "Ribbon Padding",
+      "default": "4px 60px"
+    },
+    {
+      "type": "range",
+      "id": "ribbon_top",
+      "label": "Ribbon Top Position",
+      "min": 0,
+      "max": 30,
+      "step": 2,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "ribbon_left",
+      "label": "Ribbon Left Position",
+      "min": -60,
+      "max": -20,
+      "step": 5,
+      "unit": "px",
+      "default": -40
+    },
+    {
+      "type": "color",
+      "id": "badge_bg_color",
+      "label": "Perfect Match Badge Background",
+      "default": "#10b981"
+    },
+    {
+      "type": "color",
+      "id": "badge_text_color",
+      "label": "Perfect Match Badge Text",
+      "default": "#ffffff"
+    },
+    {
+      "type": "text",
+      "id": "badge_padding",
+      "label": "Badge Padding",
+      "default": "4px 8px"
+    },
+    {
+      "type": "range",
+      "id": "badge_border_radius",
+      "label": "Badge Border Radius",
+      "min": 0,
+      "max": 20,
+      "step": 2,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "range",
+      "id": "badge_font_size",
+      "label": "Badge Font Size",
+      "min": 8,
+      "max": 16,
+      "step": 1,
+      "unit": "px",
+      "default": 11
+    },
+    {
+      "type": "select",
+      "id": "badge_font_weight",
+      "label": "Badge Font Weight",
+      "options": [
+        { "value": "400", "label": "Normal" },
+        { "value": "500", "label": "Medium" },
+        { "value": "600", "label": "Semi Bold" },
+        { "value": "700", "label": "Bold" }
+      ],
+      "default": "600"
+    },
+    {
+      "type": "range",
+      "id": "badge_top",
+      "label": "Badge Top Position",
+      "min": 0,
+      "max": 30,
+      "step": 2,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "badge_right",
+      "label": "Badge Right Position",
+      "min": 0,
+      "max": 30,
+      "step": 2,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "header",
+      "content": "Loading Spinner"
+    },
+    {
+      "type": "range",
+      "id": "spinner_size",
+      "label": "Spinner Size",
+      "min": 20,
+      "max": 80,
+      "step": 5,
+      "unit": "px",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "spinner_thickness",
+      "label": "Spinner Thickness",
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "unit": "px",
+      "default": 4
+    },
+    {
+      "type": "color",
+      "id": "spinner_color",
+      "label": "Spinner Color",
+      "default": "#3498db"
+    },
+    {
+      "type": "color",
+      "id": "spinner_bg_color",
+      "label": "Spinner Background Color",
+      "default": "#f3f3f3"
+    },
+    {
+      "type": "color",
+      "id": "loading_text_color",
+      "label": "Loading Text Color",
+      "default": "#6b7280"
+    },
+    {
+      "type": "range",
+      "id": "loading_text_size",
+      "label": "Loading Text Size",
+      "min": 10,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "header",
+      "content": "Yotpo Reviews Integration"
+    },
+    {
+      "type": "checkbox",
+      "id": "yotpo_enabled",
+      "label": "Enable Yotpo Reviews",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "yotpo_app_key",
+      "label": "Yotpo App Key",
+      "info": "Your Yotpo application key"
+    },
+    {
+      "type": "text",
+      "id": "yotpo_store_id",
+      "label": "Yotpo Store ID (Optional)",
+      "info": "Your Shopify store ID for Yotpo"
+    },
+    {
+      "type": "text",
+      "id": "yotpo_api_url",
+      "label": "Custom Yotpo API URL (Optional)",
+      "info": "Use {app_key} and {product_id} placeholders. Leave blank for default.",
+      "placeholder": "https://api.yotpo.com/v1/apps/{app_key}/products/{product_id}/reviews.json"
+    },
+    {
+      "type": "range",
+      "id": "reviews_to_show",
+      "label": "Number of Reviews to Show",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "header",
+      "content": "Reviews Styling"
+    },
+    {
+      "type": "range",
+      "id": "reviews_margin_top",
+      "label": "Reviews Section Top Margin",
+      "min": 8,
+      "max": 32,
+      "step": 4,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "range",
+      "id": "reviews_padding_top",
+      "label": "Reviews Section Top Padding",
+      "min": 8,
+      "max": 32,
+      "step": 4,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "text",
+      "id": "reviews_border",
+      "label": "Reviews Section Border",
+      "default": "1px solid #e5e7eb",
+      "info": "CSS border syntax"
+    },
+    {
+      "type": "range",
+      "id": "review_item_gap",
+      "label": "Gap Between Review Items",
+      "min": 6,
+      "max": 24,
+      "step": 2,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "color",
+      "id": "review_bg_color",
+      "label": "Review Item Background",
+      "default": "#f9fafb"
+    },
+    {
+      "type": "range",
+      "id": "review_border_radius",
+      "label": "Review Item Border Radius",
+      "min": 0,
+      "max": 16,
+      "step": 2,
+      "unit": "px",
+      "default": 8
+    },
+    {
+      "type": "text",
+      "id": "review_padding",
+      "label": "Review Item Padding",
+      "default": "12px"
+    },
+    {
+      "type": "text",
+      "id": "review_border",
+      "label": "Review Item Border",
+      "default": "1px solid #f0f0f0"
+    },
+    {
+      "type": "color",
+      "id": "review_stars_color",
+      "label": "Stars Color",
+      "default": "#fbbf24"
+    },
+    {
+      "type": "range",
+      "id": "review_stars_size",
+      "label": "Stars Size",
+      "min": 10,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "color",
+      "id": "review_text_color",
+      "label": "Review Text Color",
+      "default": "#374151"
+    },
+    {
+      "type": "range",
+      "id": "review_text_size",
+      "label": "Review Text Size",
+      "min": 10,
+      "max": 16,
+      "step": 1,
+      "unit": "px",
+      "default": 13
+    },
+    {
+      "type": "color",
+      "id": "review_author_color",
+      "label": "Review Author Color",
+      "default": "#6b7280"
+    },
+    {
+      "type": "range",
+      "id": "review_author_size",
+      "label": "Review Author Size",
+      "min": 8,
+      "max": 14,
+      "step": 1,
+      "unit": "px",
+      "default": 11
+    },
+    {
+      "type": "color",
+      "id": "review_meta_color",
+      "label": "Loading/No Reviews Text Color",
+      "default": "#9ca3af"
+    },
+    {
+      "type": "range",
+      "id": "review_meta_size",
+      "label": "Loading/No Reviews Text Size",
+      "min": 8,
+      "max": 16,
+      "step": 1,
+      "unit": "px",
+      "default": 12
+    },
+    {
+      "type": "color",
+      "id": "review_error_color",
+      "label": "Error Message Color",
+      "default": "#ef4444"
+    },
+    {
+      "type": "header",
+      "content": "Mobile Responsive"
+    },
+    {
+      "type": "range",
+      "id": "mobile_card_width",
+      "label": "Mobile Card Width",
+      "min": 200,
+      "max": 350,
+      "step": 10,
+      "unit": "px",
+      "default": 250
+    },
+    {
+      "type": "range",
+      "id": "mobile_gap",
+      "label": "Mobile Card Gap",
+      "min": 8,
+      "max": 32,
+      "step": 4,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "range",
+      "id": "mobile_image_height",
+      "label": "Mobile Image Height",
+      "min": 100,
+      "max": 250,
+      "step": 10,
+      "unit": "px",
+      "default": 150
+    }
+  ],
+  "blocks": [],
+  "presets": [
+    {
+      "name": "Semantix AI Results",
+      "category": "Search"
+    }
+  ]
+}
+{% endschema %}
+
+<script src="{{ 'semantix-search.js' | asset_url }}" defer></script> 

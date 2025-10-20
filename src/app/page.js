@@ -402,7 +402,7 @@ const HomePage = () => {
             <div className="space-y-6 mb-8">
               <div>
                 <p className="font-semibold text-gray-800 text-xl mb-4">הם רוצים לחפש כמו שהם חושבים.</p>
-                <p className="text-gray-600 text-lg leading-relaxed"> כולנו מכירים את חווית החיפוש המתסכלת באתרי אי קומרס. ההבנה שאם לא נתאים באופן מדויק את מילות המפתח, נקבל את את ה׳׳אין תוצאות׳׳ הידוע והמבאס.</p>
+                <p className="text-gray-600 text-lg leading-relaxed"> כולנו מכירים את חווית החיפוש המתסכלת באתרי אי קומרס. ההבנה שאם לא נתאים באופן מדויק את מילות המפתח, נקבל את ה׳׳אין תוצאות׳׳ הידוע והמבאס.</p>
               </div>
              
             </div>
@@ -426,21 +426,11 @@ const HomePage = () => {
 
             <div className={`transform ${dashboardVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} transition-all duration-1000`}>
               {/* Analytics Dashboard Header */}
-              <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl shadow-xl mb-6">
-                <div className="absolute inset-0 opacity-10">
-                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <defs>
-                      <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                        <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
-                  </svg>
-                </div>
+              <div className="relative overflow-hidden bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl shadow-xl mb-6">
                 <div className="relative p-8 flex flex-col md:flex-row justify-between items-center">
                   <div>
                     <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">לוח בקרה</h1>
-                    <p className="text-indigo-100">עקוב אחר שאילתות, המרות ו-ROI</p>
+                    <p className="text-purple-100">עקוב אחר שאילתות, המרות ו-ROI</p>
                   </div>
                   <div className="flex space-x-4 mt-4 md:mt-0">
                     <button className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-white backdrop-blur-sm">
