@@ -1426,6 +1426,63 @@ function AnalyticsPanel({ session, onboarding }) {
                   </button>
                 </div>
 
+                {/* Expanded Details for Add to Cart */}
+                {cartDetailsExpanded && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות להוספה לעגלה</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                שאילתת חיפוש
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                הוספות לעגלה
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                מוצרים ייחודיים
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                הכנסות משוערות
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(cartMetrics.addToCartMetrics?.queries || []).length > 0 ? (
+                              (cartMetrics.addToCartMetrics?.queries || []).map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
+                                    {item.query}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">
+                                      {item.count.toLocaleString('en-US')}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    {item.products.toLocaleString('en-US')}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    ₪{item.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                                  אין נתוני הוספות לעגלה זמינים כרגע
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Checkout Section - Only show if we have checkout events */}
                 {checkoutEvents.length > 0 && (
                   <>
@@ -1471,55 +1528,6 @@ function AnalyticsPanel({ session, onboarding }) {
                     )}
                   </button>
                 </div>
-
-                {/* Expanded Details for Add to Cart */}
-                {cartDetailsExpanded && (
-                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
-                    <div>
-                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות להוספה לעגלה</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full table-auto">
-                          <thead>
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                שאילתת חיפוש
-                              </th>
-                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                הוספות לעגלה
-                              </th>
-                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                מוצרים ייחודיים
-                              </th>
-                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                הכנסות משוערות
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {(cartMetrics.addToCartMetrics?.queries || []).map((item, index) => (
-                              <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
-                                  {item.query}
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                                  <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">
-                                    {item.count.toLocaleString('en-US')}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                                  {item.products.toLocaleString('en-US')}
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                                  ₪{item.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Expanded Details for Checkout */}
                 {checkoutDetailsExpanded && (
