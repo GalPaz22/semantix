@@ -7,7 +7,7 @@ import reprocessProducts from "/lib/reprocess-products";
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
-const adminEmail = "galpaz@gmail.com"; // Admin user email
+const adminEmail = "galpaz2210@gmail.com"; // Admin user email
 
 /**
  * POST /api/admin/process-by-apikey

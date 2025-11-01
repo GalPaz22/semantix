@@ -6,7 +6,7 @@ import clientPromise from "/lib/mongodb";
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
-const adminEmail = "galpaz@gmail.com"; // Admin user email
+const adminEmail = "galpaz2210@gmail.com"; // Admin user email
 
 /**
  * GET /api/admin/lookup-by-apikey?apiKey=xxx
@@ -93,8 +93,8 @@ export async function GET(request) {
         dbName,
         platform,
         syncMode,
-        context,
-        explain,
+        context: context || '',
+        explain: explain || false,
         storeUrl: platform === "shopify" ? shopifyDomain : wooUrl,
         categories: {
           count: categories.length,

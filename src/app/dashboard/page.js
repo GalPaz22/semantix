@@ -28,12 +28,12 @@ import {
   Search,
   Bell,
   HelpCircle,
+  Shield,
   ChevronDown,
   Calendar,
   Filter,
   LogOut,
   Copy,
-  Shield,
   RefreshCw,
   CreditCard, // Add this icon
   Crown,
@@ -1413,96 +1413,64 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
 
 
 
-  // Resync handler – uses the onboard data from props.
+  // Resync handler – uses internal reprocess module for full reprocessing
   async function handleResync() {
-    // Validate dbName before proceeding
     if (!dbName) {
-      setMsg("❌ Store name is required for resync");
-      setTimeout(() => setMsg(""), 2000);
+      setMsg("❌ Store name is required to resync products.");
       return;
     }
-
-    // Validate platform-specific credentials
-    if (platform === "shopify" && (!cred.shopifyDomain || !cred.shopifyToken)) {
-      setMsg("❌ Shopify domain and access token are required");
-      setTimeout(() => setMsg(""), 2000);
-      return;
-    } else if (platform === "woocommerce" && (!cred.wooUrl || !cred.wooKey || !cred.wooSecret)) {
-      setMsg("❌ WooCommerce URL, consumer key, and secret are required");
-      setTimeout(() => setMsg(""), 2000);
-      return;
-    }
-
+    
     setResyncing(true);
     setMsg("");
+    
     try {
-      // Format Shopify domain if platform is shopify
-      let formattedCred = { ...cred };
-      if (platform === "shopify" && formattedCred.shopifyDomain) {
-        let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/₪/, '');
-        if (!domain.includes('.myshopify.com')) {
-          domain = `₪{domain}.myshopify.com`;
-        }
-        formattedCred.shopifyDomain = domain;
-      }
-
-      // Prepare platform-specific credentials
-      const platformCredentials = platform === "shopify" 
-        ? {
-            shopifyDomain: formattedCred.shopifyDomain,
-            shopifyToken: formattedCred.shopifyToken,
-          }
-        : {
-            wooUrl: formattedCred.wooUrl,
-            wooKey: formattedCred.wooKey,
-            wooSecret: formattedCred.wooSecret,
-          };
-
-      // Build the payload
-      const payload = {
-        platform,
+      // Prepare the data arrays
+      const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
+      const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
+      const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
+      
+      console.log('🔄 ⚡ RESYNC BUTTON: Starting full resync with INTERNAL reprocess module at /api/reprocess-products');
+      
+      // Full resync payload - reprocess everything
+      const payload = { 
         dbName,
-        categories: categories.split(",").map(s => s.trim()).filter(Boolean),
-        type: productTypes.split(",").map(s => s.trim()).filter(Boolean),
-        softCategories: softCategories.split(",").map(s => s.trim()).filter(Boolean),
-        syncMode: onboarding?.syncMode || "text",
-        explain: aiExplanationMode,
-        context: context,
-        ...platformCredentials // Include credentials at top level for API compatibility
+        categories: categoriesArray,
+        type: typesArray,
+        softCategories: softCategoriesArray,
+        targetCategory: null, // No specific category filter for full resync
+        missingSoftCategoryOnly: false,
+        
+        // Enable all reprocessing options for a full resync
+        reprocessHardCategories: true,
+        reprocessSoftCategories: true,
+        reprocessTypes: true,
+        reprocessVariants: true,
+        reprocessEmbeddings: false, // Keep as false unless explicitly needed
+        reprocessDescriptions: false, // Keep as false unless explicitly needed
+        reprocessAll: false // Use individual flags instead
       };
+      
+      console.log('📦 Resync payload:', payload);
 
-      console.log('Sending resync request with payload:', {
-        ...payload,
-        shopifyToken: payload.shopifyToken ? '***' : undefined,
-        wooSecret: payload.wooSecret ? '***' : undefined
-      });
-
-      // Get API key for authentication
-      const apiKey = onboarding?.credentials?.apiKey;
-      if (!apiKey) {
-        throw new Error("API key not found. Please regenerate your API key.");
-      }
-
-      const res = await fetch("http://localhost:3001/api/onboarding", {
+      const res = await fetch('/api/reprocess-products', {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
+          "Content-Type": "application/json"
         },
-        credentials: "include",
         body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       
       if (!res.ok) {
-        throw new Error(data.message || data.error || `Server returned ₪{res.status}`);
+        throw new Error(data.error || data.message || "Failed to start resync");
       }
 
-      setMsg("🔄 Resync started!");
+      setMsg("🔄 Resync started successfully!");
+      console.log('✅ Resync response:', data);
     } catch (err) {
       console.error("Resync error:", err);
-      setMsg(`❌ ₪{err.message || "Error starting resync"}`);
+      setMsg(`❌ ${err.message || "Error starting resync"}`);
     } finally {
       setResyncing(false);
       setTimeout(() => setMsg(""), 5000);
@@ -1596,21 +1564,23 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   }
 
   const handleReprocess = async () => {
-    if (!dbName) {
-      setMsg("❌ Store name is required to reprocess products.");
-      return;
-    }
     setReprocessing(true);
     setMsg("");
     try {
+      // Get API key from session (user authentication)
+      const apiKey = session?.user?.apiKey;
+      
+      if (!apiKey) {
+        throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
+      }
+      
       // Debug the raw state values
       console.log("🔍 RAW STATE VALUES:");
-      console.log("dbName:", dbName);
       console.log("categories:", categories);
       console.log("productTypes:", productTypes);
       console.log("softCategories:", softCategories);
       
-      // Prepare the data arrays like in handleSave
+      // Prepare the data arrays
       const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
       const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
       const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
@@ -1620,35 +1590,44 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       console.log("typesArray:", typesArray);
       console.log("softCategoriesArray:", softCategoriesArray);
       
-      const payload = { 
-        dbName,
-        categories: categoriesArray,
-        type: typesArray,
-        softCategories: softCategoriesArray,
-        targetCategory: targetCategory.trim() || null,
-        missingSoftCategoryOnly: missingSoftCategoryOnly,
-        
-        // Advanced reprocessing options
-        reprocessHardCategories,
-        reprocessSoftCategories,
-        reprocessTypes,
-        reprocessVariants,
-        reprocessEmbeddings,
-        reprocessDescriptions,
-        reprocessAll
-      };
+      const payload = {};
+      
+      // Optional overrides (leave empty to use stored values on server)
+      if (categoriesArray.length) payload.categories = categoriesArray;
+      if (typesArray.length) payload.type = typesArray;
+      if (softCategoriesArray.length) payload.softCategories = softCategoriesArray;
+      
+      // Reprocess options
+      if (reprocessAll) {
+        payload.reprocessAll = true;
+      } else {
+        payload.reprocessHardCategories = reprocessHardCategories;
+        payload.reprocessSoftCategories = reprocessSoftCategories;
+        payload.reprocessTypes = reprocessTypes;
+        payload.reprocessVariants = reprocessVariants;
+        payload.reprocessEmbeddings = reprocessEmbeddings;
+        payload.reprocessDescriptions = reprocessDescriptions;
+      }
       
       console.log("🔍 PAYLOAD TO SEND:", payload);
+      console.log("🔑 ⚡ REPROCESS BUTTON: Sending to EXTERNAL endpoint https://onboarding-lh63.onrender.com/api/reprocess");
       
-      const res = await fetch('/api/reprocess-products', {
+      const res = await fetch("https://onboarding-lh63.onrender.com/api/reprocess", {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        },
         body: JSON.stringify(payload),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start reprocessing.");
-      setMsg("✅ Began reprocessing all products.");
+      if (!res.ok) throw new Error(data.error || data.message || "Failed to start reprocessing.");
+      
+      setMsg("✅ Began reprocessing all products. " + (data.message || ""));
+      console.log("✅ Reprocess response:", data);
     } catch (err) {
+      console.error("Reprocess error:", err);
       setMsg(`❌ ${err.message}`);
     } finally {
       setReprocessing(false);
@@ -2600,12 +2579,524 @@ function ApiKeyPanel({ session, onboarding }) {
   );
 }
 
+/* =============================================================== */
+/*  ADMIN PANEL - Process products by API key (galpaz2210 only)  */
+/* =============================================================== */
+function AdminPanel({ session }) {
+  const [apiKey, setApiKey] = useState('');
+  const [userConfig, setUserConfig] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [options, setOptions] = useState({
+    reprocessCategories: true,
+    reprocessTypes: true,
+    reprocessSoftCategories: true,
+    reprocessDescriptions: false,
+    reprocessEmbeddings: false,
+    translateBeforeEmbedding: false
+  });
+  
+  // Editable configuration
+  const [editedCategories, setEditedCategories] = useState('');
+  const [editedTypes, setEditedTypes] = useState('');
+  const [editedSoftCategories, setEditedSoftCategories] = useState('');
+
+  // Check if user is admin
+  const isAdmin = session?.user?.email === 'galpaz2210@gmail.com';
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+          <Shield className="h-12 w-12 text-red-400 mx-auto mb-2" />
+          <p className="text-red-800 font-medium">Access Denied</p>
+          <p className="text-red-600 text-sm mt-1">This panel is only accessible to administrators.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleLookup = async () => {
+    if (!apiKey.trim()) {
+      setMessage('❌ Please enter an API key');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+    setUserConfig(null);
+
+    try {
+      const res = await fetch(`/api/admin/lookup-by-apikey?apiKey=${encodeURIComponent(apiKey)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to lookup user');
+      }
+
+      setUserConfig(data);
+      
+      // Initialize editable fields with current values
+      setEditedCategories(data.configuration.categories.list.join(', '));
+      setEditedTypes(data.configuration.types.list.join(', '));
+      setEditedSoftCategories(data.configuration.softCategories.list.join(', '));
+      
+      setMessage('✅ User found!');
+    } catch (err) {
+      setMessage(`❌ ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveConfiguration = async () => {
+    if (!userConfig) {
+      setMessage('❌ Please lookup a user first');
+      return;
+    }
+
+    setSaving(true);
+    setMessage('');
+
+    try {
+      // Parse comma-separated strings into arrays
+      const categories = editedCategories.split(',').map(s => s.trim()).filter(Boolean);
+      const types = editedTypes.split(',').map(s => s.trim()).filter(Boolean);
+      const softCategories = editedSoftCategories.split(',').map(s => s.trim()).filter(Boolean);
+
+      const res = await fetch('/api/admin/update-user-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey,
+          categories,
+          types,
+          softCategories
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+
+      // Update local state with saved values
+      setUserConfig({
+        ...userConfig,
+        configuration: {
+          ...userConfig.configuration,
+          categories: { count: categories.length, list: categories },
+          types: { count: types.length, list: types },
+          softCategories: { count: softCategories.length, list: softCategories }
+        }
+      });
+
+      setMessage('✅ Configuration saved successfully!');
+    } catch (err) {
+      setMessage(`❌ ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!userConfig) {
+      setMessage('❌ Please lookup a user first');
+      return;
+    }
+
+    setSyncing(true);
+    setMessage('');
+
+    try {
+      // Get user credentials
+      const user = await fetch(`/api/get-user-credentials?apiKey=${encodeURIComponent(apiKey)}`);
+      const userData = await user.json();
+      
+      if (!user.ok) {
+        throw new Error('Failed to fetch user credentials');
+      }
+
+      const { credentials } = userData;
+      
+      // Build payload for initial sync (onboarding)
+      const payload = {
+        platform: userConfig.configuration.platform,
+        dbName: userConfig.configuration.dbName,
+        categories: userConfig.configuration.categories.list,
+        type: userConfig.configuration.types.list,
+        softCategories: userConfig.configuration.softCategories.list,
+        syncMode: userConfig.configuration.syncMode,
+        context: userConfig.configuration.context || '',
+        explain: userConfig.configuration.explain || false,
+        
+        // Platform-specific credentials
+        ...(userConfig.configuration.platform === 'shopify' ? {
+          shopifyDomain: credentials.shopifyDomain,
+          shopifyToken: credentials.shopifyToken
+        } : {
+          wooUrl: credentials.wooUrl,
+          wooKey: credentials.wooKey,
+          wooSecret: credentials.wooSecret
+        })
+      };
+
+      console.log('🔄 Admin triggering initial sync with payload:', {
+        ...payload,
+        shopifyToken: payload.shopifyToken ? '***' : undefined,
+        wooSecret: payload.wooSecret ? '***' : undefined
+      });
+
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Failed to start sync');
+      }
+
+      setMessage('✅ Initial sync started! This will fetch and process all products from scratch.');
+    } catch (err) {
+      setMessage(`❌ ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleProcess = async () => {
+    if (!userConfig) {
+      setMessage('❌ Please lookup a user first');
+      return;
+    }
+
+    setProcessing(true);
+    setMessage('');
+
+    try {
+      // Get user credentials from the lookup
+      const user = await fetch(`/api/get-user-credentials?apiKey=${encodeURIComponent(apiKey)}`);
+      const userData = await user.json();
+      
+      if (!user.ok) {
+        throw new Error('Failed to fetch user credentials');
+      }
+
+      const { credentials } = userData;
+      
+      // Build payload for internal reprocess endpoint
+      const payload = {
+        platform: userConfig.configuration.platform,
+        dbName: userConfig.configuration.dbName,
+        categories: userConfig.configuration.categories.list,
+        type: userConfig.configuration.types.list,
+        softCategories: userConfig.configuration.softCategories.list,
+        syncMode: userConfig.configuration.syncMode,
+        context: userConfig.configuration.context || '',
+        explain: userConfig.configuration.explain || false,
+        
+        // Add reprocess options
+        reprocessAll: options.reprocessAll || false,
+        reprocessCategories: options.reprocessCategories,
+        reprocessTypes: options.reprocessTypes,
+        reprocessSoftCategories: options.reprocessSoftCategories,
+        reprocessDescriptions: options.reprocessDescriptions,
+        reprocessEmbeddings: options.reprocessEmbeddings,
+        translateBeforeEmbedding: options.translateBeforeEmbedding,
+        
+        // Platform-specific credentials
+        ...(userConfig.configuration.platform === 'shopify' ? {
+          shopifyDomain: credentials.shopifyDomain,
+          shopifyToken: credentials.shopifyToken
+        } : {
+          wooUrl: credentials.wooUrl,
+          wooKey: credentials.wooKey,
+          wooSecret: credentials.wooSecret
+        })
+      };
+
+      console.log('🚀 Admin triggering reprocess with payload:', {
+        ...payload,
+        shopifyToken: payload.shopifyToken ? '***' : undefined,
+        wooSecret: payload.wooSecret ? '***' : undefined
+      });
+
+      const res = await fetch('/api/reprocess-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to start processing');
+      }
+
+      setMessage('✅ Reprocessing started in background!');
+    } catch (err) {
+      setMessage(`❌ ${err.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center gap-3 pb-4 border-b">
+        <Shield className="h-8 w-8 text-indigo-600" />
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+          <p className="text-sm text-gray-500">Process products for any user by API key</p>
+        </div>
+      </div>
+
+      {/* API Key Lookup */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">1. Lookup User by API Key</h3>
+        
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Enter user API key..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+          <button
+            onClick={handleLookup}
+            disabled={loading || !apiKey.trim()}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Looking up...' : 'Lookup'}
+          </button>
+        </div>
+
+        {message && (
+          <div className={`p-3 rounded-lg ${message.startsWith('✅') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            {message}
+          </div>
+        )}
+      </div>
+
+      {/* User Configuration Display */}
+      {userConfig && (
+        <>
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">User Configuration</h3>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Email</p>
+                <p className="font-medium">{userConfig.user.email}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Platform</p>
+                <p className="font-medium">{userConfig.configuration.platform}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Database</p>
+                <p className="font-medium">{userConfig.configuration.dbName}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Sync Mode</p>
+                <p className="font-medium">{userConfig.configuration.syncMode}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Product Count</p>
+                <p className="font-medium">{userConfig.configuration.productCount}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Store URL</p>
+                <p className="font-medium text-xs">{userConfig.configuration.storeUrl}</p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Editable Configuration */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">2. Edit Categories & Types</h3>
+              <button
+                onClick={handleSaveConfiguration}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {saving ? 'Saving...' : '💾 Save Changes'}
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Categories ({editedCategories.split(',').filter(s => s.trim()).length})
+                </label>
+                <textarea
+                  value={editedCategories}
+                  onChange={(e) => setEditedCategories(e.target.value)}
+                  placeholder="Category1, Category2, Category3..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Types ({editedTypes.split(',').filter(s => s.trim()).length})
+                </label>
+                <textarea
+                  value={editedTypes}
+                  onChange={(e) => setEditedTypes(e.target.value)}
+                  placeholder="Type1, Type2, Type3..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Soft Categories ({editedSoftCategories.split(',').filter(s => s.trim()).length})
+                </label>
+                <textarea
+                  value={editedSoftCategories}
+                  onChange={(e) => setEditedSoftCategories(e.target.value)}
+                  placeholder="SoftCat1, SoftCat2, SoftCat3..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Processing Options */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">3. Select Processing Options</h3>
+            
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.reprocessCategories}
+                  onChange={(e) => setOptions({...options, reprocessCategories: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Reprocess Categories</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.reprocessTypes}
+                  onChange={(e) => setOptions({...options, reprocessTypes: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Reprocess Types</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.reprocessSoftCategories}
+                  onChange={(e) => setOptions({...options, reprocessSoftCategories: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Reprocess Soft Categories</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.reprocessDescriptions}
+                  onChange={(e) => setOptions({...options, reprocessDescriptions: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Reprocess Descriptions (translate & enrich)</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.reprocessEmbeddings}
+                  onChange={(e) => setOptions({...options, reprocessEmbeddings: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Reprocess Embeddings</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.translateBeforeEmbedding}
+                  onChange={(e) => setOptions({...options, translateBeforeEmbedding: e.target.checked})}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Translate Before Embedding</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <button
+                onClick={handleSync}
+                disabled={syncing || processing}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {syncing ? 'Starting Sync...' : '🔄 Initial Sync'}
+              </button>
+              
+              <button
+                onClick={handleProcess}
+                disabled={syncing || processing}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {processing ? 'Reprocessing...' : '🚀 Reprocess'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Info Box */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-blue-900 mb-1">🔄 Initial Sync:</p>
+          <p className="text-sm text-blue-800">
+            Fetches ALL products from the store and processes them from scratch. 
+            Uses <code className="bg-blue-100 px-1 rounded">processWoo</code> or <code className="bg-blue-100 px-1 rounded">processShopify</code> modules.
+          </p>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-blue-900 mb-1">🚀 Reprocess:</p>
+          <p className="text-sm text-blue-800">
+            Updates existing products based on selected options (categories, types, descriptions, embeddings). 
+            Uses <code className="bg-blue-100 px-1 rounded">reprocess-products</code> module. Only affects <strong>in-stock products</strong>.
+          </p>
+        </div>
+        <p className="text-xs text-blue-700 pt-2 border-t border-blue-200">
+          All credentials and configuration are automatically fetched from the user's account.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* -------- tiny helper so sidebar labels & panels stay together ---- */
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
   { id: "apikey", label: "מפתח API", component: ApiKeyPanel, icon: ListTodo },
+  { id: "admin", label: "Admin", component: AdminPanel, icon: Shield },
   { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard }
 ];
 

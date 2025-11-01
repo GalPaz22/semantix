@@ -1,6 +1,6 @@
 # Admin API Endpoints
 
-These endpoints are restricted to the admin user (`galpaz@gmail.com`) and allow processing products for any user via their API key.
+These endpoints are restricted to the admin user (`galpaz2210@gmail.com`) and allow processing products for any user via their API key.
 
 ## 🔍 Lookup User by API Key
 
@@ -131,7 +131,7 @@ curl -X POST "http://localhost:3000/api/admin/process-by-apikey" \
 
 Both endpoints require:
 1. Valid Next-Auth session
-2. Session email must be `galpaz@gmail.com`
+2. Session email must be `galpaz2210@gmail.com`
 
 ---
 
