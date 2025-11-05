@@ -52,6 +52,7 @@ export async function GET(request) {
       email,
       name,
       credentials = {},
+      platform, // Platform is stored as a top-level field
       syncMode = "text",
       context = "",
       explain = false,
@@ -61,7 +62,6 @@ export async function GET(request) {
 
     const {
       dbName,
-      platform,
       categories = [],
       type: userTypes = [],
       softCategories = [],

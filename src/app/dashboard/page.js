@@ -1413,49 +1413,101 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
 
 
 
-  // Resync handler – uses internal reprocess module for full reprocessing
+  // Resync handler – triggers full sync via external API (fetches all products from store and processes from scratch)
   async function handleResync() {
-    if (!dbName) {
-      setMsg("❌ Store name is required to resync products.");
-      return;
-    }
-    
     setResyncing(true);
     setMsg("");
     
     try {
-      // Prepare the data arrays
-      const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
-      const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
-      const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
+      // Get API key from onboarding credentials
+      const apiKey = onboarding?.apiKey;
       
-      console.log('🔄 ⚡ RESYNC BUTTON: Starting full resync with INTERNAL reprocess module at /api/reprocess-products');
+      if (!apiKey) {
+        throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
+      }
+
+      // Fetch latest user credentials from database using session
+      const onboardingRes = await fetch("/api/get-onboarding");
+      if (!onboardingRes.ok) {
+        throw new Error("Failed to fetch user credentials");
+      }
+      const { onboarding: userData } = await onboardingRes.json();
       
-      // Full resync payload - reprocess everything
-      const payload = { 
-        dbName,
+      if (!userData) {
+        throw new Error("User not found. Please complete onboarding first.");
+      }
+
+      // Get credentials from database
+      const userCredentials = userData.credentials || {};
+      const userPlatform = userData.platform || platform;
+      const userDbName = userData.dbName || dbName;
+      
+      if (!userDbName) {
+        throw new Error("Store name is required. Please save your settings first.");
+      }
+
+      // Prepare the data arrays from database (or fallback to state if not in DB)
+      const categoriesArray = Array.isArray(userCredentials.categories) 
+        ? userCredentials.categories 
+        : (userCredentials.categories ? [userCredentials.categories] : categories.split(",").map(s => s.trim()).filter(Boolean));
+      const typesArray = Array.isArray(userCredentials.type)
+        ? userCredentials.type
+        : (userCredentials.type ? [userCredentials.type] : productTypes.split(",").map(s => s.trim()).filter(Boolean));
+      const softCategoriesArray = Array.isArray(userCredentials.softCategories)
+        ? userCredentials.softCategories
+        : (userCredentials.softCategories ? [userCredentials.softCategories] : softCategories.split(",").map(s => s.trim()).filter(Boolean));
+      
+      // Format Shopify domain if platform is shopify
+      let shopifyDomain = userCredentials.shopifyDomain || cred.shopifyDomain;
+      if (userPlatform === "shopify" && shopifyDomain) {
+        shopifyDomain = shopifyDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (!shopifyDomain.includes('.myshopify.com')) {
+          shopifyDomain = `${shopifyDomain}.myshopify.com`;
+        }
+      }
+
+      // Prepare platform-specific credentials from database
+      const platformCredentials = userPlatform === "shopify" 
+        ? {
+            shopifyDomain: shopifyDomain || userCredentials.shopifyDomain,
+            shopifyToken: userCredentials.shopifyToken || cred.shopifyToken,
+          }
+        : {
+            wooUrl: userCredentials.wooUrl || cred.wooUrl,
+            wooKey: userCredentials.wooKey || cred.wooKey,
+            wooSecret: userCredentials.wooSecret || cred.wooSecret,
+          };
+
+      // Validate credentials are present
+      if (userPlatform === "shopify" && (!platformCredentials.shopifyDomain || !platformCredentials.shopifyToken)) {
+        throw new Error("Shopify credentials are missing. Please update your settings.");
+      }
+      if (userPlatform === "woocommerce" && (!platformCredentials.wooUrl || !platformCredentials.wooKey || !platformCredentials.wooSecret)) {
+        throw new Error("WooCommerce credentials are missing. Please update your settings.");
+      }
+
+      // Build payload for external API - full sync (onboarding)
+      // The external API will use these credentials to fetch all products from store
+      const payload = {
+        platform: userPlatform,
+        dbName: userDbName,
         categories: categoriesArray,
         type: typesArray,
         softCategories: softCategoriesArray,
-        targetCategory: null, // No specific category filter for full resync
-        missingSoftCategoryOnly: false,
-        
-        // Enable all reprocessing options for a full resync
-        reprocessHardCategories: true,
-        reprocessSoftCategories: true,
-        reprocessTypes: true,
-        reprocessVariants: true,
-        reprocessEmbeddings: false, // Keep as false unless explicitly needed
-        reprocessDescriptions: false, // Keep as false unless explicitly needed
-        reprocessAll: false // Use individual flags instead
+        syncMode: userData.syncMode || onboarding?.syncMode || "text",
+        explain: userData.explain ?? aiExplanationMode,
+        context: userData.context || context || "",
+        ...platformCredentials
       };
       
-      console.log('📦 Resync payload:', payload);
+      console.log('🔄 ⚡ RESYNC BUTTON: Sending to EXTERNAL endpoint https://onboarding-lh63.onrender.com/api/onboarding');
+      console.log('📦 Sync payload:', { ...payload, shopifyToken: payload.shopifyToken ? '***' : undefined, wooSecret: payload.wooSecret ? '***' : undefined });
 
-      const res = await fetch('/api/reprocess-products', {
+      const res = await fetch("https://onboarding-lh63.onrender.com/api/onboarding", {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "x-api-key": apiKey
         },
         body: JSON.stringify(payload)
       });
@@ -1466,7 +1518,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         throw new Error(data.error || data.message || "Failed to start resync");
       }
 
-      setMsg("🔄 Resync started successfully!");
+      setMsg("🔄 Resync started successfully! This will fetch and process all products from scratch. " + (data.message || ""));
       console.log('✅ Resync response:', data);
     } catch (err) {
       console.error("Resync error:", err);
@@ -1567,8 +1619,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
     setReprocessing(true);
     setMsg("");
     try {
-      // Get API key from session (user authentication)
-      const apiKey = session?.user?.apiKey;
+      // Get API key from onboarding credentials
+      const apiKey = onboarding?.apiKey;
       
       if (!apiKey) {
         throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
@@ -1635,23 +1687,34 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   };
 
   const handleStopReprocess = async () => {
-    if (!dbName) {
-      setMsg("❌ Store name is required to stop reprocessing.");
-      return;
-    }
     setStopping(true);
     setMsg("");
     try {
-      const res = await fetch('/api/reprocess-products/stop', {
+      // Get API key from onboarding
+      const apiKey = onboarding?.apiKey;
+      
+      if (!apiKey) {
+        throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
+      }
+      
+      console.log('🛑 Sending stop signal to external endpoint');
+      
+      const res = await fetch('https://onboarding-lh63.onrender.com/api/reprocess/stop', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dbName }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        }
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to stop reprocessing.");
-      setMsg("🛑 Stopped reprocessing.");
+      if (!res.ok) throw new Error(data.error || data.message || "Failed to stop reprocessing.");
+      
+      setMsg("🛑 Stopped reprocessing. " + (data.message || ""));
+      console.log('✅ Stop response:', data);
     } catch (err) {
-      setMsg(`❌ ₪{err.message}`);
+      console.error("Stop reprocess error:", err);
+      setMsg(`❌ ${err.message}`);
     } finally {
       setStopping(false);
     }
@@ -1723,25 +1786,20 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Page Header */}
       <header className="mb-8">
-        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl shadow-xl">
-          <div className="absolute inset-0 opacity-10">
-            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <defs>
-                <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                  <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-          </div>
-          <div className="relative p-8">
-            <h1 className="text-3xl font-bold text-white mb-1">הגדרות התוסף</h1>
-            <p className="text-indigo-100">
-              הגדר את הקישור והעדפות שלך למערכת
-            </p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
+            <div className="p-3 bg-gray-100 rounded-lg">
+              <Settings className="h-7 w-7 text-gray-700" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">הגדרות התוסף</h1>
+              <p className="text-gray-600 mt-1">
+                ניהול הגדרות החיבור והקונפיגורציה של המערכת
+              </p>
+            </div>
           </div>
         </div>
       </header>
@@ -1938,31 +1996,38 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </div>
               )}
               
-              <div className="pt-4 flex items-center flex-wrap gap-4">
+              <div className="pt-6 border-t border-gray-200 flex items-center flex-wrap gap-3">
                 <button 
                   type="submit" 
                   disabled={saving} 
-                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   {saving ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       שומר...
-                    </span>
-                  ) : "שמור הגדרות"}
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      שמור הגדרות
+                    </>
+                  )}
                 </button>
                 <button 
                   type="button" 
                   onClick={() => setEditing(false)} 
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                  className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all"
                 >
                   ביטול
                 </button>
                 {msg && (
-                  <span className={`ml-3 py-2 px-4 rounded-lg text-sm font-medium ₪{msg.startsWith("✅") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                  <span className={`py-2 px-4 rounded-lg text-sm font-medium border ₪{msg.startsWith("✅") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
                     {msg}
                   </span>
                 )}
@@ -2054,36 +2119,38 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 </div>
               )}
               
-              <div className="pt-5 flex flex-wrap items-center gap-4">
-                <button 
-                  onClick={() => setEditing(true)} 
-                  className="px-5 py-2.5 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 transition-all shadow-sm flex items-center"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  ערוך הגדרות
-                </button>
-                <button 
-                  onClick={handleResync} 
-                  disabled={resyncing} 
-                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {resyncing ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      מסנכרן...
-                    </span>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      סנכרן נתונים
-                    </>
-                  )}
-                </button>
+              <div className="pt-6 border-t border-gray-200">
+                {/* Primary Actions */}
+                <div className="flex flex-wrap items-center gap-3 mb-6">
+                  <button 
+                    onClick={() => setEditing(true)} 
+                    className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    ערוך הגדרות
+                  </button>
+                  <button 
+                    onClick={handleResync} 
+                    disabled={resyncing} 
+                    className="px-5 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resyncing ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        מסנכרן...
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        סנכרן נתונים
+                      </>
+                    )}
+                  </button>
                 {dbName && (
                   <>
                     {/* Category Selection for Reprocessing */}
@@ -2250,8 +2317,11 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     <button 
                       onClick={handleReprocess} 
                       disabled={reprocessing || stopping}
-                      className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-5 py-2.5 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-800 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
+                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
                       {reprocessing ? 'מעבד מחדש...' : (
                         // Button text reflects what's being reprocessed
                         reprocessAll ? 'עיבוד מחדש מלא של כל המידע' :
@@ -2267,48 +2337,53 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     <button 
                       onClick={handleStopReprocess} 
                       disabled={stopping || reprocessing}
-                      className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
+                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                      </svg>
                       {stopping ? 'עוצר...' : 'הפסק עיבוד מחדש'}
                     </button>
                   </>
                 )}
-                <button 
-                  onClick={handleDownload} 
-                  className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm flex items-center"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {platform === "shopify" ? "התקן אפליקציית Shopify" : "הורד תוסף"}
-                </button>
-                
-                {platform === "shopify" && (
                   <button 
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/download-theme-extension", { method: "GET" });
-                        if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = "semantix-theme-extension.zip";
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                      } catch (err) {
-                        console.error("Download theme extension failed", err);
-                        setMsg("❌ Couldn't download the theme extension.");
-                      }
-                    }}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-indigo-700 transition-all shadow-sm flex items-center"
+                    onClick={handleDownload} 
+                    className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    הורד הרחבת ערכת נושא
+                    {platform === "shopify" ? "התקן אפליקציית Shopify" : "הורד תוסף"}
                   </button>
-                )}
+                  
+                  {platform === "shopify" && (
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const res = await fetch("/api/download-theme-extension", { method: "GET" });
+                          if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "semantix-theme-extension.zip";
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                        } catch (err) {
+                          console.error("Download theme extension failed", err);
+                          setMsg("❌ Couldn't download the theme extension.");
+                        }
+                      }}
+                      className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      הורד הרחבת ערכת נושא
+                    </button>
+                  )}
+                </div>
                 {msg && (
-                  <span className={`py-2 px-4 rounded-lg text-sm font-medium ₪{msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                  <div className={`mt-4 py-3 px-4 rounded-lg text-sm font-medium border ₪{msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
                     {msg}
-                  </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -2603,6 +2678,7 @@ function AdminPanel({ session }) {
   const [editedCategories, setEditedCategories] = useState('');
   const [editedTypes, setEditedTypes] = useState('');
   const [editedSoftCategories, setEditedSoftCategories] = useState('');
+  const [missingSoftCategoryOnly, setMissingSoftCategoryOnly] = useState(false); // For products missing softCategory field
 
   // Check if user is admin
   const isAdmin = session?.user?.email === 'galpaz2210@gmail.com';
@@ -2638,6 +2714,7 @@ function AdminPanel({ session }) {
       }
 
       setUserConfig(data);
+      console.log(userConfig)
       
       // Initialize editable fields with current values
       setEditedCategories(data.configuration.categories.list.join(', '));
@@ -2810,6 +2887,7 @@ function AdminPanel({ session }) {
         reprocessDescriptions: options.reprocessDescriptions,
         reprocessEmbeddings: options.reprocessEmbeddings,
         translateBeforeEmbedding: options.translateBeforeEmbedding,
+        missingSoftCategoryOnly: missingSoftCategoryOnly, // Filter products with hard categories but without soft categories
         
         // Platform-specific credentials
         ...(userConfig.configuration.platform === 'shopify' ? {
@@ -2979,6 +3057,29 @@ function AdminPanel({ session }) {
             </div>
           </div>
 
+          {/* Missing Soft Category Filter */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={missingSoftCategoryOnly}
+                  onChange={(e) => setMissingSoftCategoryOnly(e.target.checked)}
+                  disabled={processing || syncing}
+                  className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2"
+                />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-700">
+                    Process only products with hard categories but without soft category field
+                  </span>
+                  <span className="text-xs text-gray-500 mt-1">
+                    Focuses on products that have categories but are completely missing the softCategory field (not an empty array)
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Processing Options */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900">3. Select Processing Options</h3>
@@ -3129,6 +3230,17 @@ export default function DashboardPage() {
     }
   ]);
 
+  // Check if user is admin
+  const isAdmin = session?.user?.email === 'galpaz2210@gmail.com';
+  
+  // Filter panels based on user role - hide subscription and admin panels for non-admin users
+  const visiblePanels = PANELS.filter(panel => {
+    if (panel.id === 'subscription' || panel.id === 'admin') {
+      return isAdmin;
+    }
+    return true;
+  });
+
   // Debug loading states
   useEffect(() => {
     console.log('Session status:', status);
@@ -3185,12 +3297,12 @@ export default function DashboardPage() {
     const tabParam = params.get('tab');
     
     // Handle both 'panel' and 'tab' parameters
-    if (panelParam && PANELS.some(p => p.id === panelParam)) {
+    if (panelParam && visiblePanels.some(p => p.id === panelParam)) {
       setActive(panelParam);
-    } else if (tabParam && PANELS.some(p => p.id === tabParam)) {
+    } else if (tabParam && visiblePanels.some(p => p.id === tabParam)) {
       setActive(tabParam);
     }
-  }, []);
+  }, [visiblePanels]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -3269,8 +3381,19 @@ export default function DashboardPage() {
     return null;
   }
 
-  const Panel = PANELS.find(p => p.id === active)?.component ?? (() => null);
-  const ActiveIcon = PANELS.find(p => p.id === active)?.icon || LayoutDashboard;
+  // Redirect to analytics if user tries to access a locked panel
+  const activePanel = PANELS.find(p => p.id === active);
+  const isActivePanelVisible = visiblePanels.some(p => p.id === active);
+  
+  if (activePanel && !isActivePanelVisible) {
+    // User is trying to access a restricted panel, redirect to analytics
+    if (typeof window !== 'undefined') {
+      setActive('analytics');
+    }
+  }
+
+  const Panel = activePanel?.component ?? (() => null);
+  const ActiveIcon = activePanel?.icon || LayoutDashboard;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -3374,7 +3497,7 @@ export default function DashboardPage() {
         {/* Nav items */}
         <div className="flex-1 px-4 py-6 overflow-y-auto">
           <nav className="space-y-1">
-            {PANELS.map((item) => (
+            {visiblePanels.map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
@@ -3433,7 +3556,7 @@ export default function DashboardPage() {
                 >
                   <ActiveIcon className="h-5 w-5 text-indigo-600" />
                   <span className="text-sm font-medium max-w-[120px] truncate">
-                    {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
+                    {visiblePanels.find(p => p.id === active)?.label || "לוח בקרה"}
                   </span>
                   <ChevronDown className={`h-4 w-4 transition-transform ₪{mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -3450,7 +3573,7 @@ export default function DashboardPage() {
                     {/* Dropdown content */}
                     <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[70]" style={{ direction: 'rtl' }}>
                       <div className="py-2">
-                        {PANELS.map((item) => (
+                        {visiblePanels.map((item) => (
                           <button
                             key={item.id}
                             onClick={() => {
@@ -3481,7 +3604,7 @@ export default function DashboardPage() {
               <div className="hidden sm:flex items-center ml-2">
                 <ActiveIcon className="h-6 w-6 text-indigo-600 mr-2" />
                 <h2 className="text-lg font-medium text-gray-800">
-                  {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
+                  {visiblePanels.find(p => p.id === active)?.label || "לוח בקרה"}
                 </h2>
               </div>
             </div>

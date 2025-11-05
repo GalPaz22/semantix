@@ -55,6 +55,26 @@ export default function OnboardingPage() {
       types: [
         "כשר", "במבצע"
       ],
+      softCategories: [
+        "איטליה", "צרפת", "בורדו", "בורגון", "לואר", "פורטוגל", "בשר", "פסטה", 
+        "מנות איטלקיות", "קליפורניה", "ארגנטינה", "ישראל", "ארצות הברית", 
+        "חצי יבש", "יבש", "ארמניאק", "ברנדי", "דורו", "פרמיטיבו", "ספרד", "ריוחה", 
+        "טוסקנה", "פיימונטה", "ונטו", "קיאנטי", "ברולו", "ברברסקו", "אמרונה", 
+        "סיציליה", "שמפיין", "אלזס", "רון", "פרובנס", "לנגדוק", "רוסיון", "גרמניה", 
+        "אוסטריה", "יוון", "צ'ילה", "אוסטרליה", "ניו זילנד", "דרום אפריקה", 
+        "אורגון", "וושינגטון", "נאפה", "סונומה", "מנדוזה", "מלבק", "חצי מתוק", 
+        "מתוק", "אדום", "לבן", "רוזה", "מבעבע", "טאנינים", "גוף מלא", "קל", "פרי", 
+        "תבליני", "מינרלי", "אלכוהולי", "עתיק", "צעיר", "אורגני", "ביודינמי", 
+        "טבעי", "כתום", "קברנה סוביניון", "מרלו", "פינו נואר", "סירה", "שירז", 
+        "טמפרניו", "סנג'ובזה", "נביולו", "זינפנדל", "שרדונה", "סוביניון בלאן", 
+        "ריזלינג", "פינו גריג'יו", "גרנאש", "מוסקט", "גוורצטרמינר", "קוניאק", 
+        "וויסקי", "בורבון", "רום", "ג'ין", "ווקה", "גראפה", "קלוודוס", "טקילה", 
+        "מזקל", "פסטיס", "ליקרים", "פורט", "שרי", "מדיירה", "אלנטז'ו", "ריאס ביישאס", 
+        "פריורט", "פנדס", "רואדה", "בשר אדום", "עוף", "דגים", "פירות ים", "גבינות", 
+        "ריזוטו", "פיצה", "המבורגר", "סטייק", "צלי", "תבשילים", "סלטים", "קינוחים", 
+        "שוקולד", "פטריות", "טרטופים", "שגרה", "חגים", "שבת", "ארוחת ערב", "מסיבה", 
+        "אפריטיף", "קוקטיילים", "זוגיות", "משפחתי", "קייטרינג", "יום הולדת"
+      ],
       color: "#722F37"
     },
     fashion: {
@@ -69,6 +89,7 @@ export default function OnboardingPage() {
         "הלבשה תחתונה", "גרביים", "בגדי ים", "בגדי ספורט", "בגדי שינה"
       ],
       types: ["גברים", "נשים", "ילדים"],
+      softCategories: [],
       color: "#4A90E2"
     },
 
@@ -77,6 +98,7 @@ export default function OnboardingPage() {
       icon: "🎨",
       categories: [],
       types: [],
+      softCategories: [],
       color: "#6B7280"
     },
   };
@@ -95,6 +117,7 @@ export default function OnboardingPage() {
   });
   const [categories, setCategories] = useState(sCats);
   const [typeFilter, setTypeFilter] = useState(sType);
+  const [softCategories, setSoftCategories] = useState("");
   const [dbName, setDbName] = useState(sDB);
   const [context, setContext] = useState(sContext);
 
@@ -336,6 +359,7 @@ export default function OnboardingPage() {
           dbName,
           categories: categories.split(",").map(s => s.trim()).filter(Boolean),
           type: typeFilter.split(",").map(s => s.trim()).filter(Boolean),
+          softCategories: softCategories.split(",").map(s => s.trim()).filter(Boolean),
           context,
           ...form
         })
@@ -403,6 +427,7 @@ export default function OnboardingPage() {
     setSelectedPreset(presetKey);
     setCategories(preset.categories.join(', '));
     setTypeFilter(preset.types.join(', '));
+    setSoftCategories(preset.softCategories ? preset.softCategories.join(', ') : '');
   };
 
   /* ---------- guards --------------------------------------------- */
