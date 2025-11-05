@@ -3403,7 +3403,7 @@ export default function DashboardPage() {
           console.log('Mobile menu button clicked');
           setMobileMenuOpen(true);
         }}
-        className="fixed bottom-6 right-6 z-[70] bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl p-3 rounded-full transition-all duration-200 hover:scale-105 lg:hidden"
+        className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl p-3 rounded-full transition-all duration-200 hover:scale-105 lg:hidden"
         aria-label="פתח תפריט ניווט מלא"
       >
         <Menu className="h-6 w-6 text-white" />
@@ -3476,7 +3476,7 @@ export default function DashboardPage() {
 
       {/* Mobile menu */}
       <div
-        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ₪{
+        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
             mobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         style={{ direction: 'rtl' }}
@@ -3504,14 +3504,14 @@ export default function DashboardPage() {
                   setActive(item.id);
                   setMobileMenuOpen(false);
                 }}
-                className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ₪{
+                className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                   active === item.id
                     ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700"
                     : "text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 <item.icon
-                  className={`h-5 w-5 ml-4 ₪{
+                  className={`h-5 w-5 ml-4 ${
                     active === item.id ? "text-indigo-600" : "text-gray-400"
                   }`}
                 />
@@ -3558,7 +3558,7 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium max-w-[120px] truncate">
                     {visiblePanels.find(p => p.id === active)?.label || "לוח בקרה"}
                   </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ₪{mobileDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {/* Dropdown menu */}
@@ -3580,14 +3580,14 @@ export default function DashboardPage() {
                               setActive(item.id);
                               setMobileDropdownOpen(false);
                             }}
-                            className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ₪{
+                            className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ${
                               active === item.id
                                 ? "bg-indigo-50 text-indigo-700"
                                 : "text-gray-700"
                             }`}
                           >
                             <item.icon
-                              className={`h-5 w-5 ml-3 ₪{
+                              className={`h-5 w-5 ml-3 ${
                                 active === item.id ? "text-indigo-600" : "text-gray-400"
                               }`}
                             />
