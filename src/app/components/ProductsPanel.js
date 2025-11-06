@@ -32,7 +32,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedSoftCategory, setSelectedSoftCategory] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // all, processed, pending
+  const [statusFilter, setStatusFilter] = useState('all'); // all, instock, outofstock
   const [currentPage, setCurrentPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -46,7 +46,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [stats, setStats] = useState({
     total: 0,
     processed: 0,
-    pending: 0,
+    inStock: 0,
     outOfStock: 0,
     categories: 0,
     softCategories: 0,
@@ -251,12 +251,8 @@ export default function ProductsPanel({ session, onboarding }) {
               <p className="text-2xl font-bold text-white">{stats.total}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">Processed</p>
-              <p className="text-2xl font-bold text-green-300">{stats.processed}</p>
-            </div>
-            <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">Pending</p>
-              <p className="text-2xl font-bold text-yellow-300">{stats.pending}</p>
+              <p className="text-white/70 text-sm mb-1">In Stock</p>
+              <p className="text-2xl font-bold text-green-300">{stats.inStock}</p>
             </div>
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
               <p className="text-white/70 text-sm mb-1">Out of Stock</p>
@@ -344,15 +340,14 @@ export default function ProductsPanel({ session, onboarding }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Stock</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="all">All Products</option>
-              <option value="processed">Processed</option>
-              <option value="pending">Pending</option>
+              <option value="instock">In Stock</option>
               <option value="outofstock">Out of Stock</option>
             </select>
           </div>
@@ -503,20 +498,15 @@ export default function ProductsPanel({ session, onboarding }) {
                     {product.price ? `$${parseFloat(product.price).toFixed(2)}` : '-'}
                   </td>
                   <td className="px-6 py-4">
-                    {product.embedding && product.description1 ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Processed
-                      </span>
-                    ) : product.stockStatus === 'outofstock' ? (
+                    {product.stockStatus === 'outofstock' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         <Archive className="h-3 w-3 mr-1" />
                         Out of Stock
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Pending
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        In Stock
                       </span>
                     )}
                   </td>

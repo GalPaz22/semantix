@@ -45,17 +45,8 @@ export async function POST(request) {
       filter.softCategory = softCategory;
     }
     
-    // Status filter
-    if (status === 'processed') {
-      filter.embedding = { $exists: true, $ne: null };
-      filter.description1 = { $exists: true, $ne: null };
-    } else if (status === 'pending') {
-      filter.$or = [
-        { embedding: { $exists: false } },
-        { embedding: null },
-        { description1: { $exists: false } },
-        { description1: null }
-      ];
+    // Status filter (only by stock status now)
+    if (status === 'instock') {
       filter.stockStatus = { $ne: 'outofstock' };
     } else if (status === 'outofstock') {
       filter.stockStatus = 'outofstock';
@@ -109,16 +100,9 @@ export async function POST(request) {
         ]).toArray(),
         collection.distinct('type', { type: { $ne: null, $exists: true, $ne: [] } }),
         collection.distinct('softCategory', { softCategory: { $ne: null, $exists: true, $ne: [] } }),
-        // Calculate actual database statistics
+        // Calculate actual database statistics (by stock only)
         Promise.all([
-            collection.countDocuments({ description1: { $exists: true, $ne: null } }), // processed
-            collection.countDocuments({
-                $or: [
-                    { description1: { $exists: false } },
-                    { description1: null }
-                ],
-                stockStatus: { $ne: 'outofstock' }
-            }), // pending
+            collection.countDocuments({ description1: { $exists: true, $ne: null } }), // processed (kept for reference)
             collection.countDocuments({ stockStatus: 'outofstock' }), // out of stock
             collection.aggregate([
                 { $match: { price: { $exists: true, $ne: null, $gt: 0 } } },
@@ -136,7 +120,8 @@ export async function POST(request) {
     const flattenedSoftCategories = [...new Set(softCategories.flat().filter(Boolean))];
     
     // Process statistics
-    const [processedCount, pendingCount, outOfStockCount, avgPriceResult] = stats;
+    const [processedCount, outOfStockCount, avgPriceResult] = stats;
+    const totalInStock = total - outOfStockCount;
     const avgPrice = avgPriceResult.length > 0 ? avgPriceResult[0].avgPrice.toFixed(2) : 0;
     
     return NextResponse.json({ 
@@ -153,7 +138,8 @@ export async function POST(request) {
       stats: {
         total,
         processed: processedCount,
-        pending: pendingCount,
+        pending: 0, // no pending bucket; everything is either in stock or out of stock
+        inStock: totalInStock,
         outOfStock: outOfStockCount,
         categories: finalCategories.filter(Boolean).length,
         softCategories: flattenedSoftCategories.length,
