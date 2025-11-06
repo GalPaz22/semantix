@@ -43,13 +43,7 @@ export async function POST(request) {
     if (status === 'processed') {
       filter.embedding = { $exists: true, $ne: null };
       filter.description1 = { $exists: true, $ne: null };
-    } else if (status === 'pending') {
-      filter.$or = [
-        { embedding: { $exists: false } },
-        { embedding: null },
-        { description1: { $exists: false } },
-        { description1: null }
-      ];
+    } else if (status === 'instock') {
       filter.stockStatus = { $ne: 'outofstock' };
     } else if (status === 'outofstock') {
       filter.stockStatus = 'outofstock';
@@ -80,14 +74,7 @@ export async function POST(request) {
       collection.distinct('type', { type: { $ne: null, $exists: true } }),
       // Calculate actual database statistics
       Promise.all([
-        collection.countDocuments({ description1: { $exists: true, $ne: null } }), // processed
-        collection.countDocuments({ 
-          $or: [
-            { description1: { $exists: false } },
-            { description1: null }
-          ],
-          stockStatus: { $ne: 'outofstock' }
-        }), // pending
+        collection.countDocuments({ stockStatus: { $ne: 'outofstock' } }), // in stock
         collection.countDocuments({ stockStatus: 'outofstock' }), // out of stock
         collection.aggregate([
           { $match: { price: { $exists: true, $ne: null, $gt: 0 } } },
@@ -100,7 +87,7 @@ export async function POST(request) {
     const flattenedTypes = [...new Set(types.flat().filter(Boolean))];
     
     // Process statistics
-    const [processedCount, pendingCount, outOfStockCount, avgPriceResult] = stats;
+    const [inStockCount, outOfStockCount, avgPriceResult] = stats;
     const avgPrice = avgPriceResult.length > 0 ? avgPriceResult[0].avgPrice.toFixed(2) : 0;
     
     return NextResponse.json({ 
@@ -115,8 +102,7 @@ export async function POST(request) {
       hasPrevPage: page > 1,
       stats: {
         total,
-        processed: processedCount,
-        pending: pendingCount,
+        inStock: inStockCount,
         outOfStock: outOfStockCount,
         categories: categories.filter(Boolean).length,
         avgPrice

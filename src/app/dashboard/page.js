@@ -28,12 +28,12 @@ import {
   Search,
   Bell,
   HelpCircle,
-  Shield,
   ChevronDown,
   Calendar,
   Filter,
   LogOut,
   Copy,
+  Shield,
   RefreshCw,
   CreditCard, // Add this icon
   Crown,
@@ -42,6 +42,7 @@ import {
   TrendingUp,
   ShoppingCart,
   Package,
+  DollarSign,
   
 } from "lucide-react";
 
@@ -129,8 +130,8 @@ function SubscriptionPanel({ session, onboarding }) {
           price_id: SUBSCRIPTION_TIERS[tier].priceId, // Use the price ID from your config
           quantity: 1
         }],
-        successUrl: `₪{window.location.origin}/subscription/success`,
-        cancelUrl: `₪{window.location.origin}/subscription/cancele`,
+        successUrl: `${window.location.origin}/subscription/success`,
+        cancelUrl: `${window.location.origin}/subscription/cancele`,
         customer: {
           email: session.user.email
         },
@@ -146,7 +147,7 @@ function SubscriptionPanel({ session, onboarding }) {
 
     } catch (err) {
       console.error('Subscription error:', err);
-      setMessage(`נכשל להתחיל תהליך התשלום: ₪{err.message}`);
+      setMessage(`נכשל להתחיל תהליך התשלום: ${err.message}`);
     } finally {
       setUpgradeLoading(null);
     }
@@ -257,7 +258,7 @@ function SubscriptionPanel({ session, onboarding }) {
     }
 
     return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ₪{badgeClass}`}>
+      <span className={`px-3 py-1 rounded-full text-sm font-medium ${badgeClass}`}>
         {badgeText}
       </span>
     );
@@ -304,7 +305,7 @@ function SubscriptionPanel({ session, onboarding }) {
 
       {/* Message Display */}
       {message && (
-        <div className={`p-4 rounded-xl ₪{
+        <div className={`p-4 rounded-xl ${
           message.includes('נכשל') || message.includes('error')
             ? 'bg-red-50 text-red-800 border border-red-200'
             : 'bg-green-50 text-green-800 border border-green-200'
@@ -350,7 +351,7 @@ function SubscriptionPanel({ session, onboarding }) {
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">{currentTierConfig.name}</h3>
                       <p className="text-lg text-gray-600">
-                        {currentTierConfig.price > 0 ? `₪₪{currentTierConfig.price}/חודש` : 'חינמי לתמיד'}
+                        {currentTierConfig.price > 0 ? `₪${currentTierConfig.price}/חודש` : 'חינמי לתמיד'}
                       </p>
                     </div>
                   </div>
@@ -450,7 +451,7 @@ function SubscriptionPanel({ session, onboarding }) {
             {Object.entries(SUBSCRIPTION_TIERS).map(([key, plan]) => (
               <div
                 key={key}
-                className={`relative rounded-xl border-2 p-6 transition-all ₪{
+                className={`relative rounded-xl border-2 p-6 transition-all ${
                   plan.tier === currentTier
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 hover:border-indigo-300 bg-white'
@@ -498,11 +499,11 @@ function SubscriptionPanel({ session, onboarding }) {
                     <button
                       onClick={() => handleUpgrade(plan.tier)}
                       disabled={upgradeLoading === plan.tier}
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ₪{
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ${
                         plan.tier === 'pro'
                           ? 'bg-blue-600 hover:bg-blue-700 text-white'
                           : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                      } ₪{
+                      } ${
                         upgradeLoading === plan.tier ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
                     >
@@ -543,7 +544,7 @@ function SubscriptionPanel({ session, onboarding }) {
                 <div>
                   <p className="font-medium text-gray-900">תוכנית {currentTierConfig?.name}</p>
                   <p className="text-sm text-gray-500">
-                    {nextBillDate && `חיוב הבא: ₪{formatDate(nextBillDate)}`}
+                    {nextBillDate && `חיוב הבא: ${formatDate(nextBillDate)}`}
                   </p>
                 </div>
                 <div className="text-right">
@@ -584,7 +585,8 @@ function SubscriptionPanel({ session, onboarding }) {
 // Panel components now receive both session and onboarding
 function AnalyticsPanel({ session, onboarding }) {
   // Use onboarding.credentials.dbName (if available) as the database name.
-  const onboardDB = onboarding?.credentials?.dbName || "";
+  const onboardDB = onboarding?.credentials?.dbName || onboarding?.dbName || "";
+  
   const [queries, setQueries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -592,6 +594,14 @@ function AnalyticsPanel({ session, onboarding }) {
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [loadingCart, setLoadingCart] = useState(false);
   const [cartError, setCartError] = useState("");
+  
+  // Add state for checkout events
+  const [checkoutEvents, setCheckoutEvents] = useState([]);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  
+  const [cartDetailsExpanded, setCartDetailsExpanded] = useState(false);
+  const [checkoutDetailsExpanded, setCheckoutDetailsExpanded] = useState(false);
 
   const [filters, setFilters] = useState({
     category: "",
@@ -602,8 +612,20 @@ function AnalyticsPanel({ session, onboarding }) {
   const [categoryOptions, setCategoryOptions] = useState([]);
 
   // Date filtering defaults and pagination state.
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Initialize with 30 days by default
+  const getDefaultDates = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0]
+    };
+  };
+  
+  const defaultDates = getDefaultDates();
+  const [startDate, setStartDate] = useState(defaultDates.start);
+  const [endDate, setEndDate] = useState(defaultDates.end);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -650,13 +672,7 @@ function AnalyticsPanel({ session, onboarding }) {
     return period ? period.label : "30 ימים אחרונים";
   };
 
-  // Initialize default time period (30 days)
-  useEffect(() => {
-    const defaultPeriod = timePeriods.find(p => p.value === "30d");
-    if (defaultPeriod) {
-      handleTimePeriodChange(defaultPeriod);
-    }
-  }, []); // Only run once on mount
+  // No need for initialization useEffect since dates are already set in useState
 
   // Handle escape key to close dropdown
   useEffect(() => {
@@ -683,9 +699,18 @@ function AnalyticsPanel({ session, onboarding }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dbName: onboardDB })
         });
+        
+        // Handle 204 No Content
+        if (res.status === 204) {
+          setQueries([]);
+          setCurrentPage(1);
+          setLoading(false);
+          return;
+        }
+        
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error fetching queries");
-        setQueries(data.queries);
+        setQueries(data.queries || []);
         setCurrentPage(1);
       } catch (err) {
         setError(err.message);
@@ -714,6 +739,29 @@ function AnalyticsPanel({ session, onboarding }) {
         setCartError(err.message);
       } finally {
         setLoadingCart(false);
+      }
+    })();
+  }, [onboardDB]);
+
+  // Fetch checkout events data
+  useEffect(() => {
+    if (!onboardDB) return;
+    (async () => {
+      setLoadingCheckout(true);
+      setCheckoutError("");
+      try {
+        const res = await fetch("/api/cart-analytics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dbName: onboardDB, type: "checkout" })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error fetching checkout events");
+        setCheckoutEvents(data.checkoutEvents || []);
+      } catch (err) {
+        setCheckoutError(err.message);
+      } finally {
+        setLoadingCheckout(false);
       }
     })();
   }, [onboardDB]);
@@ -799,64 +847,165 @@ function AnalyticsPanel({ session, onboarding }) {
   const handleNext = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
   const handlePageClick = num => setCurrentPage(num);
   
-  const downloadCSV = () => {
-    const headers = ["Query","Timestamp","Category","Price","Min Price","Max Price","Type","Entity"];
-    const rows = filteredQueries.map(q =>
-      [
-        `"₪{(q.query || "").replace(/"/g, '""')}"`,
-        `"₪{new Date(q.timestamp).toLocaleString()}"`,
-        `"₪{Array.isArray(q.category) ? q.category.join(", ") : (q.category || "")}"`,
-        `"₪{q.price || ""}"`,
-        `"₪{q.minPrice || ""}"`,
-        `"₪{q.maxPrice || ""}"`,
-        `"₪{q.type || ""}"`,
-        `"₪{q.entity || ""}"`
-      ].join(",")
-    );
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "queries.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Calculate cart conversion metrics
-  const cartMetrics = useMemo(() => {
-    if (!cartAnalytics.length || !filteredQueries.length) return { 
-      conversionRate: 0, 
-      totalCartItems: 0,
-      topQueries: []
+  // Calculate business insights and SEO keywords - ALWAYS from last 30 days
+  const businessInsights = useMemo(() => {
+    if (!queries.length) return {
+      topKeywords: [],
+      trends: [],
+      seoSuggestions: [],
+      totalSearches: 0,
+      averageDaily: 0
     };
 
-    // Filter cart analytics based on the same time period as queries
-    const filteredCartAnalytics = cartAnalytics.filter(item => {
-      if (!startDate && !endDate) return true;
-      
-      const itemDate = new Date(item.timestamp || item.created_at);
-      if (startDate && itemDate < new Date(startDate)) return false;
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        if (itemDate > end) return false;
-      }
-      return true;
+    // Filter queries to last 30 days only
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const last30DaysQueries = queries.filter(q => {
+      const queryDate = new Date(q.timestamp);
+      return queryDate >= thirtyDaysAgo;
     });
 
-    const totalCartItems = filteredCartAnalytics.length;
-    const conversionRate = ((totalCartItems / filteredQueries.length) * 100).toFixed(2);
+    if (!last30DaysQueries.length) return {
+      topKeywords: [],
+      trends: [],
+      seoSuggestions: [],
+      totalSearches: 0,
+      averageDaily: 0
+    };
+
+    // Filter cart analytics to last 30 days
+    const last30DaysCart = cartAnalytics.filter(item => {
+      const itemDate = new Date(item.timestamp || item.created_at);
+      return itemDate >= thirtyDaysAgo;
+    });
+
+    // Analyze top search keywords
+    const queryFrequency = {};
+    last30DaysQueries.forEach(q => {
+      const query = (q.query || "").toLowerCase().trim();
+      if (query) {
+        queryFrequency[query] = (queryFrequency[query] || 0) + 1;
+      }
+    });
+
+    const topKeywords = Object.entries(queryFrequency)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([keyword, count]) => ({ keyword, count }));
+
+    // Calculate metrics
+    const totalSearches = last30DaysQueries.length;
+    const averageDaily = (totalSearches / 30).toFixed(1);
+
+    // Analyze search trends
+    const trends = [];
     
-    // Group by search query to find top converting queries
-    const queryGroups = {};
-    filteredCartAnalytics.forEach(item => {
+    if (topKeywords.length > 0) {
+      const topQuery = topKeywords[0];
+      const topPercentage = ((topQuery.count / totalSearches) * 100).toFixed(1);
+      trends.push({
+        icon: '🔥',
+        text: `החיפוש הפופולרי ביותר: "${topQuery.keyword}"`,
+        detail: `${topQuery.count} חיפושים (${topPercentage}% מהחיפושים)`
+      });
+    }
+
+    // Analyze conversion correlation
+    if (last30DaysCart.length > 0) {
+      const convertingQueries = new Set(
+        last30DaysCart.map(item => (item.search_query || "").toLowerCase().trim()).filter(q => q)
+      );
+      const uniqueConvertingSearches = convertingQueries.size;
+      const totalUniqueSearches = Object.keys(queryFrequency).length;
+      const conversionRate = (uniqueConvertingSearches / totalUniqueSearches) * 100;
+      
+      if (conversionRate > 15) {
+        trends.push({
+          icon: '✅',
+          text: 'ביצועי המרה מצוינים',
+          detail: `${conversionRate.toFixed(1)}% מהחיפושים מובילים לעגלה`
+        });
+      } else if (conversionRate < 5) {
+        trends.push({
+          icon: '💡',
+          text: 'הזדמנות לשיפור המרות',
+          detail: `רק ${conversionRate.toFixed(1)}% מהחיפושים מובילים לעגלה`
+        });
+      } else {
+        trends.push({
+          icon: '📊',
+          text: 'שיעור המרה סביר',
+          detail: `${conversionRate.toFixed(1)}% מהחיפושים מובילים לעגלה`
+        });
+      }
+    }
+
+    // Analyze price range searches
+    const priceSearches = last30DaysQueries.filter(q => q.minPrice || q.maxPrice);
+    if (priceSearches.length > totalSearches * 0.2) {
+      const pricePercentage = Math.round((priceSearches.length / totalSearches) * 100);
+      trends.push({
+        icon: '💰',
+        text: 'לקוחות רגישים למחיר',
+        detail: `${pricePercentage}% מהחיפושים כוללים סינון מחיר`
+      });
+    }
+
+    // Analyze search activity
+    if (averageDaily > 50) {
+      trends.push({
+        icon: '📈',
+        text: 'פעילות חיפוש גבוהה',
+        detail: `ממוצע של ${averageDaily} חיפושים ליום`
+      });
+    }
+
+    // SEO suggestions based on top keywords
+    const seoSuggestions = topKeywords.slice(0, 5).map(({ keyword }) => {
+      return `${keyword}`;
+    });
+
+    return {
+      topKeywords,
+      trends,
+      seoSuggestions,
+      totalSearches,
+      averageDaily
+    };
+  }, [queries, cartAnalytics]);
+
+  // Calculate cart conversion metrics - ALWAYS uses ALL data (no date filtering)
+  const cartMetrics = useMemo(() => {
+    if (!queries.length) {
+      return { 
+      conversionRate: 0, 
+      totalCartItems: 0,
+        topQueries: [],
+        totalRevenue: 0,
+        totalConversions: 0,
+        uniqueProducts: 0
+      };
+    }
+
+    // Use ALL cart analytics and ALL queries (no date filtering)
+    const totalCartItems = cartAnalytics.length;
+    const totalQueries = queries.length;
+    const conversionRate = totalQueries > 0 
+      ? ((totalCartItems / totalQueries) * 100).toFixed(2)
+      : 0;
+    
+    // Simple separation: cart analytics for cart, checkout events for checkout
+    const finalAddToCartItems = cartAnalytics; // Use all cart analytics for cart
+    const finalCheckoutItems = checkoutEvents; // Use checkout events for checkout
+    
+    // Group by search query for add to cart
+    const addToCartGroups = {};
+    finalAddToCartItems.forEach(item => {
       if (!item.search_query) return;
       
-      if (!queryGroups[item.search_query]) {
-        queryGroups[item.search_query] = {
+      if (!addToCartGroups[item.search_query]) {
+        addToCartGroups[item.search_query] = {
           query: item.search_query,
           count: 0,
           products: new Set(),
@@ -864,57 +1013,229 @@ function AnalyticsPanel({ session, onboarding }) {
         };
       }
       
-      queryGroups[item.search_query].count += 1;
-      queryGroups[item.search_query].products.add(item.product_id);
+      addToCartGroups[item.search_query].count += 1;
+      addToCartGroups[item.search_query].products.add(item.product_id);
       
       // Calculate revenue if price is available
       if (item.product_price) {
         const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
-          queryGroups[item.search_query].revenue += price * (item.quantity || 1);
+          addToCartGroups[item.search_query].revenue += price * (item.quantity || 1);
         }
       }
     });
     
-    // Convert to array and sort by count
-    const topQueries = Object.values(queryGroups)
+    // Group by search query for checkout
+    const checkoutGroups = {};
+    finalCheckoutItems.forEach(item => {
+      if (!item.search_query) return;
+      
+      if (!checkoutGroups[item.search_query]) {
+        checkoutGroups[item.search_query] = {
+          query: item.search_query,
+          count: 0,
+          products: new Set(),
+          revenue: 0
+        };
+      }
+      
+      checkoutGroups[item.search_query].count += 1;
+      checkoutGroups[item.search_query].products.add(item.product_id);
+      
+      // Calculate revenue - for checkout events use cart_total, for cart items use product_price
+      if (item.cart_total) {
+        // For checkout events, use cart_total
+        const price = parseFloat(item.cart_total.toString().replace(/[^0-9.]/g, ''));
+        if (!isNaN(price)) {
+          checkoutGroups[item.search_query].revenue += price;
+        }
+      } else if (item.product_price) {
+        // Fallback for cart items
+        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        if (!isNaN(price)) {
+          checkoutGroups[item.search_query].revenue += price * (item.quantity || 1);
+        }
+      }
+    });
+    
+    // Convert to arrays and sort by count
+    const topAddToCartQueries = Object.values(addToCartGroups)
       .map(group => ({
         ...group,
         products: Array.from(group.products).length
       }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10); // Get top 10
+      .slice(0, 10);
+      
+    const topCheckoutQueries = Object.values(checkoutGroups)
+      .map(group => ({
+        ...group,
+        products: Array.from(group.products).length
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    
+    // Calculate totals for each category
+    const totalRevenueFromAddToCart = finalAddToCartItems.reduce((sum, item) => {
+      if (item.product_price) {
+        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        if (!isNaN(price)) {
+          return sum + (price * (item.quantity || 1));
+        }
+      }
+      return sum;
+    }, 0);
+    
+    const totalRevenueFromCheckout = finalCheckoutItems.reduce((sum, item) => {
+      if (item.cart_total) {
+        // For checkout events, use cart_total
+        const price = parseFloat(item.cart_total.toString().replace(/[^0-9.]/g, ''));
+        if (!isNaN(price)) {
+          return sum + price;
+        }
+      } else if (item.product_price) {
+        // Fallback for cart items
+        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        if (!isNaN(price)) {
+          return sum + (price * (item.quantity || 1));
+        }
+      }
+      return sum;
+    }, 0);
+    
+    // Legacy calculations for backward compatibility
+    const totalRevenue = topAddToCartQueries.reduce((sum, q) => sum + q.revenue, 0);
+    const totalConversions = cartAnalytics.length;
+    const totalRevenueFromCart = totalRevenueFromAddToCart + totalRevenueFromCheckout;
+    
+    const allUniqueProducts = new Set();
+    cartAnalytics.forEach(item => {
+      if (item.product_id) allUniqueProducts.add(item.product_id);
+    });
+    const uniqueProducts = allUniqueProducts.size;
     
     return {
       conversionRate,
       totalCartItems,
-      topQueries
+      topQueries: topAddToCartQueries, // Legacy - keep for backward compatibility
+      totalRevenue,
+      totalRevenueFromCart,
+      totalConversions,
+      uniqueProducts,
+      // New separated metrics
+      addToCartMetrics: {
+        items: finalAddToCartItems.length,
+        revenue: totalRevenueFromAddToCart,
+        queries: topAddToCartQueries,
+        uniqueProducts: new Set(finalAddToCartItems.map(item => item.product_id)).size
+      },
+      checkoutMetrics: {
+        items: finalCheckoutItems.length,
+        revenue: totalRevenueFromCheckout,
+        queries: topCheckoutQueries,
+        uniqueProducts: new Set(finalCheckoutItems.map(item => item.product_id)).size
+      }
     };
-  }, [cartAnalytics, filteredQueries, startDate, endDate]);
+  }, [cartAnalytics, checkoutEvents, queries]);
+
+  // Export queries to CSV
+  const downloadCSV = () => {
+    if (!filteredQueries.length) {
+      alert('אין נתונים לייצוא');
+      return;
+    }
+
+    // Create CSV content with proper headers order
+    // Column order: 1. תאריך ושעה, 2. שאילתת חיפוש, 3. קטגוריה, 4. מחיר מינימלי, 5. מחיר מקסימלי, 6. כמות תוצאות
+    const headers = ['תאריך ושעה', 'שאילתת חיפוש', 'קטגוריה', 'מחיר מינימלי', 'מחיר מקסימלי', 'כמות תוצאות'];
+    const csvRows = [headers.join(',')];
+
+    filteredQueries.forEach(query => {
+      // Format timestamp properly
+      const timestamp = query.timestamp 
+        ? new Date(query.timestamp).toLocaleString('he-IL', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        : 'N/A';
+      
+      // Ensure search query is properly formatted
+      const searchQuery = query.query && typeof query.query === 'string' 
+        ? `"${query.query.replace(/"/g, '""')}"` 
+        : 'N/A';
+      
+      // Handle category properly - check if it's actually a category or something else
+      let category = 'N/A';
+      if (query.category) {
+        if (Array.isArray(query.category)) {
+          const categoryStr = query.category.join(', ');
+          category = categoryStr && categoryStr !== 'unknown' ? `"${categoryStr.replace(/"/g, '""')}"` : 'N/A';
+        } else if (typeof query.category === 'string' && query.category !== 'unknown') {
+          category = `"${query.category.replace(/"/g, '""')}"`;
+        }
+      }
+      
+      // Ensure price values are actually numeric and formatted correctly
+      const minPrice = (query.minPrice && typeof query.minPrice === 'number') ? `₪${query.minPrice}` : 'N/A';
+      const maxPrice = (query.maxPrice && typeof query.maxPrice === 'number') ? `₪${query.maxPrice}` : 'N/A';
+      
+      // Ensure results count is numeric
+      const resultsCount = (typeof query.resultsCount === 'number' && query.resultsCount >= 0) ? query.resultsCount.toString() : 'N/A';
+
+      // Create the row with proper ordering - ensure exact match with headers
+      const row = [
+        `"${timestamp}"`,        // תאריך ושעה (עמודה 1)
+        searchQuery,             // שאילתת חיפוש (עמודה 2) - כבר עם מרכאות
+        category,                // קטגוריה (עמודה 3) - כבר עם מרכאות או N/A
+        `"${minPrice}"`,         // מחיר מינימלי (עמודה 4)
+        `"${maxPrice}"`,         // מחיר מקסימלי (עמודה 5)
+        `"${resultsCount}"`      // כמות תוצאות (עמודה 6)
+      ];
+      
+      csvRows.push(row.join(','));
+    });
+
+    // Add UTF-8 BOM for proper Hebrew encoding in Excel
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `semantix-queries-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="w-full">
       {/* Page Header with Card-like Design */}
       <header className="mb-8">
-        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl shadow-xl">
-          <div className="absolute inset-0 opacity-10">
-            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <defs>
-                <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                  <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-          </div>
+        <div className="relative overflow-hidden bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl shadow-xl">
           <div className="relative p-8 flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-white mb-1">לוח בקרה</h1>
-              <p className="text-indigo-100">
+              <p className="text-purple-100">
                 ברוך שובך, {session?.user?.name || "משתמש"}
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0">
+            <div className="flex flex-col sm:flex-row sm:space-x-8 space-y-2 sm:space-y-0">
+              {/* Export Button */}
+              {filteredQueries.length > 0 && (
+                <button
+                  onClick={downloadCSV}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-medium rounded-lg transition-all shadow-md hover:shadow-lg text-sm backdrop-blur-sm ml-4"
+                >
+                  <Download className="h-4 w-4" />
+                  ייצוא נתונים
+                </button>
+              )}
               <div className="relative">
                 <button 
                   onClick={() => setTimePeriodOpen(!timePeriodOpen)}
@@ -922,7 +1243,7 @@ function AnalyticsPanel({ session, onboarding }) {
                 >
                   <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                   <span className="text-xs sm:text-sm">{getCurrentTimePeriodLabel()}</span>
-                  <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2 transition-transform ₪{timePeriodOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2 transition-transform ${timePeriodOpen ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {timePeriodOpen && (
@@ -939,7 +1260,7 @@ function AnalyticsPanel({ session, onboarding }) {
                         <button
                           key={period.value}
                           onClick={() => handleTimePeriodChange(period)}
-                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ₪{
+                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ${
                             selectedTimePeriod === period.value
                               ? 'bg-indigo-50 text-indigo-700 font-medium'
                               : 'text-gray-700'
@@ -952,10 +1273,6 @@ function AnalyticsPanel({ session, onboarding }) {
                   </>
                 )}
               </div>
-              <button onClick={downloadCSV} className="flex items-center justify-center px-2 py-1.5 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-white backdrop-blur-sm">
-                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                <span className="text-xs sm:text-sm">ייצא נתונים</span>
-              </button>
             </div>
           </div>
           
@@ -1029,7 +1346,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       ))}
                       <div className="mt-2 pt-2 border-t border-white/20">
                         <p className="text-white/60 text-xs">
-                          {queriesToAnalyze.length} שאילתות {sourceLabel === "היום" ? "היום" : `ב₪{sourceLabel}`}
+                          {queriesToAnalyze.length} שאילתות {sourceLabel === "היום" ? "היום" : `ב${sourceLabel}`}
                         </p>
                       </div>
                     </div>
@@ -1038,7 +1355,7 @@ function AnalyticsPanel({ session, onboarding }) {
               </div>
             </div>
 
-            {/* New cart conversion rate metric */}
+            {/* Cart conversion rate metric */}
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
               <p className="text-white/70 text-sm mb-1">המרת עגלה</p>
               <p className="text-3xl font-bold text-white">
@@ -1052,152 +1369,230 @@ function AnalyticsPanel({ session, onboarding }) {
         </div>
       </header>
 
-      {/* Filter Section - Card Design */}
-      <section className="bg-white rounded-xl shadow-md p-0 mb-8 overflow-hidden border border-gray-100">
-        <div className="border-b border-gray-100 p-5">
-          <div className="flex items-center">
-            <Filter className="h-5 w-5 text-indigo-600 mr-2" />
-            <h2 className="text-lg font-semibold text-gray-800">
-              סנן נתוני אנליטיקה
-            </h2>
-          </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                קטגוריה
-              </label>
-              <div className="relative">
-                <select
-                  value={filters.category}
-                  onChange={(e) =>
-                    setFilters({ ...filters, category: e.target.value })
-                  }
-                  className="w-full p-3 pl-4 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white appearance-none shadow-sm text-gray-600"
-                >
-                  <option value="">כל הקטגוריות</option>
-                  {categoryOptions.map((cat, idx) => (
-                    <option key={idx} value={cat.toLowerCase()}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                </div>
-              </div>
-            </div>
-            {/* Other filter options */}
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 py-4 px-6 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center">
-          <div className="flex flex-col sm:flex-row sm:space-x-8 mb-4 sm:mb-0">
-            <p className="text-gray-600 font-medium flex items-center">
-              <span className="w-3 h-3 rounded-full bg-indigo-500 mr-2"></span>
-              סה"כ נטען: <span className="text-indigo-600 font-bold ml-1">{totalLoaded}</span>
-            </p>
-            <p className="text-gray-600 font-medium flex items-center mt-2 sm:mt-0">
-              <span className="w-3 h-3 rounded-full bg-purple-500 mr-2"></span>
-              תואם לסינון: <span className="text-purple-600 font-bold ml-1">{filteredCount}</span>
-            </p>
-          </div>
-          {/* Download CSV Button */}
-          {filteredCount > 0 && (
-            <button
-              onClick={downloadCSV}
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm flex items-center justify-center"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              הורד CSV
-            </button>
-          )}
-        </div>
-      </section>
 
-      {/* Cart Analytics Section */}
-      {cartAnalytics.length > 0 && (
+      {/* Cart Analytics Section - Minimalist View */}
+      {(cartAnalytics.length > 0 || checkoutEvents.length > 0 || loadingCart || loadingCheckout) && (
         <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 mb-8">
-          <div className="border-b border-gray-100 p-5">
-            <div className="flex items-center">
-              <ShoppingCart className="h-5 w-5 text-indigo-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-800">
-                המרות מחיפוש לעגלה
-              </h2>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות להמרה</h3>
-            
-            {loadingCart ? (
+        <div className="p-6">
+            {(loadingCart || loadingCheckout) ? (
               <div className="flex justify-center items-center h-40">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
               </div>
-            ) : cartError ? (
-              <div className="text-center text-red-500 p-4">{cartError}</div>
+            ) : (cartError || checkoutError) ? (
+              <div className="text-center text-red-500 p-4">{cartError || checkoutError}</div>
             ) : (
+              <>
+                {/* Add to Cart Section */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4 space-x-reverse">
+              <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                        <ShoppingCart className="h-7 w-7 text-white" strokeWidth={2.5} />
+                </div>
+              </div>
+                    <div className="mr-4">
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        ₪{(cartMetrics?.addToCartMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </h2>
+                      <p className="text-sm text-gray-600">סך הכנסות מהוספות לעגלה</p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <span className="text-xs text-gray-500">
+                          {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString('en-US')} הוספות לעגלה
+                        </span>
+                        <span className="text-xs text-gray-500">•</span>
+                        <span className="text-xs text-gray-500">
+                          {(cartMetrics?.addToCartMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
+                        </span>
+            </div>
+          </div>
+        </div>
+        
+            <button
+                    onClick={() => setCartDetailsExpanded(!cartDetailsExpanded)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                  >
+                    {cartDetailsExpanded ? (
+                      <>
+                        <span>הסתר פרטים</span>
+                        <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                      </>
+                    ) : (
+                      <>
+                        <span>קרא עוד</span>
+                        <ChevronDown className="h-4 w-4 transition-transform" />
+                      </>
+                    )}
+                  </button>
+        </div>
+
+                {/* Checkout Section - Only show if we have checkout events */}
+                {checkoutEvents.length > 0 && (
+                  <>
+                  <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4 space-x-reverse">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                        <DollarSign className="h-7 w-7 text-white" strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="mr-4">
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </h2>
+                      <p className="text-sm text-gray-600">סכום רכישות</p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <span className="text-xs text-gray-500">
+                          {(cartMetrics?.checkoutMetrics?.items || 0).toLocaleString('en-US')} רכישות
+                        </span>
+                        <span className="text-xs text-gray-500">•</span>
+                        <span className="text-xs text-gray-500">
+                          {(cartMetrics?.checkoutMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
+                        </span>
+            </div>
+          </div>
+              </div>
+                  
+                  <button
+                    onClick={() => setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                  >
+                    {checkoutDetailsExpanded ? (
+                      <>
+                        <span>הסתר פרטים</span>
+                        <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                      </>
+                    ) : (
+                      <>
+                        <span>קרא עוד</span>
+                        <ChevronDown className="h-4 w-4 transition-transform" />
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Expanded Details for Add to Cart */}
+                {cartDetailsExpanded && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות להוספה לעגלה</h3>
               <div className="overflow-x-auto">
                 <table className="w-full table-auto">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         שאילתת חיפוש
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         הוספות לעגלה
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         מוצרים ייחודיים
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         הכנסות משוערות
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {cartMetrics.topQueries.map((item, index) => (
+                            {(cartMetrics.addToCartMetrics?.queries || []).map((item, index) => (
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
                           {item.query}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          <span className="inline-block px-2 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full">
-                            {item.count}
+                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                  <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">
+                                    {item.count.toLocaleString('en-US')}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {item.products}
+                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                  {item.products.toLocaleString('en-US')}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          ₪{item.revenue.toFixed(2)}
+                                <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                  ₪{item.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                      </div>
+                    </div>
               </div>
             )}
             
-            {cartMetrics.topQueries.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-md font-medium text-gray-700 mb-4">תרשים המרות</h3>
+                {/* Expanded Details for Checkout */}
+                {checkoutDetailsExpanded && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות לרכישות (עם סכומים)</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                שאילתת חיפוש (שאילתות מורכבות/סמנטיות)
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                רכישות
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                מוצרים ייחודיים
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                הכנסות
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(cartMetrics.checkoutMetrics?.queries || []).length > 0 ? (
+                              (cartMetrics.checkoutMetrics?.queries || []).map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
+                                    {item.query}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <span className="inline-block px-2 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-full">
+                                      {item.count.toLocaleString('en-US')}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    {item.products.toLocaleString('en-US')}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    ₪{item.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                                  אין נתוני רכישות זמינים כרגע
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {(cartMetrics.checkoutMetrics?.queries || []).length > 0 && (
+                      <div>
+                        <h3 className="text-md font-medium text-gray-700 mb-4">תרשים רכישות</h3>
                 <div className="bg-gray-50 rounded-lg p-4 h-64 flex items-end justify-around">
-                  {cartMetrics.topQueries.slice(0, 5).map((item, index) => {
+                          {(cartMetrics.checkoutMetrics?.queries || []).slice(0, 5).map((item, index) => {
                     // Calculate relative height (50% to 100% of container)
-                    const maxCount = Math.max(...cartMetrics.topQueries.slice(0, 5).map(q => q.count));
-                    const height = 50 + ((item.count / maxCount) * 50);
+                            const maxCount = Math.max(...(cartMetrics.checkoutMetrics?.queries || []).slice(0, 5).map(q => q.count));
+                            const height = maxCount > 0 ? 50 + ((item.count / maxCount) * 50) : 50;
                     
                     return (
                       <div key={index} className="flex flex-col items-center">
                         <div 
-                          className="bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t-md w-16 shadow-md"
-                          style={{ height: `₪{height}%` }}
+                                  className="bg-gradient-to-t from-green-500 to-emerald-500 rounded-t-md w-16 shadow-md"
+                                  style={{ height: `${height}%` }}
                         >
                           <div className="text-white text-center font-bold py-2">
-                            {item.count}
+                                    {item.count.toLocaleString('en-US')}
                           </div>
                         </div>
                         <div className="text-xs text-gray-500 mt-2 max-w-[80px] truncate text-center" title={item.query}>
@@ -1208,6 +1603,12 @@ function AnalyticsPanel({ session, onboarding }) {
                   })}
                 </div>
               </div>
+                    )}
+                  </div>
+                )}
+                  </>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -1280,7 +1681,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   <button
                     onClick={handlePrevious}
                     disabled={currentPage === 1}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ₪{
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
                       currentPage === 1
                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                         : "bg-white text-gray-700 hover:bg-gray-50"
@@ -1294,7 +1695,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       <button
                         key={num}
                         onClick={() => handlePageClick(num)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ₪{
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ${
                           currentPage === num
                             ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
                             : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -1308,7 +1709,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   <button
                     onClick={handleNext}
                     disabled={currentPage === totalPages}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ₪{
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
                       currentPage === totalPages
                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                         : "bg-white text-gray-700 hover:bg-gray-50"
@@ -1563,7 +1964,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       if (platform === "shopify" && formattedCred.shopifyDomain) {
         let domain = formattedCred.shopifyDomain.replace(/^https?:\/\//, '').replace(/\/₪/, '');
         if (!domain.includes('.myshopify.com')) {
-          domain = `₪{domain}.myshopify.com`;
+          domain = `${domain}.myshopify.com`;
         }
         formattedCred.shopifyDomain = domain;
       }
@@ -1608,7 +2009,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       setEditing(false);
     } catch (err) {
       console.error("Save error:", err);
-      setMsg(`❌ ₪{err.message || "Error saving"}`);
+      setMsg(`❌ ${err.message || "Error saving"}`);
     } finally {
       setSaving(false);
       setTimeout(() => setMsg(""), 2000);
@@ -1616,23 +2017,21 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   }
 
   const handleReprocess = async () => {
+    if (!dbName) {
+      setMsg("❌ Store name is required to reprocess products.");
+      return;
+    }
     setReprocessing(true);
     setMsg("");
     try {
-      // Get API key from onboarding credentials
-      const apiKey = onboarding?.apiKey;
-      
-      if (!apiKey) {
-        throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
-      }
-      
       // Debug the raw state values
       console.log("🔍 RAW STATE VALUES:");
+      console.log("dbName:", dbName);
       console.log("categories:", categories);
       console.log("productTypes:", productTypes);
       console.log("softCategories:", softCategories);
       
-      // Prepare the data arrays
+      // Prepare the data arrays like in handleSave
       const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
       const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
       const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
@@ -1642,44 +2041,35 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       console.log("typesArray:", typesArray);
       console.log("softCategoriesArray:", softCategoriesArray);
       
-      const payload = {};
-      
-      // Optional overrides (leave empty to use stored values on server)
-      if (categoriesArray.length) payload.categories = categoriesArray;
-      if (typesArray.length) payload.type = typesArray;
-      if (softCategoriesArray.length) payload.softCategories = softCategoriesArray;
-      
-      // Reprocess options
-      if (reprocessAll) {
-        payload.reprocessAll = true;
-      } else {
-        payload.reprocessHardCategories = reprocessHardCategories;
-        payload.reprocessSoftCategories = reprocessSoftCategories;
-        payload.reprocessTypes = reprocessTypes;
-        payload.reprocessVariants = reprocessVariants;
-        payload.reprocessEmbeddings = reprocessEmbeddings;
-        payload.reprocessDescriptions = reprocessDescriptions;
-      }
+      const payload = { 
+        dbName,
+        categories: categoriesArray,
+        type: typesArray,
+        softCategories: softCategoriesArray,
+        targetCategory: targetCategory.trim() || null,
+        missingSoftCategoryOnly: missingSoftCategoryOnly,
+        
+        // Advanced reprocessing options
+        reprocessHardCategories,
+        reprocessSoftCategories,
+        reprocessTypes,
+        reprocessVariants,
+        reprocessEmbeddings,
+        reprocessDescriptions,
+        reprocessAll
+      };
       
       console.log("🔍 PAYLOAD TO SEND:", payload);
-      console.log("🔑 ⚡ REPROCESS BUTTON: Sending to EXTERNAL endpoint https://onboarding-lh63.onrender.com/api/reprocess");
       
-      const res = await fetch("https://onboarding-lh63.onrender.com/api/reprocess", {
+      const res = await fetch('/api/reprocess-products', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Failed to start reprocessing.");
-      
-      setMsg("✅ Began reprocessing all products. " + (data.message || ""));
-      console.log("✅ Reprocess response:", data);
+      if (!res.ok) throw new Error(data.error || "Failed to start reprocessing.");
+      setMsg("✅ Began reprocessing all products.");
     } catch (err) {
-      console.error("Reprocess error:", err);
       setMsg(`❌ ${err.message}`);
     } finally {
       setReprocessing(false);
@@ -1687,33 +2077,22 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   };
 
   const handleStopReprocess = async () => {
+    if (!dbName) {
+      setMsg("❌ Store name is required to stop reprocessing.");
+      return;
+    }
     setStopping(true);
     setMsg("");
     try {
-      // Get API key from onboarding
-      const apiKey = onboarding?.apiKey;
-      
-      if (!apiKey) {
-        throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
-      }
-      
-      console.log('🛑 Sending stop signal to external endpoint');
-      
-      const res = await fetch('https://onboarding-lh63.onrender.com/api/reprocess/stop', {
+      const res = await fetch('/api/reprocess-products/stop', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey
-        }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dbName }),
       });
-      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Failed to stop reprocessing.");
-      
-      setMsg("🛑 Stopped reprocessing. " + (data.message || ""));
-      console.log('✅ Stop response:', data);
+      if (!res.ok) throw new Error(data.error || "Failed to stop reprocessing.");
+      setMsg("🛑 Stopped reprocessing.");
     } catch (err) {
-      console.error("Stop reprocess error:", err);
       setMsg(`❌ ${err.message}`);
     } finally {
       setStopping(false);
@@ -1731,7 +2110,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: analyzeUrl, includeSnapshot: true })
       });
-      if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setSelectorResult(json.analysis);
     } catch (err) {
@@ -1755,7 +2134,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       
       // For WooCommerce, download the plugin as before
       const res = await fetch("/api/download-plugin", { method: "GET" });
-      if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1786,20 +2165,25 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       {/* Page Header */}
       <header className="mb-8">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="flex items-center space-x-4 rtl:space-x-reverse">
-            <div className="p-3 bg-gray-100 rounded-lg">
-              <Settings className="h-7 w-7 text-gray-700" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl shadow-xl">
+          <div className="absolute inset-0 opacity-10">
+            <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <defs>
+                <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                  <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
             </div>
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">הגדרות התוסף</h1>
-              <p className="text-gray-600 mt-1">
-                ניהול הגדרות החיבור והקונפיגורציה של המערכת
-              </p>
-            </div>
+          <div className="relative p-8">
+            <h1 className="text-3xl font-bold text-white mb-1">הגדרות התוסף</h1>
+            <p className="text-indigo-100">
+              הגדר את הקישור והעדפות שלך למערכת
+            </p>
           </div>
         </div>
       </header>
@@ -1900,12 +2284,12 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   <button
                     type="button"
                     onClick={() => setAiExplanationMode(!aiExplanationMode)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ₪{
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${
                       aiExplanationMode ? 'bg-indigo-600' : 'bg-gray-200'
                     }`}
                   >
                     <span
-                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ₪{
+                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                         aiExplanationMode ? 'translate-x-4' : 'translate-x-0'
                       }`}
                     />
@@ -2027,7 +2411,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   ביטול
                 </button>
                 {msg && (
-                  <span className={`py-2 px-4 rounded-lg text-sm font-medium border ₪{msg.startsWith("✅") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
+                  <span className={`py-2 px-4 rounded-lg text-sm font-medium border ${msg.startsWith("✅") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
                     {msg}
                   </span>
                 )}
@@ -2069,7 +2453,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                 <span className="block text-sm font-medium text-gray-700 mb-2">מצב הסבר AI</span>
                 <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
                   <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ₪{
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       aiExplanationMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
                       {aiExplanationMode ? '✓ מופעל' : '✗ כבוי'}
@@ -2360,7 +2744,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                       onClick={async () => {
                         try {
                           const res = await fetch("/api/download-theme-extension", { method: "GET" });
-                          if (!res.ok) throw new Error(`HTTP ₪{res.status}`);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
                           const blob = await res.blob();
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement("a");
@@ -2381,7 +2765,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   )}
                 </div>
                 {msg && (
-                  <div className={`mt-4 py-3 px-4 rounded-lg text-sm font-medium border ₪{msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
+                  <div className={`mt-4 py-3 px-4 rounded-lg text-sm font-medium border ${msg.startsWith("✅") || msg.startsWith("🔄") ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}>
                     {msg}
                   </div>
                 )}
@@ -2654,550 +3038,13 @@ function ApiKeyPanel({ session, onboarding }) {
   );
 }
 
-/* =============================================================== */
-/*  ADMIN PANEL - Process products by API key (galpaz2210 only)  */
-/* =============================================================== */
-function AdminPanel({ session }) {
-  const [apiKey, setApiKey] = useState('');
-  const [userConfig, setUserConfig] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [options, setOptions] = useState({
-    reprocessCategories: true,
-    reprocessTypes: true,
-    reprocessSoftCategories: true,
-    reprocessDescriptions: false,
-    reprocessEmbeddings: false,
-    translateBeforeEmbedding: false
-  });
-  
-  // Editable configuration
-  const [editedCategories, setEditedCategories] = useState('');
-  const [editedTypes, setEditedTypes] = useState('');
-  const [editedSoftCategories, setEditedSoftCategories] = useState('');
-  const [missingSoftCategoryOnly, setMissingSoftCategoryOnly] = useState(false); // For products missing softCategory field
-
-  // Check if user is admin
-  const isAdmin = session?.user?.email === 'galpaz2210@gmail.com';
-
-  if (!isAdmin) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-          <Shield className="h-12 w-12 text-red-400 mx-auto mb-2" />
-          <p className="text-red-800 font-medium">Access Denied</p>
-          <p className="text-red-600 text-sm mt-1">This panel is only accessible to administrators.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleLookup = async () => {
-    if (!apiKey.trim()) {
-      setMessage('❌ Please enter an API key');
-      return;
-    }
-
-    setLoading(true);
-    setMessage('');
-    setUserConfig(null);
-
-    try {
-      const res = await fetch(`/api/admin/lookup-by-apikey?apiKey=${encodeURIComponent(apiKey)}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to lookup user');
-      }
-
-      setUserConfig(data);
-      console.log(userConfig)
-      
-      // Initialize editable fields with current values
-      setEditedCategories(data.configuration.categories.list.join(', '));
-      setEditedTypes(data.configuration.types.list.join(', '));
-      setEditedSoftCategories(data.configuration.softCategories.list.join(', '));
-      
-      setMessage('✅ User found!');
-    } catch (err) {
-      setMessage(`❌ ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveConfiguration = async () => {
-    if (!userConfig) {
-      setMessage('❌ Please lookup a user first');
-      return;
-    }
-
-    setSaving(true);
-    setMessage('');
-
-    try {
-      // Parse comma-separated strings into arrays
-      const categories = editedCategories.split(',').map(s => s.trim()).filter(Boolean);
-      const types = editedTypes.split(',').map(s => s.trim()).filter(Boolean);
-      const softCategories = editedSoftCategories.split(',').map(s => s.trim()).filter(Boolean);
-
-      const res = await fetch('/api/admin/update-user-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey,
-          categories,
-          types,
-          softCategories
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save configuration');
-      }
-
-      // Update local state with saved values
-      setUserConfig({
-        ...userConfig,
-        configuration: {
-          ...userConfig.configuration,
-          categories: { count: categories.length, list: categories },
-          types: { count: types.length, list: types },
-          softCategories: { count: softCategories.length, list: softCategories }
-        }
-      });
-
-      setMessage('✅ Configuration saved successfully!');
-    } catch (err) {
-      setMessage(`❌ ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSync = async () => {
-    if (!userConfig) {
-      setMessage('❌ Please lookup a user first');
-      return;
-    }
-
-    setSyncing(true);
-    setMessage('');
-
-    try {
-      // Get user credentials
-      const user = await fetch(`/api/get-user-credentials?apiKey=${encodeURIComponent(apiKey)}`);
-      const userData = await user.json();
-      
-      if (!user.ok) {
-        throw new Error('Failed to fetch user credentials');
-      }
-
-      const { credentials } = userData;
-      
-      // Build payload for initial sync (onboarding)
-      const payload = {
-        platform: userConfig.configuration.platform,
-        dbName: userConfig.configuration.dbName,
-        categories: userConfig.configuration.categories.list,
-        type: userConfig.configuration.types.list,
-        softCategories: userConfig.configuration.softCategories.list,
-        syncMode: userConfig.configuration.syncMode,
-        context: userConfig.configuration.context || '',
-        explain: userConfig.configuration.explain || false,
-        
-        // Platform-specific credentials
-        ...(userConfig.configuration.platform === 'shopify' ? {
-          shopifyDomain: credentials.shopifyDomain,
-          shopifyToken: credentials.shopifyToken
-        } : {
-          wooUrl: credentials.wooUrl,
-          wooKey: credentials.wooKey,
-          wooSecret: credentials.wooSecret
-        })
-      };
-
-      console.log('🔄 Admin triggering initial sync with payload:', {
-        ...payload,
-        shopifyToken: payload.shopifyToken ? '***' : undefined,
-        wooSecret: payload.wooSecret ? '***' : undefined
-      });
-
-      const res = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Failed to start sync');
-      }
-
-      setMessage('✅ Initial sync started! This will fetch and process all products from scratch.');
-    } catch (err) {
-      setMessage(`❌ ${err.message}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleProcess = async () => {
-    if (!userConfig) {
-      setMessage('❌ Please lookup a user first');
-      return;
-    }
-
-    setProcessing(true);
-    setMessage('');
-
-    try {
-      // Get user credentials from the lookup
-      const user = await fetch(`/api/get-user-credentials?apiKey=${encodeURIComponent(apiKey)}`);
-      const userData = await user.json();
-      
-      if (!user.ok) {
-        throw new Error('Failed to fetch user credentials');
-      }
-
-      const { credentials } = userData;
-      
-      // Build payload for internal reprocess endpoint
-      const payload = {
-        platform: userConfig.configuration.platform,
-        dbName: userConfig.configuration.dbName,
-        categories: userConfig.configuration.categories.list,
-        type: userConfig.configuration.types.list,
-        softCategories: userConfig.configuration.softCategories.list,
-        syncMode: userConfig.configuration.syncMode,
-        context: userConfig.configuration.context || '',
-        explain: userConfig.configuration.explain || false,
-        
-        // Add reprocess options
-        reprocessAll: options.reprocessAll || false,
-        reprocessCategories: options.reprocessCategories,
-        reprocessTypes: options.reprocessTypes,
-        reprocessSoftCategories: options.reprocessSoftCategories,
-        reprocessDescriptions: options.reprocessDescriptions,
-        reprocessEmbeddings: options.reprocessEmbeddings,
-        translateBeforeEmbedding: options.translateBeforeEmbedding,
-        missingSoftCategoryOnly: missingSoftCategoryOnly, // Filter products with hard categories but without soft categories
-        
-        // Platform-specific credentials
-        ...(userConfig.configuration.platform === 'shopify' ? {
-          shopifyDomain: credentials.shopifyDomain,
-          shopifyToken: credentials.shopifyToken
-        } : {
-          wooUrl: credentials.wooUrl,
-          wooKey: credentials.wooKey,
-          wooSecret: credentials.wooSecret
-        })
-      };
-
-      console.log('🚀 Admin triggering reprocess with payload:', {
-        ...payload,
-        shopifyToken: payload.shopifyToken ? '***' : undefined,
-        wooSecret: payload.wooSecret ? '***' : undefined
-      });
-
-      const res = await fetch('/api/reprocess-products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to start processing');
-      }
-
-      setMessage('✅ Reprocessing started in background!');
-    } catch (err) {
-      setMessage(`❌ ${err.message}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3 pb-4 border-b">
-        <Shield className="h-8 w-8 text-indigo-600" />
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
-          <p className="text-sm text-gray-500">Process products for any user by API key</p>
-        </div>
-      </div>
-
-      {/* API Key Lookup */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">1. Lookup User by API Key</h3>
-        
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter user API key..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-          <button
-            onClick={handleLookup}
-            disabled={loading || !apiKey.trim()}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Looking up...' : 'Lookup'}
-          </button>
-        </div>
-
-        {message && (
-          <div className={`p-3 rounded-lg ${message.startsWith('✅') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
-            {message}
-          </div>
-        )}
-      </div>
-
-      {/* User Configuration Display */}
-      {userConfig && (
-        <>
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">User Configuration</h3>
-            
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Email</p>
-                <p className="font-medium">{userConfig.user.email}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Platform</p>
-                <p className="font-medium">{userConfig.configuration.platform}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Database</p>
-                <p className="font-medium">{userConfig.configuration.dbName}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Sync Mode</p>
-                <p className="font-medium">{userConfig.configuration.syncMode}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Product Count</p>
-                <p className="font-medium">{userConfig.configuration.productCount}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Store URL</p>
-                <p className="font-medium text-xs">{userConfig.configuration.storeUrl}</p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Editable Configuration */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">2. Edit Categories & Types</h3>
-              <button
-                onClick={handleSaveConfiguration}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-              >
-                {saving ? 'Saving...' : '💾 Save Changes'}
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Categories ({editedCategories.split(',').filter(s => s.trim()).length})
-                </label>
-                <textarea
-                  value={editedCategories}
-                  onChange={(e) => setEditedCategories(e.target.value)}
-                  placeholder="Category1, Category2, Category3..."
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Types ({editedTypes.split(',').filter(s => s.trim()).length})
-                </label>
-                <textarea
-                  value={editedTypes}
-                  onChange={(e) => setEditedTypes(e.target.value)}
-                  placeholder="Type1, Type2, Type3..."
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Soft Categories ({editedSoftCategories.split(',').filter(s => s.trim()).length})
-                </label>
-                <textarea
-                  value={editedSoftCategories}
-                  onChange={(e) => setEditedSoftCategories(e.target.value)}
-                  placeholder="SoftCat1, SoftCat2, SoftCat3..."
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">Comma-separated values</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Missing Soft Category Filter */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={missingSoftCategoryOnly}
-                  onChange={(e) => setMissingSoftCategoryOnly(e.target.checked)}
-                  disabled={processing || syncing}
-                  className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2"
-                />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-700">
-                    Process only products with hard categories but without soft category field
-                  </span>
-                  <span className="text-xs text-gray-500 mt-1">
-                    Focuses on products that have categories but are completely missing the softCategory field (not an empty array)
-                  </span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Processing Options */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">3. Select Processing Options</h3>
-            
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.reprocessCategories}
-                  onChange={(e) => setOptions({...options, reprocessCategories: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Reprocess Categories</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.reprocessTypes}
-                  onChange={(e) => setOptions({...options, reprocessTypes: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Reprocess Types</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.reprocessSoftCategories}
-                  onChange={(e) => setOptions({...options, reprocessSoftCategories: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Reprocess Soft Categories</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.reprocessDescriptions}
-                  onChange={(e) => setOptions({...options, reprocessDescriptions: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Reprocess Descriptions (translate & enrich)</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.reprocessEmbeddings}
-                  onChange={(e) => setOptions({...options, reprocessEmbeddings: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Reprocess Embeddings</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={options.translateBeforeEmbedding}
-                  onChange={(e) => setOptions({...options, translateBeforeEmbedding: e.target.checked})}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Translate Before Embedding</span>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <button
-                onClick={handleSync}
-                disabled={syncing || processing}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {syncing ? 'Starting Sync...' : '🔄 Initial Sync'}
-              </button>
-              
-              <button
-                onClick={handleProcess}
-                disabled={syncing || processing}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {processing ? 'Reprocessing...' : '🚀 Reprocess'}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-        <div>
-          <p className="text-sm font-semibold text-blue-900 mb-1">🔄 Initial Sync:</p>
-          <p className="text-sm text-blue-800">
-            Fetches ALL products from the store and processes them from scratch. 
-            Uses <code className="bg-blue-100 px-1 rounded">processWoo</code> or <code className="bg-blue-100 px-1 rounded">processShopify</code> modules.
-          </p>
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-blue-900 mb-1">🚀 Reprocess:</p>
-          <p className="text-sm text-blue-800">
-            Updates existing products based on selected options (categories, types, descriptions, embeddings). 
-            Uses <code className="bg-blue-100 px-1 rounded">reprocess-products</code> module. Only affects <strong>in-stock products</strong>.
-          </p>
-        </div>
-        <p className="text-xs text-blue-700 pt-2 border-t border-blue-200">
-          All credentials and configuration are automatically fetched from the user's account.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 /* -------- tiny helper so sidebar labels & panels stay together ---- */
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
+  { id: "insights", label: "תובנות עסקיות", link: "/analytics", icon: TrendingUp, external: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
   { id: "apikey", label: "מפתח API", component: ApiKeyPanel, icon: ListTodo },
-  { id: "admin", label: "Admin", component: AdminPanel, icon: Shield },
   { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard }
 ];
 
@@ -3230,44 +3077,13 @@ export default function DashboardPage() {
     }
   ]);
 
-  // Check if user is admin
-  const isAdmin = session?.user?.email === 'galpaz2210@gmail.com';
-  
-  // Filter panels based on user role - hide subscription and admin panels for non-admin users
-  const visiblePanels = PANELS.filter(panel => {
-    if (panel.id === 'subscription' || panel.id === 'admin') {
-      return isAdmin;
-    }
-    return true;
-  });
 
-  // Debug loading states
-  useEffect(() => {
-    console.log('Session status:', status);
-    console.log('Loading onboarding:', loadingOnboarding);
-  }, [status, loadingOnboarding]);
-
-  // Add global debug function - moved here to maintain hook order
+  // Add global functions for mobile menu
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Make this function available globally so it can be called from anywhere
-      window.openMobileMenu = () => {
-        console.log('Opening mobile menu via global function');
-        setMobileMenuOpen(true);
-      };
-      
-      window.closeMobileMenu = () => {
-        console.log('Closing mobile menu via global function');
-        setMobileMenuOpen(false);
-      };
-      
-      window.toggleMobileMenu = () => {
-        setMobileMenuOpen(prev => {
-          const newState = !prev;
-          console.log('Menu state toggled via global function to:', newState);
-          return newState;
-        });
-      };
+      window.openMobileMenu = () => setMobileMenuOpen(true);
+      window.closeMobileMenu = () => setMobileMenuOpen(false);
+      window.toggleMobileMenu = () => setMobileMenuOpen(prev => !prev);
       
       // Add event listener to the document for a custom event
       document.addEventListener('toggleMobileMenu', () => {
@@ -3297,12 +3113,12 @@ export default function DashboardPage() {
     const tabParam = params.get('tab');
     
     // Handle both 'panel' and 'tab' parameters
-    if (panelParam && visiblePanels.some(p => p.id === panelParam)) {
+    if (panelParam && PANELS.some(p => p.id === panelParam)) {
       setActive(panelParam);
-    } else if (tabParam && visiblePanels.some(p => p.id === tabParam)) {
+    } else if (tabParam && PANELS.some(p => p.id === tabParam)) {
       setActive(tabParam);
     }
-  }, [visiblePanels]);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -3330,7 +3146,7 @@ export default function DashboardPage() {
           setOnboarding(json.onboarding);
         }
       } catch (err) {
-        console.warn("Error fetching onboarding:", err);
+        console.error("Error fetching onboarding:", err);
       } finally {
         if (mounted) {
           setLoadingOnboarding(false);
@@ -3381,19 +3197,8 @@ export default function DashboardPage() {
     return null;
   }
 
-  // Redirect to analytics if user tries to access a locked panel
-  const activePanel = PANELS.find(p => p.id === active);
-  const isActivePanelVisible = visiblePanels.some(p => p.id === active);
-  
-  if (activePanel && !isActivePanelVisible) {
-    // User is trying to access a restricted panel, redirect to analytics
-    if (typeof window !== 'undefined') {
-      setActive('analytics');
-    }
-  }
-
-  const Panel = activePanel?.component ?? (() => null);
-  const ActiveIcon = activePanel?.icon || LayoutDashboard;
+  const Panel = PANELS.find(p => p.id === active)?.component ?? (() => null);
+  const ActiveIcon = PANELS.find(p => p.id === active)?.icon || LayoutDashboard;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -3403,7 +3208,7 @@ export default function DashboardPage() {
           console.log('Mobile menu button clicked');
           setMobileMenuOpen(true);
         }}
-        className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl p-3 rounded-full transition-all duration-200 hover:scale-105 lg:hidden"
+        className="fixed bottom-6 right-6 z-[70] bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl p-3 rounded-full transition-all duration-200 hover:scale-105 lg:hidden"
         aria-label="פתח תפריט ניווט מלא"
       >
         <Menu className="h-6 w-6 text-white" />
@@ -3476,7 +3281,7 @@ export default function DashboardPage() {
 
       {/* Mobile menu */}
       <div
-        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
+        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
             mobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         style={{ direction: 'rtl' }}
@@ -3497,7 +3302,18 @@ export default function DashboardPage() {
         {/* Nav items */}
         <div className="flex-1 px-4 py-6 overflow-y-auto">
           <nav className="space-y-1">
-            {visiblePanels.map((item) => (
+            {PANELS.map((item) => 
+              item.external ? (
+                <Link
+                  key={item.id}
+                  href={item.link}
+                  className="flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 hover:text-purple-700"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <item.icon className="h-5 w-5 ml-4 text-gray-400" />
+                  {item.label}
+                </Link>
+              ) : (
               <button
                 key={item.id}
                 onClick={() => {
@@ -3517,7 +3333,8 @@ export default function DashboardPage() {
                 />
                 {item.label}
               </button>
-            ))}
+              )
+            )}
           </nav>
         </div>
 
@@ -3556,7 +3373,7 @@ export default function DashboardPage() {
                 >
                   <ActiveIcon className="h-5 w-5 text-indigo-600" />
                   <span className="text-sm font-medium max-w-[120px] truncate">
-                    {visiblePanels.find(p => p.id === active)?.label || "לוח בקרה"}
+                    {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
                   </span>
                   <ChevronDown className={`h-4 w-4 transition-transform ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -3573,7 +3390,18 @@ export default function DashboardPage() {
                     {/* Dropdown content */}
                     <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[70]" style={{ direction: 'rtl' }}>
                       <div className="py-2">
-                        {visiblePanels.map((item) => (
+                        {PANELS.map((item) => 
+                          item.external ? (
+                            <Link
+                              key={item.id}
+                              href={item.link}
+                              className="flex items-center w-full px-4 py-3 text-right hover:bg-purple-50 transition-colors text-gray-700"
+                              onClick={() => setMobileDropdownOpen(false)}
+                            >
+                              <item.icon className="h-5 w-5 ml-3 text-gray-400" />
+                              <span className="text-sm font-medium">{item.label}</span>
+                            </Link>
+                          ) : (
                           <button
                             key={item.id}
                             onClick={() => {
@@ -3593,7 +3421,8 @@ export default function DashboardPage() {
                             />
                             <span className="text-sm font-medium">{item.label}</span>
                           </button>
-                        ))}
+                          )
+                        )}
                       </div>
                     </div>
                   </>
@@ -3604,7 +3433,7 @@ export default function DashboardPage() {
               <div className="hidden sm:flex items-center ml-2">
                 <ActiveIcon className="h-6 w-6 text-indigo-600 mr-2" />
                 <h2 className="text-lg font-medium text-gray-800">
-                  {visiblePanels.find(p => p.id === active)?.label || "לוח בקרה"}
+                  {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
                 </h2>
               </div>
             </div>
@@ -3633,7 +3462,7 @@ function useSyncStatus(dbName, enabled) {
     let t;
     const poll = async () => {
       try {
-        const r = await fetch(`/api/sync-status?dbName=₪{encodeURIComponent(dbName)}`);
+        const r = await fetch(`/api/sync-status?dbName=${encodeURIComponent(dbName)}`);
         const j = await r.json();
         const nxt = j.state ?? "done";
         set(nxt);
