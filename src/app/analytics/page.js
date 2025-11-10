@@ -18,15 +18,330 @@ import {
   Zap
 } from "lucide-react";
 
+const simpleCategoryWords = [
+  "יין",
+  "וויסקי",
+  "וודקה",
+  "ג'ין",
+  "גין",
+  "רום",
+  "בירה",
+  "ברנדי",
+  "קוניאק",
+  "ליקר"
+];
+
+const varietalWords = [
+  "שרדונה",
+  "מרלו",
+  "קברנה",
+  "קברנה סוביניון",
+  "סוביניון בלאן",
+  "ריזלינג",
+  "גרנאש",
+  "פינו נואר",
+  "פינו נויר",
+  "שיראז",
+  "סירה",
+  "מאלבק",
+  "טמפרניו",
+  "רוסאן",
+  "ויונייה",
+  "גמאי"
+];
+
+const contextDescriptors = [
+  "שמתאים",
+  "לחתונה",
+  "למסיבה",
+  "לאירוע",
+  "לארוחה",
+  "עם",
+  "ליד",
+  "טוב עם",
+  "מתאים עם",
+  "יין אדום",
+  "יין לבן",
+  "יבש",
+  "חצי יבש",
+  "קליל",
+  "מרענן",
+  "חגיגי",
+  "מינרלי"
+];
+
+const attributeDescriptors = [
+  "כשר",
+  "טבעוני",
+  "אורגני",
+  "יין טבעי",
+  "ללא אלכוהול",
+  "נטול אלכוהול",
+  "0%"
+];
+
+const tasteDescriptors = [
+  "אדל פלאוור",
+  "אבטיח",
+  "פסיפלורה",
+  "ליצ׳י",
+  "דובדבן",
+  "פירותי",
+  "תפוח",
+  "אגס",
+  "שזיף",
+  "ענבים",
+  "לימון",
+  "תות",
+  "אשכולית",
+  "אננס",
+  "מנגו",
+  "קוקוס",
+  "בננה",
+  "קפה",
+  "קקאו",
+  "דבש",
+  "וניל",
+  "שוקולד"
+];
+
+const spiritStyleDescriptors = [
+  "לבן",
+  "כהה",
+  "בהיר",
+  "שחור",
+  "spiced",
+  "מיושן",
+  "gold",
+  "silver",
+  "בלנד",
+  "סינגל מאלט"
+];
+
+const spiritCategories = [
+  "וויסקי",
+  "ויסקי",
+  "רום",
+  "וודקה",
+  "ג'ין",
+  "גין",
+  "ליקר",
+  "טקילה",
+  "ברנדי",
+  "קוניאק"
+];
+
+const geoCountries = [
+  "ישראל",
+  "צרפת",
+  "איטליה",
+  "ספרד",
+  "פורטוגל",
+  "גרמניה",
+  "גרמני",
+  "ארגנטינה",
+  "צ׳ילה",
+  "צילה",
+  "אוסטרליה",
+  "דרום אפריקה",
+  "ארה״ב",
+  "ארהב",
+  "קליפורניה",
+  "מרוקו",
+  "יוון",
+  "גאורגיה",
+  "אוסטריה",
+  "הונגריה",
+  "יפן",
+  "japan",
+  "שבלי",
+  "בורגון",
+  "טוסקנה"
+];
+
+const geoAdjectives = [
+  "יפני",
+  "איטלקי",
+  "צרפתי",
+  "ספרדי",
+  "ישראלי",
+  "פורטוגלי",
+  "גרמני",
+  "ארגנטינאי",
+  "מרוקאי",
+  "יווני",
+  "גאורגי",
+  "אוסטרלי",
+  "הונגרי",
+  "אוסטרי",
+  "אמריקאי",
+  "קליפורני",
+  "צ׳יליאני",
+  "ציליאני"
+];
+
+const specialEditionPhrases = [
+  "ספיישל",
+  "אדישן",
+  "מהדורה",
+  "סדרה",
+  "חדש",
+  "חדשים",
+  "מבצע"
+];
+
+const brandPhrases = ["יין רמונים", "יין קטן"];
+
+const dealRegex = /\d+\s?ב[-\s]?\s?\d+/;
+const currencyRegex = /\d+\s?(?:שח|₪)/i;
+const rangeRegex = /עד\s*\d+/;
+const skuPattern = /\d+\s*(?:קברנה|שרדונה|מרלו|סוביניון|מדבר|רום|וויסקי|ויסקי)/;
+
+const glenCanonical = "גלן פידיך";
+
+function trimAndNormalize(value = "") {
+  return value.toString().replace(/\s+/g, " ").trim();
+}
+
+function containsAny(query, list) {
+  return list.some((term) => query.includes(term.toLowerCase()));
+}
+
+function levenshtein(a, b) {
+  const lenA = a.length;
+  const lenB = b.length;
+  if (lenA === 0) return lenB;
+  if (lenB === 0) return lenA;
+  const matrix = Array.from({ length: lenA + 1 }, () => new Array(lenB + 1).fill(0));
+  for (let i = 0; i <= lenA; i++) matrix[i][0] = i;
+  for (let j = 0; j <= lenB; j++) matrix[0][j] = j;
+  for (let i = 1; i <= lenA; i++) {
+    for (let j = 1; j <= lenB; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[lenA][lenB];
+}
+
+function hasCategoryGeoPhrase(query) {
+  const categories = [
+    "יין",
+    "וויסקי",
+    "ויסקי",
+    "וודקה",
+    "בירה",
+    "ברנדי",
+    "קוניאק",
+    "ליקר",
+    "ג'ין",
+    "גין",
+    "טקילה",
+    "רום"
+  ];
+  return categories.some((category) =>
+    geoAdjectives.some((adj) => query.includes(`${category} ${adj}`))
+  );
+}
+
+function isPureEnglish(query) {
+  return /^[a-z0-9\s'\"-]+$/i.test(query);
+}
+
+function normalizePrice(price) {
+  if (price == null) return 0;
+  const value = typeof price === "number" ? price : parseFloat(price.toString().replace(/[^0-9.,]/g, "").replace(/,/g, ""));
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function isComplex(query) {
+  const normalized = trimAndNormalize(query);
+  if (!normalized) return false;
+  const lower = normalized.toLowerCase();
+
+  // Simple overrides
+  if (simpleCategoryWords.includes(lower)) {
+    return false;
+  }
+
+  if (varietalWords.includes(lower)) {
+    return false;
+  }
+
+  if (skuPattern.test(lower)) {
+    return false;
+  }
+
+  if (isPureEnglish(lower) && !lower.includes(" ")) {
+    return false;
+  }
+
+  // Complex indicators
+  if (containsAny(lower, contextDescriptors)) return true;
+  if (currencyRegex.test(lower)) return true;
+  if (rangeRegex.test(lower)) return true;
+  if (dealRegex.test(lower)) return true;
+  if (containsAny(lower, attributeDescriptors)) return true;
+  if (containsAny(lower, geoCountries)) return true;
+  if (hasCategoryGeoPhrase(lower)) return true;
+  if (containsAny(lower, tasteDescriptors)) return true;
+
+  if (containsAny(lower, brandPhrases.map((phrase) => phrase.toLowerCase()))) return true;
+
+  const glenVariants = [
+    "גלן פיביך",
+    "גלןפדיך",
+    "גלן פידח",
+    "גלנפידיך",
+    "גלאן פידיך",
+    "גלן פידיק",
+    "גלן פידיץ",
+    "glenfiddich"
+  ];
+
+  if (containsAny(lower, ["גלן", "glen"])) {
+    if (containsAny(lower, glenVariants)) {
+      return true;
+    }
+    if (levenshtein(lower.replace(/\s+/g, ""), glenCanonical.replace(/\s+/g, "").toLowerCase()) <= 2) {
+      return true;
+    }
+  }
+
+  if (containsAny(lower, specialEditionPhrases.map((p) => p.toLowerCase()))) return true;
+
+  const hasSpiritStyle = spiritStyleDescriptors.some((descriptor) => lower.includes(descriptor.toLowerCase()));
+  const hasSpiritCategory = spiritCategories.some((category) => lower.includes(category.toLowerCase()));
+  if (hasSpiritStyle && hasSpiritCategory) return true;
+
+  if (/[a-z]/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+function formatCurrency(value) {
+  return `₪${(value || 0).toLocaleString("he-IL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
 export default function AnalyticsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [queries, setQueries] = useState([]);
   const [cartAnalytics, setCartAnalytics] = useState([]);
+  const [checkoutAnalytics, setCheckoutAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [onboardDB, setOnboardDB] = useState("");
-  const [dataLoaded, setDataLoaded] = useState({ onboarding: false, queries: false, cart: false });
+  const [dataLoaded, setDataLoaded] = useState({ onboarding: false, queries: false, cart: false, checkout: false });
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -39,7 +354,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (status === "loading") return;
     if (!session?.user?.email) {
-      setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true }));
+      setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true, checkout: true }));
       return;
     }
     (async () => {
@@ -58,12 +373,12 @@ export default function AnalyticsPage() {
           setOnboardDB(dbName);
           setDataLoaded(prev => ({ ...prev, onboarding: true }));
         } else {
-          setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true }));
+          setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true, checkout: true }));
         }
       } catch (err) {
         console.error("[Analytics] Error fetching onboarding:", err);
         setError("Failed to fetch onboarding data");
-        setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true }));
+        setDataLoaded(prev => ({ ...prev, onboarding: true, queries: true, cart: true, checkout: true }));
       }
     })();
   }, [session, status]);
@@ -101,6 +416,223 @@ export default function AnalyticsPage() {
     })();
   }, [onboardDB]);
 
+  const semantixFunnel = useMemo(() => {
+    const assumptions = [
+      "אירועי רכישה מזוהים מתוך אוסף checkout_events (אירועי השלמת רכישה).",
+      "הכנסות חושבו על בסיס שדה cart_total - סכום הרכישה המלא.",
+      "הסיווג 'שאילתה מורכבת' מבוסס על כללי המדיניות שסופקו."
+    ];
+
+    if (!checkoutAnalytics || checkoutAnalytics.length === 0) {
+      return {
+        assumptions,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        weekly: [],
+        daily: [],
+        byQueryProduct: [],
+        hasData: false
+      };
+    }
+
+    const purchases = checkoutAnalytics
+      .map((event, index) => {
+        const searchQueryRaw = event.search_query || event.query || "";
+        const searchQuery = trimAndNormalize(searchQueryRaw);
+        
+        // Extract product name - handle both direct fields and products array
+        let productNameRaw = "";
+        if (event.product_name) {
+          productNameRaw = event.product_name;
+        } else if (event.product) {
+          productNameRaw = event.product;
+        } else if (event.name) {
+          productNameRaw = event.name;
+        } else if (Array.isArray(event.products) && event.products.length > 0) {
+          // If products is an array, get names from all products
+          const productNames = event.products
+            .map(p => p.product_name || p.name || "")
+            .filter(name => name)
+            .join(", ");
+          productNameRaw = productNames;
+        }
+        const productName = trimAndNormalize(productNameRaw) || "ללא שם מוצר";
+        
+        const orderId = trimAndNormalize(
+          event.order_id || event.orderId || event.checkout_id || `purchase-${index}`
+        );
+        const quantity = Number(event.quantity ?? event.qty ?? 1) || 1;
+        
+        // For checkout events, use cart_total as the revenue (it's already the total amount)
+        const cartTotal = normalizePrice(event.cart_total ?? 0);
+        const revenue = cartTotal > 0 ? cartTotal : normalizePrice(event.product_price ?? event.price ?? event.unit_price ?? 0) * quantity;
+        const eventType = (event.event_type || event.type || "").toLowerCase();
+        const isPurchaseEvent =
+          !eventType ||
+          eventType.includes("purchase") ||
+          eventType.includes("checkout") ||
+          eventType.includes("complete");
+        const timestamp =
+          event.event_time ||
+          event.timestamp ||
+          event.created_at ||
+          event.createdAt ||
+          event.time ||
+          null;
+        const eventDate = timestamp ? new Date(timestamp) : null;
+
+        return {
+          searchQuery,
+          productName,
+          orderId,
+          quantity,
+          revenue,
+          isComplex: isComplex(searchQuery),
+          isPurchaseEvent,
+          eventDate
+        };
+      })
+      .filter((event) => event.isPurchaseEvent && Number.isFinite(event.revenue));
+
+    const complexPurchases = purchases.filter((event) => event.isComplex);
+
+    if (complexPurchases.length === 0) {
+      return {
+        assumptions,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        weekly: [],
+        daily: [],
+        byQueryProduct: [],
+        hasData: false
+      };
+    }
+
+    const orderSet = new Set();
+    let totalRevenue = 0;
+    let totalItems = 0;
+
+    complexPurchases.forEach((event) => {
+      if (event.orderId) {
+        orderSet.add(event.orderId);
+      }
+      totalRevenue += event.revenue;
+      totalItems += event.quantity;
+    });
+
+    const weeklyMap = new Map();
+    const dailyMap = new Map();
+    const detailMap = new Map();
+
+    complexPurchases.forEach((event) => {
+      if (event.eventDate instanceof Date && !Number.isNaN(event.eventDate.getTime())) {
+        const dayDate = new Date(event.eventDate);
+        dayDate.setHours(0, 0, 0, 0);
+        const dayKey = dayDate.toISOString();
+        const dayLabel = event.eventDate.toLocaleDateString("he-IL", {
+          weekday: "long",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        });
+
+        const dayEntry =
+          dailyMap.get(dayKey) ||
+          {
+            period: dayLabel,
+            revenue: 0,
+            items: 0,
+            orders: new Set()
+          };
+        dayEntry.revenue += event.revenue;
+        dayEntry.items += event.quantity;
+        if (event.orderId) {
+          dayEntry.orders.add(event.orderId);
+        }
+        dailyMap.set(dayKey, dayEntry);
+
+        const weekStart = new Date(dayDate);
+        const dayOfWeek = weekStart.getDay(); // Sunday = 0
+        weekStart.setDate(weekStart.getDate() - dayOfWeek);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const weekKey = weekStart.toISOString();
+        const weekLabel = `${weekStart.toLocaleDateString("he-IL")} - ${weekEnd.toLocaleDateString("he-IL")}`;
+
+        const weekEntry =
+          weeklyMap.get(weekKey) ||
+          {
+            period: weekLabel,
+            revenue: 0,
+            items: 0,
+            orders: new Set()
+          };
+        weekEntry.revenue += event.revenue;
+        weekEntry.items += event.quantity;
+        if (event.orderId) {
+          weekEntry.orders.add(event.orderId);
+        }
+        weeklyMap.set(weekKey, weekEntry);
+      }
+
+      const detailKey = `${event.searchQuery || "ללא שאילתה"}__${event.productName}`;
+      const detailEntry =
+        detailMap.get(detailKey) ||
+        {
+          search_query: event.searchQuery || "ללא שאילתה",
+          product_name: event.productName,
+          orders: new Set(),
+          items: 0,
+          revenue: 0
+        };
+      if (event.orderId) {
+        detailEntry.orders.add(event.orderId);
+      }
+      detailEntry.items += event.quantity;
+      detailEntry.revenue += event.revenue;
+      detailMap.set(detailKey, detailEntry);
+    });
+
+    const weekly = Array.from(weeklyMap.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([, entry]) => ({
+        period: entry.period,
+        semantix_revenue: entry.revenue,
+        semantix_orders: entry.orders.size,
+        semantix_items: entry.items
+      }));
+
+    const daily = Array.from(dailyMap.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([, entry]) => ({
+        period: entry.period,
+        semantix_revenue: entry.revenue,
+        semantix_orders: entry.orders.size,
+        semantix_items: entry.items
+      }));
+
+    const byQueryProduct = Array.from(detailMap.values())
+      .map((entry) => ({
+        search_query: entry.search_query,
+        product_name: entry.product_name,
+        orders: entry.orders.size,
+        items: entry.items,
+        revenue: entry.revenue
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      assumptions,
+      totals: {
+        revenue: totalRevenue,
+        orders: orderSet.size,
+        items: totalItems
+      },
+      weekly,
+      daily,
+      byQueryProduct,
+      hasData: true
+    };
+  }, [checkoutAnalytics]);
+
   // Fetch cart analytics data
   useEffect(() => {
     if (!onboardDB) {
@@ -124,12 +656,35 @@ export default function AnalyticsPage() {
     })();
   }, [onboardDB]);
 
+  // Fetch checkout (purchase) analytics data
+  useEffect(() => {
+    if (!onboardDB) {
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch("/api/cart-analytics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dbName: onboardDB, type: "checkout" })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error fetching checkout analytics");
+        setCheckoutAnalytics(data.checkoutEvents || []);
+        setDataLoaded(prev => ({ ...prev, checkout: true }));
+      } catch (err) {
+        console.error("[Analytics] Checkout analytics error:", err);
+        setDataLoaded(prev => ({ ...prev, checkout: true }));
+      }
+    })();
+  }, [onboardDB]);
+
   // Update loading state when all data is loaded
   useEffect(() => {
-    if (dataLoaded.onboarding && dataLoaded.queries && dataLoaded.cart) {
+    if (dataLoaded.onboarding && dataLoaded.queries && dataLoaded.cart && dataLoaded.checkout) {
       setLoading(false);
     }
-  }, [dataLoaded, queries, cartAnalytics]);
+  }, [dataLoaded, queries, cartAnalytics, checkoutAnalytics]);
 
   // Export queries to CSV
   const downloadCSV = () => {

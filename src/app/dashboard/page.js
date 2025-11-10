@@ -56,6 +56,116 @@ const FullScreenMsg = ({ children }) => (
   </div>
 );
 
+// ===== Semantix Complex Query Classification =====
+const simpleCategoryWords = ["יין", "וויסקי", "וודקה", "ג'ין", "גין", "רום", "בירה", "ברנדי", "קוניאק", "ליקר"];
+const varietalWords = ["שרדונה", "מרלו", "קברנה", "קברנה סוביניון", "סוביניון בלאן", "ריזלינג", "גרנאש", "פינו נואר", "פינו נויר", "שיראז", "סירה", "מאלבק", "טמפרניו", "רוסאן", "ויונייה", "גמאי"];
+const contextDescriptors = ["שמתאים", "לחתונה", "למסיבה", "לאירוע", "לארוחה", "עם", "ליד", "טוב עם", "מתאים עם", "יין אדום", "יין לבן", "יבש", "חצי יבש", "קליל", "מרענן", "חגיגי", "מינרלי"];
+const attributeDescriptors = ["כשר", "טבעוני", "אורגני", "יין טבעי", "ללא אלכוהול", "נטול אלכוהול", "0%"];
+const tasteDescriptors = ["אדל פלאוור", "אבטיח", "פסיפלורה", "ליצ׳י", "דובדבן", "פירותי", "תפוח", "אגס", "שזיף", "ענבים", "לימון", "תות", "אשכולית", "אננס", "מנגו", "קוקוס", "בננה", "קפה", "קקאו", "דבש", "וניל", "שוקולד"];
+const spiritStyleDescriptors = ["לבן", "כהה", "בהיר", "שחור", "spiced", "מיושן", "gold", "silver", "בלנד", "סינגל מאלט"];
+const spiritCategories = ["וויסקי", "ויסקי", "רום", "וודקה", "ג'ין", "גין", "ליקר", "טקילה", "ברנדי", "קוניאק"];
+const geoCountries = ["ישראל", "צרפת", "איטליה", "ספרד", "פורטוגל", "גרמניה", "גרמני", "ארגנטינה", "צ׳ילה", "צילה", "אוסטרליה", "דרום אפריקה", "ארה״ב", "ארהב", "קליפורניה", "מרוקו", "יוון", "גאורגיה", "אוסטריה", "הונגריה", "יפן", "japan", "שבלי", "בורגון", "טוסקנה"];
+const geoAdjectives = ["יפני", "איטלקי", "צרפתי", "ספרדי", "ישראלי", "פורטוגלי", "גרמני", "ארגנטינאי", "מרוקאי", "יווני", "גאורגי", "אוסטרלי", "הונגרי", "אוסטרי", "אמריקאי", "קליפורני", "צ׳יליאני", "ציליאני"];
+const specialEditionPhrases = ["ספיישל", "אדישן", "מהדורה", "סדרה", "חדש", "חדשים", "מבצע"];
+const brandPhrases = ["יין רמונים", "יין קטן"];
+const dealRegex = /\d+\s?ב[-\s]?\s?\d+/;
+const currencyRegex = /\d+\s?(?:שח|₪)/i;
+const rangeRegex = /עד\s*\d+/;
+const skuPattern = /\d+\s*(?:קברנה|שרדונה|מרלו|סוביניון|מדבר|רום|וויסקי|ויסקי)/;
+const glenCanonical = "גלן פידיך";
+
+function trimAndNormalize(value = "") {
+  return value.toString().replace(/\s+/g, " ").trim();
+}
+
+function containsAny(query, list) {
+  return list.some((term) => query.includes(term.toLowerCase()));
+}
+
+function levenshtein(a, b) {
+  const lenA = a.length;
+  const lenB = b.length;
+  if (lenA === 0) return lenB;
+  if (lenB === 0) return lenA;
+  const matrix = Array.from({ length: lenA + 1 }, () => new Array(lenB + 1).fill(0));
+  for (let i = 0; i <= lenA; i++) matrix[i][0] = i;
+  for (let j = 0; j <= lenB; j++) matrix[0][j] = j;
+  for (let i = 1; i <= lenA; i++) {
+    for (let j = 1; j <= lenB; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[lenA][lenB];
+}
+
+function hasCategoryGeoPhrase(query) {
+  const categories = ["יין", "וויסקי", "ויסקי", "וודקה", "בירה", "ברנדי", "קוניאק", "ליקר", "ג'ין", "גין", "טקילה", "רום"];
+  return categories.some((category) =>
+    geoAdjectives.some((adj) => query.includes(`${category} ${adj}`))
+  );
+}
+
+function isPureEnglish(query) {
+  return /^[a-z0-9\s'\"-]+$/i.test(query);
+}
+
+function normalizePrice(price) {
+  if (price == null) return 0;
+  const value = typeof price === "number" ? price : parseFloat(price.toString().replace(/[^0-9.,]/g, "").replace(/,/g, ""));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isComplex(query) {
+  const normalized = trimAndNormalize(query);
+  if (!normalized) return false;
+  const lower = normalized.toLowerCase();
+
+  // Simple overrides
+  if (simpleCategoryWords.includes(lower)) return false;
+  if (varietalWords.includes(lower)) return false;
+  if (skuPattern.test(lower)) return false;
+  if (isPureEnglish(lower) && !lower.includes(" ")) return false;
+
+  // Complex indicators
+  if (containsAny(lower, contextDescriptors)) return true;
+  if (currencyRegex.test(lower)) return true;
+  if (rangeRegex.test(lower)) return true;
+  if (dealRegex.test(lower)) return true;
+  if (containsAny(lower, attributeDescriptors)) return true;
+  if (containsAny(lower, geoCountries)) return true;
+  if (hasCategoryGeoPhrase(lower)) return true;
+  if (containsAny(lower, tasteDescriptors)) return true;
+  if (containsAny(lower, brandPhrases.map((phrase) => phrase.toLowerCase()))) return true;
+
+  const glenVariants = ["גלן פיביך", "גלןפדיך", "גלן פידח", "גלנפידיך", "גלאן פידיך", "גלן פידיק", "גלן פידיץ", "glenfiddich"];
+  if (containsAny(lower, ["גלן", "glen"])) {
+    if (containsAny(lower, glenVariants)) return true;
+    if (levenshtein(lower.replace(/\s+/g, ""), glenCanonical.replace(/\s+/g, "").toLowerCase()) <= 2) return true;
+  }
+
+  if (containsAny(lower, specialEditionPhrases.map((p) => p.toLowerCase()))) return true;
+
+  const hasSpiritStyle = spiritStyleDescriptors.some((descriptor) => lower.includes(descriptor.toLowerCase()));
+  const hasSpiritCategory = spiritCategories.some((category) => lower.includes(category.toLowerCase()));
+  if (hasSpiritStyle && hasSpiritCategory) return true;
+
+  if (/[a-z]/i.test(lower)) return true;
+
+  return false;
+}
+
+function formatCurrency(value) {
+  return `₪${(value || 0).toLocaleString("he-IL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
 
 function SubscriptionPanel({ session, onboarding }) {
   const { 
@@ -602,6 +712,9 @@ function AnalyticsPanel({ session, onboarding }) {
   
   const [cartDetailsExpanded, setCartDetailsExpanded] = useState(false);
   const [checkoutDetailsExpanded, setCheckoutDetailsExpanded] = useState(false);
+  
+  // Semantix funnel state
+  const [semantixExpanded, setSemantixExpanded] = useState(false);
 
   const [filters, setFilters] = useState({
     category: "",
@@ -1138,6 +1251,236 @@ function AnalyticsPanel({ session, onboarding }) {
     };
   }, [cartAnalytics, checkoutEvents, queries]);
 
+  // Semantix Purchases Funnel
+  const semantixFunnel = useMemo(() => {
+    // Determine if we should use checkout or cart data
+    const useCheckout = checkoutEvents && checkoutEvents.length > 0;
+    const dataSource = useCheckout ? checkoutEvents : cartAnalytics;
+    const mode = useCheckout ? 'checkout' : 'cart';
+    
+    const assumptions = mode === 'checkout' 
+      ? [
+          `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
+          `ההכנסות חושבו על בסיס שדה "cart_total" - סכום הרכישה המלא`,
+          `כמות מובאת מהשדה "quantity"`,
+          `מזהה הזמנה מובא מהשדה "order_id" עבור ספירת הזמנות ייחודיות`,
+          `השבוע מתחיל ביום ראשון (Israeli week format)`
+        ]
+      : [
+          `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
+          `הכנסות משוערות חושבו על בסיס "product_price × quantity"`,
+          `כמות מובאת מהשדה "quantity"`,
+          `נספרות הוספות לעגלה ייחודיות`,
+          `השבוע מתחיל ביום ראשון (Israeli week format)`
+        ];
+
+    if (!dataSource || dataSource.length === 0) {
+      return {
+        assumptions,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        weekly: [],
+        daily: [],
+        byQueryProduct: [],
+        hasData: false,
+        mode
+      };
+    }
+
+    const complexPurchases = dataSource
+      .filter((event) => {
+        const query = event.search_query || "";
+        return isComplex(query);
+      })
+      .map((event) => {
+        const quantity = event.quantity || 1;
+        // Calculate revenue based on mode
+        let revenue;
+        if (mode === 'checkout') {
+          // For checkout: use cart_total as the revenue (total purchase amount)
+          const cartTotal = normalizePrice(event.cart_total ?? 0);
+          revenue = cartTotal > 0 ? cartTotal : normalizePrice(event.product_price ?? 0) * quantity;
+        } else {
+          // For cart: use product_price * quantity (estimated revenue)
+          revenue = normalizePrice(event.product_price ?? 0) * quantity;
+        }
+        
+        // Extract product name - handle both direct fields and products array
+        let productName = "לא ידוע";
+        if (event.product_name) {
+          productName = event.product_name;
+        } else if (event.product) {
+          productName = event.product;
+        } else if (event.name) {
+          productName = event.name;
+        } else if (Array.isArray(event.products) && event.products.length > 0) {
+          // If products is an array, get names from all products
+          const productNames = event.products
+            .map(p => p.product_name || p.name || "")
+            .filter(name => name)
+            .join(", ");
+          productName = productNames || "לא ידוע";
+        }
+        
+        return {
+          searchQuery: event.search_query,
+          productName,
+          quantity,
+          orderId: event.order_id || null,
+          eventDate: event.timestamp ? new Date(event.timestamp) : (event.created_at ? new Date(event.created_at) : null),
+          revenue
+        };
+      });
+
+    if (complexPurchases.length === 0) {
+      return {
+        assumptions,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        weekly: [],
+        daily: [],
+        byQueryProduct: [],
+        hasData: false
+      };
+    }
+
+    const orderSet = new Set();
+    let totalRevenue = 0;
+    let totalItems = 0;
+    let totalCartAdditions = 0; // Count of cart additions
+
+    complexPurchases.forEach((event) => {
+      if (mode === 'checkout') {
+        // For checkout: count unique order IDs
+        if (event.orderId) {
+          orderSet.add(event.orderId);
+        }
+      } else {
+        // For cart: count each event as a cart addition
+        totalCartAdditions += 1;
+        // Also track by a unique identifier if available
+        if (event.orderId) {
+          orderSet.add(event.orderId);
+        }
+      }
+      totalRevenue += event.revenue;
+      totalItems += event.quantity;
+    });
+
+    const weeklyMap = new Map();
+    const dailyMap = new Map();
+    const detailMap = new Map();
+
+    complexPurchases.forEach((event) => {
+      if (event.eventDate instanceof Date && !Number.isNaN(event.eventDate.getTime())) {
+        const dayDate = new Date(event.eventDate);
+        dayDate.setHours(0, 0, 0, 0);
+        const dayKey = dayDate.toISOString();
+        const dayLabel = event.eventDate.toLocaleDateString("he-IL", {
+          weekday: "long",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        });
+
+        const dayEntry =
+          dailyMap.get(dayKey) ||
+          {
+            period: dayLabel,
+            revenue: 0,
+            items: 0,
+            orders: new Set()
+          };
+        dayEntry.revenue += event.revenue;
+        dayEntry.items += event.quantity;
+        if (event.orderId) {
+          dayEntry.orders.add(event.orderId);
+        }
+        dailyMap.set(dayKey, dayEntry);
+
+        const weekStart = new Date(dayDate);
+        const dayOfWeek = weekStart.getDay(); // Sunday = 0
+        weekStart.setDate(weekStart.getDate() - dayOfWeek);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const weekKey = weekStart.toISOString();
+        const weekLabel = `${weekStart.toLocaleDateString("he-IL")} - ${weekEnd.toLocaleDateString("he-IL")}`;
+
+        const weekEntry =
+          weeklyMap.get(weekKey) ||
+          {
+            period: weekLabel,
+            revenue: 0,
+            items: 0,
+            orders: new Set()
+          };
+        weekEntry.revenue += event.revenue;
+        weekEntry.items += event.quantity;
+        if (event.orderId) {
+          weekEntry.orders.add(event.orderId);
+        }
+        weeklyMap.set(weekKey, weekEntry);
+      }
+
+      const detailKey = `${event.searchQuery || "ללא שאילתה"}__${event.productName}`;
+      const detailEntry =
+        detailMap.get(detailKey) ||
+        {
+          search_query: event.searchQuery || "ללא שאילתה",
+          product_name: event.productName,
+          orders: new Set(),
+          items: 0,
+          revenue: 0
+        };
+      if (event.orderId) {
+        detailEntry.orders.add(event.orderId);
+      }
+      detailEntry.items += event.quantity;
+      detailEntry.revenue += event.revenue;
+      detailMap.set(detailKey, detailEntry);
+    });
+
+    const weekly = Array.from(weeklyMap.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([, entry]) => ({
+        period: entry.period,
+        semantix_revenue: entry.revenue,
+        semantix_orders: entry.orders.size,
+        semantix_items: entry.items
+      }));
+
+    const daily = Array.from(dailyMap.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([, entry]) => ({
+        period: entry.period,
+        semantix_revenue: entry.revenue,
+        semantix_orders: entry.orders.size,
+        semantix_items: entry.items
+      }));
+
+    const byQueryProduct = Array.from(detailMap.values())
+      .map((entry) => ({
+        search_query: entry.search_query,
+        product_name: entry.product_name,
+        orders: entry.orders.size,
+        items: entry.items,
+        revenue: entry.revenue
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      assumptions,
+      totals: {
+        revenue: totalRevenue,
+        orders: mode === 'checkout' ? orderSet.size : totalCartAdditions,
+        items: totalItems
+      },
+      weekly,
+      daily,
+      byQueryProduct,
+      hasData: true,
+      mode
+    };
+  }, [checkoutEvents, cartAnalytics]);
+
   // Export queries to CSV
   const downloadCSV = () => {
     if (!filteredQueries.length) {
@@ -1394,7 +1737,7 @@ function AnalyticsPanel({ session, onboarding }) {
                     <div className="mr-4">
                       <h2 className="text-2xl font-bold text-gray-900">
                         ₪{(cartMetrics?.addToCartMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </h2>
+            </h2>
                       <p className="text-sm text-gray-600">סך הכנסות מהוספות לעגלה</p>
                       <div className="flex items-center gap-4 mt-2">
                         <span className="text-xs text-gray-500">
@@ -1424,7 +1767,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       </>
                     )}
                   </button>
-        </div>
+                </div>
 
                 {/* Checkout Section - Only show if we have checkout events */}
                 {checkoutEvents.length > 0 && (
@@ -1435,8 +1778,8 @@ function AnalyticsPanel({ session, onboarding }) {
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
                       <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
                         <DollarSign className="h-7 w-7 text-white" strokeWidth={2.5} />
-                      </div>
-                    </div>
+              </div>
+            </div>
                     <div className="mr-4">
                       <h2 className="text-2xl font-bold text-gray-900">
                         ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1450,11 +1793,11 @@ function AnalyticsPanel({ session, onboarding }) {
                         <span className="text-xs text-gray-500">
                           {(cartMetrics?.checkoutMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
                         </span>
-            </div>
           </div>
-              </div>
-                  
-                  <button
+          </div>
+        </div>
+        
+            <button
                     onClick={() => setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
                   >
@@ -1470,7 +1813,209 @@ function AnalyticsPanel({ session, onboarding }) {
                       </>
                     )}
                   </button>
-                </div>
+        </div>
+                </>
+                )}
+
+                {/* Semantix Purchases Funnel - Concise View */}
+                {semantixFunnel.hasData && (
+                  <>
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="flex items-center space-x-4 space-x-reverse">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" className="h-7 w-7 text-white">
+                            <g stroke="currentColor" strokeWidth="20" strokeLinecap="round">
+                              <line x1="75" y1="110" x2="180" y2="60"/>
+                              <line x1="75" y1="110" x2="240" y2="150"/>
+                              <line x1="240" y1="150" x2="135" y2="240"/>
+                            </g>
+                            <g fill="currentColor">
+                              <rect x="55" y="90" width="40" height="40" rx="4"/>
+                              <rect x="160" y="40" width="40" height="40" rx="4"/>
+                              <rect x="220" y="130" width="40" height="40" rx="4"/>
+                              <rect x="115" y="220" width="40" height="40" rx="4"/>
+                            </g>
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mr-4">
+                        <h2 className="text-2xl font-bold text-gray-900">
+                          ₪{(semantixFunnel.totals.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </h2>
+                        <p className="text-sm text-gray-600">
+                          {semantixFunnel.mode === 'checkout' 
+                            ? 'רכישות דרך סמנטיקס (שאילתות מורכבות)' 
+                            : 'הוספות לעגלה דרך סמנטיקס (הכנסות משוערות)'}
+                        </p>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-xs text-gray-500">
+                            {(semantixFunnel.totals.orders || 0).toLocaleString('en-US')} {semantixFunnel.mode === 'checkout' ? 'הזמנות' : 'הוספות לעגלה'}
+                          </span>
+          </div>
+            </div>
+          </div>
+          
+            <button
+                      onClick={() => setSemantixExpanded(!semantixExpanded)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      {semantixExpanded ? (
+                        <>
+                          <span>הסתר פרטים</span>
+                          <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                        </>
+                      ) : (
+                        <>
+                          <span>קרא עוד</span>
+                          <ChevronDown className="h-4 w-4 transition-transform" />
+                        </>
+                      )}
+                    </button>
+        </div>
+
+                  {/* Expanded Details for Semantix */}
+                  {semantixExpanded && (
+                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                      <div>
+                        <h3 className="text-md font-medium text-gray-700 mb-4">
+                          שאילתות מורכבות מובילות (לפי {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'})
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  שאילתת חיפוש
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {(() => {
+                                // Group by query and sum up
+                                const queryMap = new Map();
+                                semantixFunnel.byQueryProduct.forEach(item => {
+                                  const existing = queryMap.get(item.search_query) || { orders: 0, items: 0, revenue: 0 };
+                                  queryMap.set(item.search_query, {
+                                    orders: existing.orders + item.orders,
+                                    items: existing.items + item.items,
+                                    revenue: existing.revenue + item.revenue
+                                  });
+                                });
+                                return Array.from(queryMap.entries())
+                                  .map(([query, data]) => ({ query, ...data }))
+                                  .sort((a, b) => b.revenue - a.revenue)
+                                  .slice(0, 10)
+                                  .map((item, index) => (
+                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                      <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                        {item.query}
+                                      </td>
+                                      <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
+                                        ₪{item.revenue.toFixed(2)}
+                                      </td>
+                                    </tr>
+                                  ));
+                              })()}
+                            </tbody>
+                          </table>
+            </div>
+          </div>
+          
+                      {/* Detailed Query-Product Table */}
+                      <div>
+                        <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
+                        <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישה לפי שאילתה ומוצר</p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  שאילתת חיפוש
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  מוצרים
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {semantixFunnel.byQueryProduct
+                                .filter(row => {
+                                  // Filter out rows with N/A or unknown product names
+                                  const productName = (row.product_name || '').toLowerCase();
+                                  return productName && 
+                                         productName !== 'n/a' && 
+                                         productName !== 'לא ידוע' && 
+                                         productName !== 'ללא שם מוצר';
+                                })
+                                .slice(0, 50)
+                                .map((row, index) => {
+                                // Split product names if they contain commas (multiple products)
+                                const products = row.product_name.split(',').map(p => p.trim());
+                                const hasMultipleProducts = products.length > 1;
+                                
+                                return (
+                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                      {row.search_query || "ללא שאילתה"}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-700">
+                                      {hasMultipleProducts ? (
+                                        <div className="space-y-1">
+                                          <div className="text-xs text-gray-500 font-medium mb-1">
+                                            {products.length} מוצרים:
+              </div>
+                                          <ul className="text-sm space-y-0.5 max-h-32 overflow-y-auto">
+                                            {products.slice(0, 5).map((product, idx) => (
+                                              <li key={idx} className="flex items-start">
+                                                <span className="text-emerald-600 ml-2">•</span>
+                                                <span className="flex-1">{product}</span>
+                                              </li>
+                                            ))}
+                                            {products.length > 5 && (
+                                              <li className="text-xs text-gray-500 italic mt-1">
+                                                + עוד {products.length - 5} מוצרים...
+                                              </li>
+                                            )}
+                                          </ul>
+                                        </div>
+                                      ) : (
+                                        <span>{row.product_name}</span>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
+                                      ₪{row.revenue.toFixed(2)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {semantixFunnel.byQueryProduct.length === 0 && (
+                                <tr>
+                                  <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                                    אין נתונים להצגה
+                                  </td>
+                                </tr>
+                              )}
+                              {semantixFunnel.byQueryProduct.length > 50 && (
+                                <tr>
+                                  <td colSpan={3} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
+                                    מציג 50 ראשונים מתוך {semantixFunnel.byQueryProduct.length} רכישות
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                 {/* Expanded Details for Add to Cart */}
                 {cartDetailsExpanded && (
@@ -1606,8 +2151,8 @@ function AnalyticsPanel({ session, onboarding }) {
                     )}
                   </div>
                 )}
-                  </>
-                )}
+              </>
+            )}
               </>
             )}
           </div>
@@ -1636,30 +2181,96 @@ function AnalyticsPanel({ session, onboarding }) {
                   <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     קטגוריה
                   </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    הוספה לעגלה
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    רכישה
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {displayedQueries.map((query, index) => (
-                  <tr
-                    key={index}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
-                      {query.query}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                      {new Date(query.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                      {Array.isArray(query.category) 
-                        ? query.category.map((cat, i) => (
-                            <span key={i} className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full mr-1 mb-1">{cat}</span>
-                          ))
-                        : <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{query.category}</span>
+                {displayedQueries.map((query, index) => {
+                  // Check if this query led to cart addition or purchase and get products
+                  const queryText = (query.query || '').toLowerCase().trim();
+                  
+                  const cartProducts = cartAnalytics
+                    .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                    .map(item => item.product_name || 'מוצר לא ידוע')
+                    .filter((v, i, a) => a.indexOf(v) === i); // unique
+                  
+                  const purchaseProducts = checkoutEvents
+                    .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                    .map(item => {
+                      // Handle products array or direct product_name
+                      if (Array.isArray(item.products) && item.products.length > 0) {
+                        return item.products.map(p => p.product_name || p.name || '').filter(n => n).join(', ');
                       }
-                    </td>
-                  </tr>
-                ))}
+                      return item.product_name || 'מוצר לא ידוע';
+                    })
+                    .filter(name => name);
+                  
+                  const hasCartAddition = cartProducts.length > 0;
+                  const hasPurchase = purchaseProducts.length > 0;
+                  
+                  return (
+                    <tr
+                      key={index}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
+                        {query.query}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                        {new Date(query.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                        {Array.isArray(query.category) 
+                          ? query.category.map((cat, i) => (
+                              <span key={i} className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full mr-1 mb-1">{cat}</span>
+                            ))
+                          : <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{query.category}</span>
+                        }
+                      </td>
+                      <td className="px-6 py-4">
+                        {hasCartAddition ? (
+                          <div className="flex flex-col items-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 rounded-full mb-2">
+                              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                              </svg>
+                            </span>
+                            <div className="text-xs text-gray-700 max-w-xs">
+                              {cartProducts.slice(0, 2).map((product, idx) => (
+                                <div key={idx} className="truncate text-center">• {product}</div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-300">–</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {hasPurchase ? (
+                          <div className="flex flex-col items-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full mb-2">
+                              <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                              </svg>
+                            </span>
+                            <div className="text-xs text-gray-700 max-w-xs">
+                              {purchaseProducts.slice(0, 2).map((product, idx) => (
+                                <div key={idx} className="truncate text-center">• {product}</div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-300">–</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
