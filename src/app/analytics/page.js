@@ -781,9 +781,14 @@ export default function AnalyticsPage() {
     // Calculate basic metrics
     const totalSearches = queries.length;
     const timestamps = queries.map(q => new Date(q.timestamp).getTime()).filter(t => !isNaN(t));
-    const daySpan = timestamps.length > 0 
-      ? Math.max(1, Math.ceil((Math.max(...timestamps) - Math.min(...timestamps)) / (1000 * 60 * 60 * 24)))
-      : 1;
+    
+    // Use reduce instead of spread operator to avoid stack overflow with large arrays
+    let daySpan = 1;
+    if (timestamps.length > 0) {
+      const maxTimestamp = timestamps.reduce((a, b) => Math.max(a, b), -Infinity);
+      const minTimestamp = timestamps.reduce((a, b) => Math.min(a, b), Infinity);
+      daySpan = Math.max(1, Math.ceil((maxTimestamp - minTimestamp) / (1000 * 60 * 60 * 24)));
+    }
     const averageDaily = (totalSearches / daySpan).toFixed(1);
 
     // Analyze search keywords with conversion data
