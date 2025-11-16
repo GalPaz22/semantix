@@ -17,8 +17,17 @@ if (typeof window === 'undefined') {
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Semantix - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך",
-  description: "מנוע החיפוש המתקדם ביותר בעולם עבור חנויות מסחר אלקטרוני בכל הפלטפורמות",
+  title: "Semantix - AI-Powered Semantic Search for E-commerce | Site Search Solution",
+  description: "Transform your e-commerce site search with Semantix. Natural language understanding, accurate results, and confident buying. The new generation of product discovery.",
+  keywords: "site search, semantic search, AI search, e-commerce search, product discovery, natural language search",
+  openGraph: {
+    title: "Semantix - Site Search is Your Seller",
+    description: "The new generation of product discovery for e-commerce",
+    url: "https://www.semantix.co.il",
+    siteName: "Semantix",
+    locale: "en_US",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -73,22 +82,71 @@ export default function RootLayout({ children }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content={metadata.description} />
-        <meta name="keywords" content="חיפוש סמנטי, בינה מלאכותית, semantix, תוצאות מדויקות, חיפוש עסקי, חיפוש חכם" />
-        <meta name="author" content="semantix"/>
+        <meta name="keywords" content={metadata.keywords} />
+        <meta name="author" content="Semantix"/>
 
-        
-        <meta property="og:title" content={metadata.title} />
-        <meta property="og:description" content={metadata.description} />
+        {/* Open Graph / Facebook */}
+        <meta property="og:title" content={metadata.openGraph.title} />
+        <meta property="og:description" content={metadata.openGraph.description} />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.semantix-ai.com" />
-        <meta property="og:image" content="/main-logo.png" />
+        <meta property="og:url" content="https://www.semantix.co.il" />
+        <meta property="og:site_name" content="Semantix" />
+        <meta property="og:image" content="https://www.semantix.co.il/main-logo.png" />
         
+        {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={metadata.title} />
-        <meta name="twitter:description" content={metadata.description} />
-        <meta name="twitter:image" content="/main-logo.png" />
-        <meta name="robots" content="noimageindex" />
-        <meta name="googlebot" content="noimageindex" />
+        <meta name="twitter:title" content={metadata.openGraph.title} />
+        <meta name="twitter:description" content={metadata.openGraph.description} />
+        <meta name="twitter:image" content="https://www.semantix.co.il/main-logo.png" />
+        
+        {/* Robots */}
+        <meta name="robots" content="index, follow, noimageindex" />
+        <meta name="googlebot" content="index, follow, noimageindex" />
+        
+        {/* JSON-LD Structured Data */}
+        <Script id="json-ld-organization" type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Semantix",
+            "url": "https://www.semantix.co.il",
+            "logo": "https://www.semantix.co.il/main-logo.png",
+            "description": "AI-Powered Semantic Search for E-commerce",
+            "sameAs": [
+              "https://www.facebook.com/semantix"
+            ]
+          })}
+        </Script>
+        
+        <Script id="json-ld-website" type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Semantix",
+            "url": "https://www.semantix.co.il",
+            "description": "Site Search is Your Seller - The new generation of product discovery",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://www.semantix.co.il/search?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          })}
+        </Script>
+        
+        <Script id="json-ld-software" type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Semantix",
+            "applicationCategory": "BusinessApplication",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "description": "AI-Powered semantic search solution for e-commerce websites"
+          })}
+        </Script>
         
         
         <link rel="icon" href="/favicon.png" type="image/png" />

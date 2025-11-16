@@ -310,15 +310,17 @@ const HomePage = () => {
           <div className="max-w-7xl mx-auto relative z-10">
             <div className="text-center mb-12">
             
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold mb-6">
-                <span className="bg-gradient-to-b from-gray-500 to-purple-600 text-transparent bg-clip-text block mb-2 sm:mb-0 sm:inline">
-                 המשתמשים שלכם יודעים מה הם מחפשים.
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold mb-4 leading-tight" dir="ltr">
+                <span className="bg-gradient-to-b from-purple-400 to-purple-600 text-transparent bg-clip-text block">
+                  Site Search is Your Seller
+                </span>
+                <span className="text-gray-900 block text-3xl sm:text-5xl lg:text-6xl mt-2">
+                  Use the Best.
                 </span>
               </h1>
               
-              <p className="text-xl sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
-              טכנולוגיית החיפוש באתרי אי קומרס לא השתנתה מהותית ב-20 שנה האחרונות. אנחנו כאן לשנות אותה.
-                
+              <p className="text-lg sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-8 mt-6 pb-2" dir="ltr">
+                The New Generation of Product Discovery.
               </p>
             </div>
 
