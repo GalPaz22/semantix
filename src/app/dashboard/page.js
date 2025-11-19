@@ -715,6 +715,9 @@ function AnalyticsPanel({ session, onboarding }) {
   
   // Semantix funnel state
   const [semantixExpanded, setSemantixExpanded] = useState(false);
+  
+  // Query results dropdown state
+  const [expandedQueries, setExpandedQueries] = useState({});
 
   const [filters, setFilters] = useState({
     category: "",
@@ -936,6 +939,7 @@ function AnalyticsPanel({ session, onboarding }) {
     .reverse()
     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  
 
   const maxPageButtons = 5;
   let startPage = Math.max(1, currentPage - 2);
@@ -1726,20 +1730,20 @@ function AnalyticsPanel({ session, onboarding }) {
             ) : (
               <>
                 {/* Add to Cart Section */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
                   <div className="flex items-center space-x-4 space-x-reverse">
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                        <ShoppingCart className="h-7 w-7 text-white" strokeWidth={2.5} />
+                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                        <ShoppingCart className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
                 </div>
               </div>
-                    <div className="mr-4">
-                      <h2 className="text-2xl font-bold text-gray-900">
+                    <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                         ₪{(cartMetrics?.addToCartMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h2>
-                      <p className="text-sm text-gray-600">סך הכנסות מהוספות לעגלה</p>
-                      <div className="flex items-center gap-4 mt-2">
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">סך הכנסות מהוספות לעגלה</p>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                         <span className="text-xs text-gray-500">
                           {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString('en-US')} הוספות לעגלה
                         </span>
@@ -1753,7 +1757,7 @@ function AnalyticsPanel({ session, onboarding }) {
         
             <button
                     onClick={() => setCartDetailsExpanded(!cartDetailsExpanded)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
                   >
                     {cartDetailsExpanded ? (
                       <>
@@ -1772,20 +1776,20 @@ function AnalyticsPanel({ session, onboarding }) {
                 {/* Checkout Section - Only show if we have checkout events */}
                 {checkoutEvents.length > 0 && (
                   <>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center space-x-4 space-x-reverse">
-                    <div className="relative">
+                    <div className="relative flex-shrink-0">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                        <DollarSign className="h-7 w-7 text-white" strokeWidth={2.5} />
+                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                        <DollarSign className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
               </div>
             </div>
-                    <div className="mr-4">
-                      <h2 className="text-2xl font-bold text-gray-900">
+                    <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                         ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h2>
-                      <p className="text-sm text-gray-600">סכום רכישות</p>
-                      <div className="flex items-center gap-4 mt-2">
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">סכום רכישות</p>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                         <span className="text-xs text-gray-500">
                           {(cartMetrics?.checkoutMetrics?.items || 0).toLocaleString('en-US')} רכישות
                         </span>
@@ -1799,7 +1803,7 @@ function AnalyticsPanel({ session, onboarding }) {
         
             <button
                     onClick={() => setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
                   >
                     {checkoutDetailsExpanded ? (
                       <>
@@ -1820,12 +1824,12 @@ function AnalyticsPanel({ session, onboarding }) {
                 {/* Semantix Purchases Funnel - Concise View */}
                 {semantixFunnel.hasData && (
                   <>
-                  <div className="flex items-center justify-between mt-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
                     <div className="flex items-center space-x-4 space-x-reverse">
-                      <div className="relative">
+                      <div className="relative flex-shrink-0">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" className="h-7 w-7 text-white">
+                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" className="h-6 w-6 sm:h-7 sm:w-7 text-white">
                             <g stroke="currentColor" strokeWidth="20" strokeLinecap="round">
                               <line x1="75" y1="110" x2="180" y2="60"/>
                               <line x1="75" y1="110" x2="240" y2="150"/>
@@ -1840,16 +1844,16 @@ function AnalyticsPanel({ session, onboarding }) {
                           </svg>
                         </div>
                       </div>
-                      <div className="mr-4">
-                        <h2 className="text-2xl font-bold text-gray-900">
+                      <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                           ₪{(semantixFunnel.totals.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </h2>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1">
                           {semantixFunnel.mode === 'checkout' 
                             ? 'רכישות דרך סמנטיקס (שאילתות מורכבות)' 
                             : 'הוספות לעגלה דרך סמנטיקס (הכנסות משוערות)'}
                         </p>
-                        <div className="flex items-center gap-4 mt-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                           <span className="text-xs text-gray-500">
                             {(semantixFunnel.totals.orders || 0).toLocaleString('en-US')} {semantixFunnel.mode === 'checkout' ? 'הזמנות' : 'הוספות לעגלה'}
                           </span>
@@ -1859,7 +1863,7 @@ function AnalyticsPanel({ session, onboarding }) {
           
             <button
                       onClick={() => setSemantixExpanded(!semantixExpanded)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                      className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
                     >
                       {semantixExpanded ? (
                         <>
@@ -2168,7 +2172,168 @@ function AnalyticsPanel({ session, onboarding }) {
             </h2>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* Mobile Cards View */}
+          <div className="block md:hidden p-4 space-y-3" dir="rtl">
+            {displayedQueries.map((query, index) => {
+              const queryText = (query.query || '').toLowerCase().trim();
+              
+              const cartProducts = cartAnalytics
+                .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                .map(item => item.product_name || 'מוצר לא ידוע')
+                .filter((v, i, a) => a.indexOf(v) === i);
+              
+              const purchaseProducts = checkoutEvents
+                .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                .map(item => {
+                  if (Array.isArray(item.products) && item.products.length > 0) {
+                    return item.products.map(p => p.product_name || p.name || '').filter(n => n).join(', ');
+                  }
+                  return item.product_name || 'מוצר לא ידוע';
+                })
+                .filter(name => name);
+              
+              const hasCartAddition = cartProducts.length > 0;
+              const hasPurchase = purchaseProducts.length > 0;
+              const deliveredProducts = query.deliveredProducts || [];
+              const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
+              const isExpanded = expandedQueries[index] || false;
+              
+              const toggleExpanded = () => {
+                setExpandedQueries(prev => ({
+                  ...prev,
+                  [index]: !prev[index]
+                }));
+              };
+              
+              // Determine card border color
+              let borderColor = 'border-gray-200';
+              if (hasPurchase) borderColor = 'border-purple-300 bg-purple-50/30';
+              else if (hasCartAddition) borderColor = 'border-green-300 bg-green-50/30';
+              
+              return (
+                <div key={index} className={`border-2 ${borderColor} rounded-lg p-3 transition-all`}>
+                  {/* Query Text with Status Badge */}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1">
+                      <div className="font-semibold text-gray-800 text-sm mb-1">{query.query}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(query.timestamp).toLocaleDateString('he-IL')} • {new Date(query.timestamp).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {hasPurchase && (
+                        <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-100 rounded-full">
+                          <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        </span>
+                      )}
+                      {hasCartAddition && !hasPurchase && (
+                        <span className="inline-flex items-center justify-center w-7 h-7 bg-green-100 rounded-full">
+                          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Category Pills */}
+                  {query.category && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {Array.isArray(query.category) 
+                        ? query.category.map((cat, i) => (
+                            <span key={i} className="inline-block px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{cat}</span>
+                          ))
+                        : <span className="inline-block px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{query.category}</span>
+                      }
+                    </div>
+                  )}
+                  
+                  {/* Purchase/Cart Products Info */}
+                  {hasPurchase && (
+                    <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded">
+                      <div className="flex items-center gap-1 mb-1">
+                        <svg className="w-3.5 h-3.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                        <span className="text-xs font-semibold text-purple-700">נרכש</span>
+                      </div>
+                      <div className="text-xs text-purple-800 space-y-0.5">
+                        {purchaseProducts.slice(0, 2).map((product, idx) => (
+                          <div key={idx} className="flex items-start gap-1">
+                            <span>•</span>
+                            <span className="flex-1">{product}</span>
+                          </div>
+                        ))}
+                        {purchaseProducts.length > 2 && (
+                          <div className="text-purple-600 font-medium">+{purchaseProducts.length - 2} מוצרים נוספים</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {hasCartAddition && !hasPurchase && (
+                    <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded">
+                      <div className="flex items-center gap-1 mb-1">
+                        <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                        <span className="text-xs font-semibold text-green-700">נוסף לעגלה</span>
+                      </div>
+                      <div className="text-xs text-green-800 space-y-0.5">
+                        {cartProducts.slice(0, 2).map((product, idx) => (
+                          <div key={idx} className="flex items-start gap-1">
+                            <span>•</span>
+                            <span className="flex-1">{product}</span>
+                          </div>
+                        ))}
+                        {cartProducts.length > 2 && (
+                          <div className="text-green-600 font-medium">+{cartProducts.length - 2} מוצרים נוספים</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Delivered Products Toggle */}
+                  {hasDeliveredProducts && (
+                    <button
+                      onClick={toggleExpanded}
+                      className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors mb-2"
+                    >
+                      <span>ראו תוצאות ({deliveredProducts.length})</span>
+                      <svg 
+                        className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  )}
+                  
+                  {/* Expanded Products List */}
+                  {isExpanded && hasDeliveredProducts && (
+                    <div className="mt-2 p-2 bg-white border border-gray-200 rounded text-right">
+                      <div className="text-xs font-semibold text-gray-600 mb-1.5">מוצרים שהוצגו:</div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {deliveredProducts.map((productName, idx) => (
+                          <div key={idx} className="text-xs text-gray-700 flex items-start gap-1.5">
+                            <span className="text-gray-400 mt-0.5">•</span>
+                            <span className="flex-1">{productName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
@@ -2213,13 +2378,61 @@ function AnalyticsPanel({ session, onboarding }) {
                   const hasCartAddition = cartProducts.length > 0;
                   const hasPurchase = purchaseProducts.length > 0;
                   
+                  // Check if query has delivered products (camelCase)
+                  const deliveredProducts = query.deliveredProducts || [];
+                  const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
+                  const isExpanded = expandedQueries[index] || false;
+                  
+                  const toggleExpanded = () => {
+                    setExpandedQueries(prev => ({
+                      ...prev,
+                      [index]: !prev[index]
+                    }));
+                  };
+                  
                   return (
                     <tr
                       key={index}
                       className="hover:bg-gray-50 transition-colors"
                     >
                       <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
-                        {query.query}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{query.query}</span>
+                            {hasDeliveredProducts && (
+                              <button
+                                onClick={toggleExpanded}
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                              >
+                                <span>ראו תוצאות</span>
+                                <svg 
+                                  className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          {isExpanded && hasDeliveredProducts && (
+                            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
+                              <div className="text-xs font-semibold text-gray-600 mb-2">מוצרים שהוצגו ({deliveredProducts.length}):</div>
+                              <div className="space-y-1 max-h-60 overflow-y-auto">
+                                {deliveredProducts.map((productName, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded hover:bg-gray-50 transition-colors"
+                                  >
+                                    <span className="text-gray-400">•</span>
+                                    <span className="text-xs text-gray-700 flex-1">{productName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 text-right">
                         {new Date(query.timestamp).toLocaleString()}
@@ -2277,8 +2490,8 @@ function AnalyticsPanel({ session, onboarding }) {
           
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-100">
-              <nav className="flex items-center justify-between">
+            <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
+              <nav className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="hidden sm:block">
                   <p className="text-sm text-gray-700">
                     מציג <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> עד{" "}
@@ -2288,6 +2501,12 @@ function AnalyticsPanel({ session, onboarding }) {
                     מתוך <span className="font-medium">{filteredCount}</span> תוצאות
                   </p>
                 </div>
+                
+                {/* Mobile page indicator */}
+                <div className="block sm:hidden text-sm text-gray-700">
+                  עמוד <span className="font-medium">{currentPage}</span> מתוך <span className="font-medium">{totalPages}</span>
+                </div>
+                
                 <div className="flex-1 flex justify-center sm:justify-end">
                   <button
                     onClick={handlePrevious}
