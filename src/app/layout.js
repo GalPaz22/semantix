@@ -17,15 +17,15 @@ if (typeof window === 'undefined') {
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Semantix - AI-Powered Semantic Search for E-commerce | Site Search Solution",
-  description: "Transform your e-commerce site search with Semantix. Natural language understanding, accurate results, and confident buying. The new generation of product discovery.",
-  keywords: "site search, semantic search, AI search, e-commerce search, product discovery, natural language search",
+  title: "Semantix - חיפוש חכם באמת | מנוע חיפוש AI לאתרי מסחר",
+  description: "מנוע החיפוש שמבין עברית, מתקן שגיאות כתיב ומגדיל המרות. Semantix הופכת את שורת החיפוש שלכם למוכר הכי טוב בחנות - מדייקת תוצאות, מבינה כוונה ומגדילה סלי קנייה.",
+  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לאתרי מסחר, גילוי מוצרים, חיפוש בעברית, site search, semantic search",
   openGraph: {
-    title: "Semantix - Site Search is Your Seller",
-    description: "The new generation of product discovery for e-commerce",
+    title: "Semantix - חיפוש חכם שמגדיל מכירות",
+    description: "מנוע החיפוש שמבין עברית, מתקן שגיאות ומגדיל המרות בעסק שלכם",
     url: "https://www.semantix.co.il",
     siteName: "Semantix",
-    locale: "en_US",
+    locale: "he_IL",
     type: "website",
   },
 };
@@ -111,7 +111,7 @@ export default function RootLayout({ children }) {
             "name": "Semantix",
             "url": "https://www.semantix.co.il",
             "logo": "https://www.semantix.co.il/main-logo.png",
-            "description": "AI-Powered Semantic Search for E-commerce",
+            "description": "מנוע חיפוש חכם מבוסס AI לאתרי מסחר - מבין עברית, מתקן שגיאות ומגדיל המרות",
             "sameAs": [
               "https://www.facebook.com/semantix"
             ]
@@ -124,7 +124,7 @@ export default function RootLayout({ children }) {
             "@type": "WebSite",
             "name": "Semantix",
             "url": "https://www.semantix.co.il",
-            "description": "Site Search is Your Seller - The new generation of product discovery",
+            "description": "שורת החיפוש היא המוכר שלכם - מנוע חיפוש חכם שמבין עברית ומגדיל מכירות",
             "potentialAction": {
               "@type": "SearchAction",
               "target": "https://www.semantix.co.il/search?q={search_term_string}",
@@ -142,9 +142,9 @@ export default function RootLayout({ children }) {
             "offers": {
               "@type": "Offer",
               "price": "0",
-              "priceCurrency": "USD"
+              "priceCurrency": "ILS"
             },
-            "description": "AI-Powered semantic search solution for e-commerce websites"
+            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לאתרי מסחר - מבין עברית, מתקן שגיאות ומגדיל המרות"
           })}
         </Script>
         
