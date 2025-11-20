@@ -2179,18 +2179,30 @@ function AnalyticsPanel({ session, onboarding }) {
               
               const cartProducts = cartAnalytics
                 .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
-                .map(item => item.product_name || 'מוצר לא ידוע')
-                .filter((v, i, a) => a.indexOf(v) === i);
+                .map(item => ({
+                  name: item.product_name || 'מוצר לא ידוע',
+                  price: item.product_price || 0,
+                  quantity: item.quantity || 1
+                }))
+                .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
               
               const purchaseProducts = checkoutEvents
                 .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
-                .map(item => {
+                .flatMap(item => {
                   if (Array.isArray(item.products) && item.products.length > 0) {
-                    return item.products.map(p => p.product_name || p.name || '').filter(n => n).join(', ');
+                    return item.products.map(p => ({
+                      name: p.product_name || p.name || 'מוצר לא ידוע',
+                      price: p.product_price || p.price || 0,
+                      quantity: p.quantity || 1
+                    }));
                   }
-                  return item.product_name || 'מוצר לא ידוע';
+                  return [{
+                    name: item.product_name || 'מוצר לא ידוע',
+                    price: item.product_price || 0,
+                    quantity: item.quantity || 1
+                  }];
                 })
-                .filter(name => name);
+                .filter(item => item.name);
               
               const hasCartAddition = cartProducts.length > 0;
               const hasPurchase = purchaseProducts.length > 0;
@@ -2261,9 +2273,14 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                       <div className="text-xs text-purple-800 space-y-0.5">
                         {purchaseProducts.slice(0, 2).map((product, idx) => (
-                          <div key={idx} className="flex items-start gap-1">
-                            <span>•</span>
-                            <span className="flex-1">{product}</span>
+                          <div key={idx} className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-1 flex-1">
+                              <span>•</span>
+                              <span className="flex-1">{product.name}</span>
+                            </div>
+                            <span className="font-semibold text-purple-700 whitespace-nowrap">
+                              ₪{(product.price * product.quantity).toFixed(2)}
+                            </span>
                           </div>
                         ))}
                         {purchaseProducts.length > 2 && (
@@ -2283,9 +2300,14 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                       <div className="text-xs text-green-800 space-y-0.5">
                         {cartProducts.slice(0, 2).map((product, idx) => (
-                          <div key={idx} className="flex items-start gap-1">
-                            <span>•</span>
-                            <span className="flex-1">{product}</span>
+                          <div key={idx} className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-1 flex-1">
+                              <span>•</span>
+                              <span className="flex-1">{product.name}</span>
+                            </div>
+                            <span className="font-semibold text-green-700 whitespace-nowrap">
+                              ₪{(product.price * product.quantity).toFixed(2)}
+                            </span>
                           </div>
                         ))}
                         {cartProducts.length > 2 && (
@@ -2361,19 +2383,31 @@ function AnalyticsPanel({ session, onboarding }) {
                   
                   const cartProducts = cartAnalytics
                     .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
-                    .map(item => item.product_name || 'מוצר לא ידוע')
-                    .filter((v, i, a) => a.indexOf(v) === i); // unique
+                    .map(item => ({
+                      name: item.product_name || 'מוצר לא ידוע',
+                      price: item.product_price || 0,
+                      quantity: item.quantity || 1
+                    }))
+                    .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
                   
                   const purchaseProducts = checkoutEvents
                     .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
-                    .map(item => {
+                    .flatMap(item => {
                       // Handle products array or direct product_name
                       if (Array.isArray(item.products) && item.products.length > 0) {
-                        return item.products.map(p => p.product_name || p.name || '').filter(n => n).join(', ');
+                        return item.products.map(p => ({
+                          name: p.product_name || p.name || 'מוצר לא ידוע',
+                          price: p.product_price || p.price || 0,
+                          quantity: p.quantity || 1
+                        }));
                       }
-                      return item.product_name || 'מוצר לא ידוע';
+                      return [{
+                        name: item.product_name || 'מוצר לא ידוע',
+                        price: item.product_price || 0,
+                        quantity: item.quantity || 1
+                      }];
                     })
-                    .filter(name => name);
+                    .filter(item => item.name);
                   
                   const hasCartAddition = cartProducts.length > 0;
                   const hasPurchase = purchaseProducts.length > 0;
@@ -2453,9 +2487,14 @@ function AnalyticsPanel({ session, onboarding }) {
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                               </svg>
                             </span>
-                            <div className="text-xs text-gray-700 max-w-xs">
+                            <div className="text-xs text-gray-700 max-w-xs space-y-1">
                               {cartProducts.slice(0, 2).map((product, idx) => (
-                                <div key={idx} className="truncate text-center">• {product}</div>
+                                <div key={idx} className="flex flex-col items-center gap-0.5">
+                                  <div className="truncate text-center">• {product.name}</div>
+                                  <div className="font-semibold text-green-700 text-[10px]">
+                                    ₪{(product.price * product.quantity).toFixed(2)}
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -2471,9 +2510,14 @@ function AnalyticsPanel({ session, onboarding }) {
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                               </svg>
                             </span>
-                            <div className="text-xs text-gray-700 max-w-xs">
+                            <div className="text-xs text-gray-700 max-w-xs space-y-1">
                               {purchaseProducts.slice(0, 2).map((product, idx) => (
-                                <div key={idx} className="truncate text-center">• {product}</div>
+                                <div key={idx} className="flex flex-col items-center gap-0.5">
+                                  <div className="truncate text-center">• {product.name}</div>
+                                  <div className="font-semibold text-purple-700 text-[10px]">
+                                    ₪{(product.price * product.quantity).toFixed(2)}
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
