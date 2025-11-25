@@ -17,9 +17,9 @@ if (typeof window === 'undefined') {
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Semantix - חיפוש חכם באמת | מנוע חיפוש AI לאתרי מסחר",
+  title: "Semantix - חיפוש חכם באמת | מנוע חיפוש AI לחנויות אי-קומרס",
   description: "מנוע החיפוש שמבין עברית, מתקן שגיאות כתיב ומגדיל המרות. Semantix הופכת את שורת החיפוש שלכם למוכר הכי טוב בחנות - מדייקת תוצאות, מבינה כוונה ומגדילה סלי קנייה.",
-  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לאתרי מסחר, גילוי מוצרים, חיפוש בעברית, site search, semantic search",
+  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, גילוי מוצרים, חיפוש בעברית, site search, semantic search, ecommerce",
   openGraph: {
     title: "Semantix - חיפוש חכם שמגדיל מכירות",
     description: "מנוע החיפוש שמבין עברית, מתקן שגיאות ומגדיל המרות בעסק שלכם",
@@ -111,7 +111,7 @@ export default function RootLayout({ children }) {
             "name": "Semantix",
             "url": "https://www.semantix.co.il",
             "logo": "https://www.semantix.co.il/main-logo.png",
-            "description": "מנוע חיפוש חכם מבוסס AI לאתרי מסחר - מבין עברית, מתקן שגיאות ומגדיל המרות",
+            "description": "מנוע חיפוש חכם מבוסס AI לחנויות אי-קומרס - מבין עברית, מתקן שגיאות ומגדיל המרות",
             "sameAs": [
               "https://www.facebook.com/semantix"
             ]
@@ -144,7 +144,7 @@ export default function RootLayout({ children }) {
               "price": "0",
               "priceCurrency": "ILS"
             },
-            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לאתרי מסחר - מבין עברית, מתקן שגיאות ומגדיל המרות"
+            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לחנויות אי-קומרס - מבין עברית, מתקן שגיאות ומגדיל המרות"
           })}
         </Script>
         

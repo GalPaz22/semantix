@@ -24,7 +24,7 @@ const HomePage = () => {
       ]
     },
     {
-      query: "שעון ספורט GPS עם אופציית תשלום",
+      query: "שעון ספורט GPS שאפשר לשלם איתו",
       images: [
         "https://shipi.b-cdn.net/wp-content/uploads/2023/06/Apple-Watch-SE-2022-40mm-600x600.webp",
         "https://shipi.b-cdn.net/wp-content/uploads/2023/01/Untitled-1-RADSecovered-2-600x600-1-600x600.jpg",
@@ -227,7 +227,7 @@ const HomePage = () => {
                 <span className="text-gray-800 block sm:inline text-xl sm:text-6xl lg:text-6xl mt-4">Use the Best.</span>
               </h1>
               <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto mb-8 sm:mb-10 px-4 leading-relaxed pb-2" dir="rtl">
-                Semantix הופכת את שורת החיפוש שלכם ליועץ מכירות שמבין כוונה, מדייק תוצאות ומגדיל כל סל קנייה.
+                 שדרגו את שורת החיפוש שלכם ליועץ מכירות שמבין כוונה, מדייק תוצאות ומגדיל כל סל קנייה.
               </p>
             </div>
 
@@ -250,13 +250,11 @@ const HomePage = () => {
                 {showImages && currentImages.map((image, index) => (
                     <div key={index} className="group relative overflow-hidden rounded-lg sm:rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 bg-white">
                       <div className="w-full h-full bg-white flex items-center justify-center p-3">
-                        <Image 
+                        <img 
                           src={image} 
                           alt={`מוצר ${index + 1}`} 
-                          className="w-full h-full object-contain" 
-                          width={300} 
-                          height={200} 
-                          style={{ backgroundColor: 'white' }}
+                          className="w-full h-full object-contain mix-blend-multiply" 
+                          style={{ backgroundColor: 'transparent', maxHeight: '100%', maxWidth: '100%' }}
                         />
                       </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -275,10 +273,10 @@ const HomePage = () => {
                 <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
-                <span>קבעו שיחה עם מומחה</span>
+                <span>דברו איתנו</span>
               </button>
               <button onClick={() => router.push('/product')} className="bg-white text-gray-700 font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-full text-base sm:text-lg border-2 border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300 w-full sm:w-auto">
-                חוו את החיפוש בפעולה
+              איך זה עובד
               </button>
             </div>
           </div>
@@ -333,7 +331,7 @@ const HomePage = () => {
                   חיפוש שחושב כמו הקונים שלכם
                 </h2>
                 <p className="text-xl text-gray-600 mb-8 leading-relaxed text-right">
-                  Semantix מנתחת כל שאילתה בהקשר שלה, מבינה למה הלקוח מתכוון ומגישה בדיוק את המוצר שמקדם את ההזמנה.
+                  Semantix מנתחת כל שאילתה בהקשר שלה, מבינה למה הלקוח מתכוון ומחזירה בדיוק את המוצר המתאים ביותר.
                 </p>
                 <div className="space-y-4 mb-8" dir="rtl">
                   <div className="flex items-start gap-3">
@@ -347,7 +345,7 @@ const HomePage = () => {
                     <CheckCircle className="w-5 h-5 text-gray-900 mt-1 flex-shrink-0" />
                     <div className="text-right">
                       <p className="font-medium text-gray-900">מדברים בכל שפה, גם בשגיאות</p>
-                      <p className="text-sm text-gray-600">מתקנים סלנג, טייפו ושילובי עברית-אנגלית – בלי להגדיר מילונים ידניים.</p>
+                      <p className="text-sm text-gray-600">מתקנים סלנג, טייפו ושילובי עברית-אנגלית- הכול אוטומטי, ללא צורך בהגדרה ידנית.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -389,10 +387,10 @@ const HomePage = () => {
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 </div>
                 <h2 className="text-4xl md:text-5xl font-semibold mb-6 text-gray-900 text-right">
-                  Upsell שמרגיש כמו המלצה אישית
+                  Upsell שמתאים את המוצרים הנכונים
                 </h2>
                 <p className="text-xl text-gray-600 mb-8 leading-relaxed text-right">
-                  המערכת שלנו מבינה מה הלקוח מחפש כרגע, ומוסיפה באלגנטיות את המוצר המשלים שהכי כדאי לו – ולכם.
+                  המערכת שלנו מבינה מה הלקוח מחפש כרגע, ומוסיפה באלגנטיות את המוצר המשלים שהכי כדאי לו. ולכם.
                 </p>
                 <div className="space-y-4 mb-8" dir="rtl">
                   <div className="flex items-start gap-3">
@@ -448,7 +446,7 @@ const HomePage = () => {
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                 </div>
                 <h2 className="text-4xl md:text-5xl font-semibold mb-6 text-gray-900 text-right">
-                  דע מה הקונים שלך רוצים
+                  דעו מה הקונים שלכם רוצים
                 </h2>
                 <p className="text-xl text-gray-600 mb-8 leading-relaxed text-right">
                   לוח הבקרה של Semantix Brain חושף מה מחפשים עכשיו, מה באמת מביא הכנסות ואיפה מחכים לכם הזדמנויות מכירה חדשות.
@@ -478,7 +476,7 @@ const HomePage = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">תזמון שמזהה חלונות מכירה</p>
-                      <p className="text-sm text-gray-600">מפות חכמות של שעות שיא, מוצרים חמים ועונתיות – כדי שתתזמנו מלאי וקמפיינים.</p>
+                      <p className="text-sm text-gray-600">מפות חכמות של שעות שיא, מוצרים חמים ועונתיות- כדי שתתזמנו מלאי וקמפיינים.</p>
                     </div>
                   </div>
                 </div>
