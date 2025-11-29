@@ -57,9 +57,9 @@ const FullScreenMsg = ({ children }) => (
 );
 
 // ===== Semantix Complex Query Classification =====
-const simpleCategoryWords = ["יין", "וויסקי", "וודקה", "ג'ין", "גין", "רום", "בירה", "ברנדי", "קוניאק", "ליקר"];
+const simpleCategoryWords = ["יין", "וויסקי", "וודקה", "ג'ין", "גין", "רום", "בירה", "ברנדי", "קוניאק", "ליקר", "יין אדום", "יין לבן", "יין רוזה", "רוזה", "אדום", "לבן"];
 const varietalWords = ["שרדונה", "מרלו", "קברנה", "קברנה סוביניון", "סוביניון בלאן", "ריזלינג", "גרנאש", "פינו נואר", "פינו נויר", "שיראז", "סירה", "מאלבק", "טמפרניו", "רוסאן", "ויונייה", "גמאי"];
-const contextDescriptors = ["שמתאים", "לחתונה", "למסיבה", "לאירוע", "לארוחה", "עם", "ליד", "טוב עם", "מתאים עם", "יין אדום", "יין לבן", "יבש", "חצי יבש", "קליל", "מרענן", "חגיגי", "מינרלי"];
+const contextDescriptors = ["שמתאים", "לחתונה", "למסיבה", "לאירוע", "לארוחה", "עם", "ליד", "טוב עם", "מתאים עם", "יבש", "חצי יבש", "קליל", "מרענן", "חגיגי", "מינרלי"];
 const attributeDescriptors = ["כשר", "טבעוני", "אורגני", "יין טבעי", "ללא אלכוהול", "נטול אלכוהול", "0%"];
 const tasteDescriptors = ["אדל פלאוור", "אבטיח", "פסיפלורה", "ליצ׳י", "דובדבן", "פירותי", "תפוח", "אגס", "שזיף", "ענבים", "לימון", "תות", "אשכולית", "אננס", "מנגו", "קוקוס", "בננה", "קפה", "קקאו", "דבש", "וניל", "שוקולד"];
 const spiritStyleDescriptors = ["לבן", "כהה", "בהיר", "שחור", "spiced", "מיושן", "gold", "silver", "בלנד", "סינגל מאלט"];
@@ -70,9 +70,38 @@ const specialEditionPhrases = ["ספיישל", "אדישן", "מהדורה", "ס
 const brandPhrases = ["יין רמונים", "יין קטן"];
 const dealRegex = /\d+\s?ב[-\s]?\s?\d+/;
 const currencyRegex = /\d+\s?(?:שח|₪)/i;
-const rangeRegex = /עד\s*\d+/;
+const rangeRegex = /(?:עד|מעל|מתחת|פחות|יותר|בין|ב-|מ-)\s*(?:מ|ל)?[-\s]?\s*\d+/i;
 const skuPattern = /\d+\s*(?:קברנה|שרדונה|מרלו|סוביניון|מדבר|רום|וויסקי|ויסקי)/;
 const glenCanonical = "גלן פידיך";
+
+// Common brand names with their frequent typos - typos indicate complex semantic search needed
+const knownBrandsWithTypos = [
+  // Whisky brands
+  { correct: "מקאלן", typos: ["מק קלאן", "מקלאן", "מקאללן", "מאקלן", "macllan", "maclan", "מקלן", "מק קלן"] },
+  { correct: "גלנפידיך", typos: ["גלן פיביך", "גלןפדיך", "גלן פידח", "גלנפידיך", "גלאן פידיך", "גלן פידיק", "גלן פידיץ"] },
+  { correct: "ג'וני ווקר", typos: ["ג'וני וו קר", "ג'וני וואקר", "ג'וני וו אקר", "ג'אני ווקר", "ג'וני ווקר", "ג'וני וו קר"] },
+  { correct: "לפרויג", typos: ["לה פרויג", "לפרואיג", "לאפרויג", "laphraoig", "laphroaig", "לפרויג", "לפרו איג"] },
+  { correct: "טליסקר", typos: ["טאליסקר", "טליסקאר", "taliskar", "taliker", "טליסקאר", "טליסקא ר"] },
+  { correct: "ארדבג", typos: ["ארד בג", "ארדביג", "ארדבאג", "ardbeg", "ardbg", "ארד בג", "ארדב ג"] },
+  { correct: "היילנד פארק", typos: ["היי לנד פארק", "הייל נד", "highland park", "hyland", "היי לנד", "היי לנד פארק"] },
+  { correct: "באלוויני", typos: ["באלביני", "בלוויני", "balvenie", "balvanie", "באלו ויני", "בלו ויני"] },
+  { correct: "בלנטיינס", typos: ["בלנטיינס", "בלנטייס", "בלנט ינס", "ballantines", "בלנט ינס"] },
+  { correct: "צ'יווס רגל", typos: ["צ'יווס רגל", "צ'יווס רג ל", "chivas regal", "צ'יווס רגל", "צ'יווס רג ל"] },
+  
+  // Wine brands
+  { correct: "יקב רמת הגולן", typos: ["רמת גולן", "רמת ה גולן", "ramot hagolan", "רמת גולן", "רמת ה גולן"] },
+  { correct: "קסטל", typos: ["קאסטל", "קס טל", "castel", "kastl", "קס טל", "קאס טל"] },
+  { correct: "ברקן", typos: ["ברק ן", "בר קן", "barkan", "brakan", "ברק ן", "בר קן"] },
+  { correct: "רקנאטי", typos: ["רקנטי", "רק נאטי", "rek אנאטי", "recanati", "רק נאטי", "רקנ אטי"] },
+  { correct: "ירדן", typos: ["ירדאן", "יר דן", "yarden", "jardn", "יר דן", "ירד אן"] },
+  { correct: "גולן", typos: ["גול ן", "גו לן", "golan", "גול ן", "גו לן"] },
+  { correct: "גמא", typos: ["גמ א", "ג מא", "gama", "גמ א", "ג מא"] },
+  
+  // Common typos
+  { correct: "שאטו", typos: ["שטו", "שאטאו", "שאטיו", "chateau", "chato", "שטו", "שאט או"] },
+  { correct: "בלאן", typos: ["בלן", "בלאנק", "blanc", "blan", "בלן", "בלאנ ק"] },
+  { correct: "רוזה", typos: ["רוז ה", "רוז א", "rose", "רוז ה", "רוז א"] },
+];
 
 function trimAndNormalize(value = "") {
   return value.toString().replace(/\s+/g, " ").trim();
@@ -114,10 +143,166 @@ function isPureEnglish(query) {
   return /^[a-z0-9\s'\"-]+$/i.test(query);
 }
 
+// Pre-build a Set of all typos for O(1) lookup instead of O(n*m) nested loops
+const allTyposSet = new Set();
+knownBrandsWithTypos.forEach(brand => {
+  brand.typos.forEach(typo => {
+    allTyposSet.add(typo.toLowerCase());
+  });
+});
+
+// Check if query contains a significant typo of a known brand
+// Typos indicate the user needs semantic search to find what they're looking for
+function hasSignificantTypo(query) {
+  const lower = query.toLowerCase().trim();
+  
+  // Fast lookup using Set - O(1) instead of nested loops
+  for (const typo of allTyposSet) {
+    if (lower.includes(typo)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 function normalizePrice(price) {
   if (price == null) return 0;
   const value = typeof price === "number" ? price : parseFloat(price.toString().replace(/[^0-9.,]/g, "").replace(/,/g, ""));
   return Number.isFinite(value) ? value : 0;
+}
+
+// Common transliterations from English to Hebrew (wine varietals, brands, etc.)
+const commonTransliterations = [
+  { en: "shiraz", he: ["שירז", "שיראז", "שיראס"] },
+  { en: "cabernet", he: ["קברנה", "קברנט", "קברנה סוביניון", "קברנה סוביניון"] },
+  { en: "sauvignon", he: ["סוביניון", "סוביניון בלאן", "סוביניון בלנק"] },
+  { en: "merlot", he: ["מרלו", "מרלוט"] },
+  { en: "chardonnay", he: ["שרדונה", "שרדונהי"] },
+  { en: "riesling", he: ["ריזלינג", "ריזלינג"] },
+  { en: "pinot", he: ["פינו", "פינוט"] },
+  { en: "sangiovese", he: ["סנג'ובזה", "סנג'ובזה"] },
+  { en: "tempranillo", he: ["טמפרנילו", "טמפרנילו"] },
+  { en: "malbec", he: ["מלבק", "מלבק"] },
+  { en: "syrah", he: ["סירה", "סיראח"] },
+  { en: "zinfandel", he: ["זינפנדל", "זינפנדל"] },
+  { en: "grenache", he: ["גרנאש", "גרנאצ'ה"] },
+  { en: "moscato", he: ["מוסקטו", "מוסקטו"] },
+  { en: "prosecco", he: ["פרוסקו", "פרוסקו"] },
+  { en: "champagne", he: ["שמפניה", "שמפאניה"] },
+  { en: "port", he: ["פורט", "פורטו"] },
+  { en: "sherry", he: ["שרי", "שרי"] },
+  { en: "talisker", he: ["טליסקר", "טליסקר"] },
+  { en: "macallan", he: ["מקאלן", "מקאלן", "מק קלאן"] },
+  { en: "glenfiddich", he: ["גלנפידיך", "גלנפידיץ'"] },
+  { en: "glenlivet", he: ["גלנליבט", "גלנליבט"] },
+  { en: "jameson", he: ["ג'יימסון", "ג'יימסון"] },
+  { en: "jack daniels", he: ["ג'ק דניאלס", "ג'ק דניאלס"] },
+  { en: "johnnie walker", he: ["ג'וני ווקר", "ג'וני ווקר"] },
+  { en: "hennessy", he: ["הניסי", "הניסי"] },
+  { en: "remy martin", he: ["רמי מרטן", "רמי מרטין"] },
+  { en: "cognac", he: ["קוניאק", "קוניאק"] },
+  { en: "vodka", he: ["וודקה", "וודקה"] },
+  { en: "gin", he: ["ג'ין", "גין"] },
+  { en: "rum", he: ["רום", "רום"] },
+  { en: "tequila", he: ["טקילה", "טקילה"] },
+  { en: "whiskey", he: ["וויסקי", "ויסקי"] },
+  { en: "whisky", he: ["וויסקי", "ויסקי"] },
+  { en: "brandy", he: ["ברנדי", "ברנדי"] },
+  { en: "liqueur", he: ["ליקר", "ליקר"] },
+  { en: "rose", he: ["רוזה", "רוז"] },
+  { en: "blanc", he: ["בלאן", "בלן"] },
+  { en: "noir", he: ["נואר", "נואר"] },
+  { en: "rouge", he: ["רוז'", "רוז"] },
+  { en: "brut", he: ["ברוט", "ברוט"] },
+  { en: "sec", he: ["סק", "סק"] },
+  { en: "demi", he: ["דמי", "דמי"] },
+  { en: "chateau", he: ["שאטו", "שאטו"] },
+  { en: "domaine", he: ["דומן", "דומן"] },
+  { en: "estate", he: ["אסטייט", "אסטייט"] },
+  { en: "reserve", he: ["רזרב", "רזרב"] },
+  { en: "grand", he: ["גרנד", "גרנד"] },
+  { en: "premier", he: ["פרמייר", "פרמייר"] },
+  { en: "cru", he: ["קרו", "קרו"] },
+  { en: "vintage", he: ["וינטג'", "וינטג"] },
+  { en: "cuvée", he: ["קובי", "קובי"] },
+  { en: "barrel", he: ["ברל", "ברל"] },
+  { en: "oak", he: ["אוק", "אוק"] },
+  { en: "bordeaux", he: ["בורדו", "בורדו"] },
+  { en: "burgundy", he: ["בורגונדי", "בורגונדי"] },
+  { en: "champagne", he: ["שמפניה", "שמפאניה"] },
+  { en: "tuscany", he: ["טוסקנה", "טוסקנה"] },
+  { en: "piedmont", he: ["פיימונטה", "פיימונטה"] },
+  { en: "rioja", he: ["ריווחה", "ריווחה"] },
+  { en: "napa", he: ["נאפה", "נאפה"] },
+  { en: "sonoma", he: ["סונומה", "סונומה"] },
+  { en: "mendoza", he: ["מנדוזה", "מנדוזה"] },
+  { en: "barossa", he: ["ברוסה", "ברוסה"] },
+  { en: "marlborough", he: ["מרלבורו", "מרלבורו"] },
+  { en: "castel", he: ["קסטל", "קסטל לה וי"] },
+  // Note: "mud house" and "new zealand" are handled as complex queries, not transliterations
+];
+
+// Check if two words/texts are transliterations of each other (English <-> Hebrew)
+function isTransliteration(text1, text2) {
+  const t1 = text1.toLowerCase().trim();
+  const t2 = text2.toLowerCase().trim();
+  
+  if (!t1 || !t2) return false;
+  
+  // Check if one contains English and the other contains Hebrew
+  const t1HasEnglish = /[a-z]/.test(t1);
+  const t2HasHebrew = /[\u0590-\u05FF]/.test(t2);
+  const t2HasEnglish = /[a-z]/.test(t2);
+  const t1HasHebrew = /[\u0590-\u05FF]/.test(t1);
+  
+  // Need one to have English and the other to have Hebrew
+  if (!((t1HasEnglish && t2HasHebrew) || (t2HasEnglish && t1HasHebrew))) {
+    return false;
+  }
+  
+  // Check against known transliterations
+  for (const trans of commonTransliterations) {
+    const enLower = trans.en.toLowerCase();
+    
+    // Check if English word appears in text1 and Hebrew appears in text2
+    if (t1HasEnglish && t2HasHebrew) {
+      // Check if English word is in text1 (as whole word or substring)
+      // First try exact match, then substring, then word boundary
+      const enInT1 = t1 === enLower || 
+                     t1.includes(enLower) || 
+                     new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t1);
+      
+      if (enInT1) {
+        // Check if any Hebrew variant appears in text2
+        if (trans.he.some(he => {
+          const heLower = he.toLowerCase();
+          // Check exact match first, then substring
+          return t2 === heLower || t2.includes(heLower);
+        })) {
+          return true;
+        }
+      }
+    }
+    
+    // Check if English word appears in text2 and Hebrew appears in text1
+    if (t2HasEnglish && t1HasHebrew) {
+      const enInT2 = t2 === enLower || 
+                     t2.includes(enLower) || 
+                     new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t2);
+      
+      if (enInT2) {
+        if (trans.he.some(he => {
+          const heLower = he.toLowerCase();
+          return t1 === heLower || t1.includes(heLower);
+        })) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
 }
 
 function isComplex(query) {
@@ -131,13 +316,27 @@ function isComplex(query) {
   if (skuPattern.test(lower)) return false;
   if (isPureEnglish(lower) && !lower.includes(" ")) return false;
 
+  // 🎯 Priority 1: Check for typos - if someone typo'd a brand name, they NEED semantic search!
+  // This is a strong indicator of complex query because regular search won't find it
+  if (hasSignificantTypo(lower)) return true;
+
   // Complex indicators
   if (containsAny(lower, contextDescriptors)) return true;
   if (currencyRegex.test(lower)) return true;
   if (rangeRegex.test(lower)) return true;
   if (dealRegex.test(lower)) return true;
+  
+  // Check for price-related words with numbers (e.g., "בפחות מ 50", "במחיר של 100")
+  if (/(?:מחיר|במחיר|עולה|עד|מעל|מתחת|פחות|יותר|בתקציב|תקציב|ב-|זול|יקר)\s*(?:של|מ)?[-\s]?\s*\d+/i.test(lower)) return true;
   if (containsAny(lower, attributeDescriptors)) return true;
   if (containsAny(lower, geoCountries)) return true;
+  
+  // Special location/brand searches that should be treated as complex queries
+  // These are location-based or brand-based searches that require semantic understanding
+  const mudHouseVariants = ["mud house", "mudhouse", "mud-house"];
+  const newZealandVariants = ["new zealand", "newzealand", "new-zealand", "ניו זילנד", "ניוזילנד", "ניו-זילנד"];
+  if (mudHouseVariants.some(variant => lower.includes(variant))) return true;
+  if (newZealandVariants.some(variant => lower.includes(variant))) return true;
   if (hasCategoryGeoPhrase(lower)) return true;
   if (containsAny(lower, tasteDescriptors)) return true;
   if (containsAny(lower, brandPhrases.map((phrase) => phrase.toLowerCase()))) return true;
@@ -157,6 +356,130 @@ function isComplex(query) {
   if (/[a-z]/i.test(lower)) return true;
 
   return false;
+}
+
+// Check if a purchase is an upsell - product was shown in results but not directly searched for
+function isUpsell(query, productName, deliveredProducts) {
+  if (!query || !productName || !deliveredProducts || deliveredProducts.length === 0) {
+    return false;
+  }
+  
+  const normalizedQuery = trimAndNormalize(query).toLowerCase();
+  const normalizedProduct = trimAndNormalize(productName).toLowerCase();
+  
+  // Check if product was in delivered results
+  const productInResults = deliveredProducts.some(p => 
+    trimAndNormalize(p).toLowerCase() === normalizedProduct
+  );
+  
+  if (!productInResults) {
+    return false; // Product wasn't even shown, so not an upsell
+  }
+  
+  // FIRST: Check for transliteration/translation match (e.g., "talisker" vs "טליסקר", "shiraz" vs "שירז")
+  // This must be checked BEFORE direct match to catch English->Hebrew translations
+  if (isTransliteration(normalizedQuery, normalizedProduct)) {
+    // Special case: "mud house" and "new zealand" should be treated as complex queries, not upsells
+    // These are location-based searches that should go to complex queries
+    const mudHouseVariants = ["mud house", "mudhouse", "mud-house"];
+    const newZealandVariants = ["new zealand", "newzealand", "new-zealand", "ניו זילנד", "ניוזילנד", "ניו-זילנד"];
+    const queryLower = normalizedQuery.toLowerCase();
+    const productLower = normalizedProduct.toLowerCase();
+    
+    // Check if query contains mud house or new zealand variants
+    const hasMudHouse = mudHouseVariants.some(variant => queryLower.includes(variant));
+    const hasNewZealand = newZealandVariants.some(variant => queryLower.includes(variant));
+    
+    // If query has these terms, it's a complex query, not an upsell
+    if (hasMudHouse || hasNewZealand) {
+      return false; // It's a complex query (location-based), not an upsell
+    }
+    
+    return false; // It's a transliteration, not an upsell
+  }
+  
+  // Extract meaningful words from query (ignore common words)
+  const queryWords = normalizedQuery.split(/\s+/).filter(word => 
+    word.length > 2 && !['עם', 'של', 'עד', 'מעל', 'מתחת', 'עבור', 'ליום', 'with', 'for', 'and', 'the'].includes(word)
+  );
+  
+  // Extract meaningful words from product
+  const productWords = normalizedProduct.split(/\s+/).filter(word => word.length > 2);
+  
+  // Check word-by-word for transliterations
+  for (const qWord of queryWords) {
+    for (const pWord of productWords) {
+      // Check if individual words are transliterations
+      if (isTransliteration(qWord, pWord)) {
+        return false; // It's a transliteration, not an upsell
+      }
+    }
+  }
+  
+  // Check for direct match (all query words in product)
+  const directMatch = queryWords.length > 0 && queryWords.every(word => 
+    normalizedProduct.includes(word)
+  );
+  
+  if (directMatch) {
+    return false; // Direct match - not an upsell
+  }
+  
+  // Compare using Levenshtein distance for similar-sounding words (same script)
+  for (const qWord of queryWords) {
+    for (const pWord of productWords) {
+      // Only use Levenshtein if both words are in the same script
+      const qIsEnglish = /^[a-z0-9\s'\"-]+$/i.test(qWord);
+      const pIsEnglish = /^[a-z0-9\s'\"-]+$/i.test(pWord);
+      const qIsHebrew = /[\u0590-\u05FF]/.test(qWord);
+      const pIsHebrew = /[\u0590-\u05FF]/.test(pWord);
+      
+      // If both are same script, use Levenshtein
+      if ((qIsEnglish && pIsEnglish) || (qIsHebrew && pIsHebrew)) {
+        const maxDistance = qWord.length <= 5 ? 2 : 3;
+        if (levenshtein(qWord, pWord) <= maxDistance) {
+          return false; // It's a translation/transliteration, not an upsell
+        }
+        
+        // Check if one contains the other (handles partial transliterations)
+        if (qWord.length >= 4 && pWord.length >= 4) {
+          if (qWord.includes(pWord) || pWord.includes(qWord)) {
+            return false; // Likely same product, different language
+          }
+        }
+      }
+    }
+  }
+  
+  // It's an upsell if: product was shown but doesn't match the query (not even transliteration)
+  return true;
+}
+
+// Determine the indicator type for a query/purchase
+function getIndicatorType(query, productName, deliveredProducts, hasPurchaseOrCart) {
+  // Only check for special indicators if there was actually a purchase or cart addition
+  if (!hasPurchaseOrCart) {
+    return { type: 'regular', isSpecial: false };
+  }
+  
+  // Priority 1: Check if it's a complex query (based on the query itself, not the product)
+  if (isComplex(query)) {
+    return { type: 'complex', isSpecial: true };
+  }
+  
+  // Priority 2: Check if it's a transliteration/translation (English <-> Hebrew)
+  // Transliterations should be marked as complex queries, not upsells
+  if (productName && isTransliteration(query, productName)) {
+    return { type: 'complex', isSpecial: true };
+  }
+  
+  // Priority 3: Check if it's an upsell (needs product name, and it's NOT a transliteration)
+  if (productName && isUpsell(query, productName, deliveredProducts)) {
+    return { type: 'upsell', isSpecial: true };
+  }
+  
+  // Regular purchase
+  return { type: 'regular', isSpecial: false };
 }
 
 function formatCurrency(value) {
@@ -715,6 +1038,9 @@ function AnalyticsPanel({ session, onboarding }) {
   
   // Semantix funnel state
   const [semantixExpanded, setSemantixExpanded] = useState(false);
+  
+  // Upsell analytics state
+  const [upsellExpanded, setUpsellExpanded] = useState(false);
   
   // Query results dropdown state
   const [expandedQueries, setExpandedQueries] = useState({});
@@ -1485,6 +1811,169 @@ function AnalyticsPanel({ session, onboarding }) {
     };
   }, [checkoutEvents, cartAnalytics]);
 
+  // Upsell Analytics - Calculate upsell purchases and cart additions
+  const upsellAnalytics = useMemo(() => {
+    // Create a map of queries to their delivered products for fast lookup
+    // Use normalized query text for better matching
+    const queryToDeliveredProducts = new Map();
+    
+    // Check if queries exists and is an array
+    if (!queries || !Array.isArray(queries)) {
+      return {
+        hasData: false,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        byQueryProduct: [],
+        queries: []
+      };
+    }
+    
+    queries.forEach(query => {
+      if (query && query.deliveredProducts && Array.isArray(query.deliveredProducts) && query.deliveredProducts.length > 0) {
+        const queryText = trimAndNormalize(query.query || '').toLowerCase();
+        queryToDeliveredProducts.set(queryText, query.deliveredProducts);
+        // Also store with original query for fallback
+        if (query.query) {
+          queryToDeliveredProducts.set(query.query.toLowerCase().trim(), query.deliveredProducts);
+        }
+      }
+    });
+
+    if (queryToDeliveredProducts.size === 0) {
+      return {
+        hasData: false,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        byQueryProduct: [],
+        queries: []
+      };
+    }
+
+    // Helper function to find delivered products for a query
+    const findDeliveredProducts = (searchQuery) => {
+      if (!searchQuery) return null;
+      const normalized = trimAndNormalize(searchQuery).toLowerCase();
+      return queryToDeliveredProducts.get(normalized) || 
+             queryToDeliveredProducts.get(searchQuery.toLowerCase().trim());
+    };
+
+    // Process checkout events (purchases)
+    const upsellPurchases = [];
+    checkoutEvents.forEach(event => {
+      const deliveredProducts = findDeliveredProducts(event.search_query);
+      
+      if (!deliveredProducts) return;
+
+      // Handle products array or single product
+      const products = Array.isArray(event.products) && event.products.length > 0
+        ? event.products
+        : [{
+            product_name: event.product_name || 'מוצר לא ידוע',
+            product_price: event.product_price || 0,
+            quantity: event.quantity || 1
+          }];
+
+      products.forEach(product => {
+        const productName = product.product_name || product.name || 'מוצר לא ידוע';
+        if (isUpsell(event.search_query, productName, deliveredProducts)) {
+          const quantity = Number(product.quantity) || 1;
+          const revenue = normalizePrice(event.cart_total ?? 0) || 
+                         normalizePrice(product.product_price || product.price || 0) * quantity;
+          upsellPurchases.push({
+            searchQuery: event.search_query,
+            productName,
+            quantity: quantity,
+            orderId: event.order_id || null,
+            revenue
+          });
+        }
+      });
+    });
+
+    // Only process checkout events (purchases), not cart additions
+    // User requested to only consider checkouts for upsell analytics
+    const allUpsells = upsellPurchases;
+
+    if (allUpsells.length === 0) {
+      return {
+        hasData: false,
+        totals: { revenue: 0, orders: 0, items: 0 },
+        byQueryProduct: [],
+        queries: []
+      };
+    }
+
+    // Calculate totals
+    const totalRevenue = allUpsells.reduce((sum, item) => sum + (Number(item.revenue) || 0), 0);
+    const totalItems = allUpsells.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const uniqueOrders = new Set(upsellPurchases.filter(p => p.orderId).map(p => p.orderId)).size;
+
+    // Group by query and product
+    const detailMap = new Map();
+    allUpsells.forEach(event => {
+      const key = `${event.searchQuery || "ללא שאילתה"}__${event.productName}`;
+      const entry = detailMap.get(key) || {
+        search_query: event.searchQuery || "ללא שאילתה",
+        product_name: event.productName,
+        orders: new Set(),
+        items: 0,
+        revenue: 0
+      };
+      if (event.orderId) {
+        entry.orders.add(event.orderId);
+      }
+      entry.items += Number(event.quantity) || 0;
+      entry.revenue += Number(event.revenue) || 0;
+      detailMap.set(key, entry);
+    });
+
+    const byQueryProduct = Array.from(detailMap.values())
+      .map((entry) => ({
+        search_query: entry.search_query,
+        product_name: entry.product_name,
+        orders: entry.orders.size,
+        items: entry.items,
+        revenue: entry.revenue
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Group by query for summary
+    const queryMap = new Map();
+    allUpsells.forEach(event => {
+      const existing = queryMap.get(event.searchQuery) || { 
+        query: event.searchQuery || "ללא שאילתה",
+        orders: new Set(),
+        items: 0,
+        revenue: 0
+      };
+      if (event.orderId) {
+        existing.orders.add(event.orderId);
+      }
+      existing.items += Number(event.quantity) || 0;
+      existing.revenue += Number(event.revenue) || 0;
+      queryMap.set(event.searchQuery, existing);
+    });
+
+    const upsellQueries = Array.from(queryMap.values())
+      .map(entry => ({
+        query: entry.query,
+        count: entry.orders.size || entry.items,
+        products: 1, // Will be calculated from unique products
+        revenue: entry.revenue
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    return {
+      hasData: true,
+      totals: {
+        revenue: totalRevenue,
+        orders: uniqueOrders,
+        items: totalItems
+      },
+      byQueryProduct,
+      queries: upsellQueries
+    };
+  }, [checkoutEvents, queries]); // Only checkouts, not cart additions
+
   // Export queries to CSV
   const downloadCSV = () => {
     if (!filteredQueries.length) {
@@ -2021,6 +2510,186 @@ function AnalyticsPanel({ session, onboarding }) {
                     </div>
                   )}
 
+                {/* Upsell Analytics Section */}
+                {upsellAnalytics.hasData && (
+                  <>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
+                    <div className="flex items-center space-x-4 space-x-reverse">
+                      <div className="relative flex-shrink-0">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                          <svg className="h-6 w-6 sm:h-7 sm:w-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                          ₪{upsellAnalytics.totals.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </h2>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1">רכישות מ-Upsell</p>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
+                          <span className="text-xs text-gray-500">
+                            {upsellAnalytics.totals.orders.toLocaleString('en-US')} הזמנות
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            {upsellAnalytics.totals.items.toLocaleString('en-US')} מוצרים
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => setUpsellExpanded(!upsellExpanded)}
+                      className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
+                    >
+                      {upsellExpanded ? (
+                        <>
+                          <span>הסתר פרטים</span>
+                          <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                        </>
+                      ) : (
+                        <>
+                          <span>קרא עוד</span>
+                          <ChevronDown className="h-4 w-4 transition-transform" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Expanded Details for Upsell */}
+                  {upsellExpanded && (
+                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                      <div>
+                        <h3 className="text-md font-medium text-gray-700 mb-4">
+                          שאילתות מובילות ל-Upsell (לפי הכנסות)
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  שאילתת חיפוש
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  הכנסות
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  הזמנות
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  מוצרים
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {upsellAnalytics.queries.length > 0 ? (
+                                upsellAnalytics.queries.map((item, index) => (
+                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                      {item.query}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-semibold text-purple-600">
+                                      ₪{item.revenue.toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                      {item.count}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                      {item.products}
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                    אין נתונים להצגה
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Detailed Query-Product Table */}
+                      <div>
+                        <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
+                        <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישת Upsell לפי שאילתה ומוצר</p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  שאילתת חיפוש
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  מוצר
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  הכנסות
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  הזמנות
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                  כמות
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {upsellAnalytics.byQueryProduct
+                                .filter(row => {
+                                  const productName = (row.product_name || '').toLowerCase();
+                                  return productName && 
+                                         productName !== 'n/a' && 
+                                         productName !== 'לא ידוע' && 
+                                         productName !== 'ללא שם מוצר';
+                                })
+                                .slice(0, 50)
+                                .map((row, index) => (
+                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                      {row.search_query || "ללא שאילתה"}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-700">
+                                      {row.product_name}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-semibold text-purple-600">
+                                      ₪{row.revenue.toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                      {row.orders}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                      {row.items}
+                                    </td>
+                                  </tr>
+                                ))}
+                              {upsellAnalytics.byQueryProduct.length === 0 && (
+                                <tr>
+                                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                    אין נתונים להצגה
+                                  </td>
+                                </tr>
+                              )}
+                              {upsellAnalytics.byQueryProduct.length > 50 && (
+                                <tr>
+                                  <td colSpan={5} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
+                                    מציג 50 ראשונים מתוך {upsellAnalytics.byQueryProduct.length} רכישות Upsell
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  </>
+                )}
+
                 {/* Expanded Details for Add to Cart */}
                 {cartDetailsExpanded && (
                   <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
@@ -2176,6 +2845,18 @@ function AnalyticsPanel({ session, onboarding }) {
           <div className="block md:hidden p-4 space-y-3" dir="rtl">
             {displayedQueries.map((query, index) => {
               const queryText = (query.query || '').toLowerCase().trim();
+              const deliveredProducts = query.deliveredProducts || [];
+              
+              // Create a Set of normalized delivered product names for fast lookup
+              const deliveredProductsSet = new Set(
+                deliveredProducts.map(p => trimAndNormalize(p).toLowerCase())
+              );
+              
+              // Helper function to check if product was in delivered results
+              const wasProductDelivered = (productName) => {
+                if (!productName || deliveredProductsSet.size === 0) return false;
+                return deliveredProductsSet.has(trimAndNormalize(productName).toLowerCase());
+              };
               
               const cartProducts = cartAnalytics
                 .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
@@ -2184,6 +2865,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   price: item.product_price || 0,
                   quantity: item.quantity || 1
                 }))
+                .filter(product => wasProductDelivered(product.name)) // Only products that were shown
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
               
               const purchaseProducts = checkoutEvents
@@ -2202,11 +2884,11 @@ function AnalyticsPanel({ session, onboarding }) {
                     quantity: item.quantity || 1
                   }];
                 })
-                .filter(item => item.name);
+                .filter(item => item.name && wasProductDelivered(item.name)) // Only products that were shown
+                .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
               
               const hasCartAddition = cartProducts.length > 0;
               const hasPurchase = purchaseProducts.length > 0;
-              const deliveredProducts = query.deliveredProducts || [];
               const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
               const isExpanded = expandedQueries[index] || false;
               
@@ -2217,10 +2899,37 @@ function AnalyticsPanel({ session, onboarding }) {
                 }));
               };
               
-              // Determine card border color
+              // Determine indicator type (complex/upsell/regular)
+              const primaryProduct = purchaseProducts[0] || cartProducts[0];
+              const indicatorType = getIndicatorType(
+                query.query, 
+                primaryProduct?.name, 
+                deliveredProducts,
+                hasCartAddition || hasPurchase
+              );
+              
+              // Determine card border color based on indicator type
+              // Purchase = always purple, Cart = always green
               let borderColor = 'border-gray-200';
-              if (hasPurchase) borderColor = 'border-purple-300 bg-purple-50/30';
-              else if (hasCartAddition) borderColor = 'border-green-300 bg-green-50/30';
+              if (hasPurchase) {
+                // Purchase: always purple (complex, upsell, or regular)
+                if (indicatorType.type === 'complex') {
+                  borderColor = 'border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50';
+                } else if (indicatorType.type === 'upsell') {
+                  borderColor = 'border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50';
+                } else {
+                  borderColor = 'border-purple-300 bg-purple-50/30';
+                }
+              } else if (hasCartAddition) {
+                // Cart: always green (complex, upsell, or regular)
+                if (indicatorType.type === 'complex') {
+                  borderColor = 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50';
+                } else if (indicatorType.type === 'upsell') {
+                  borderColor = 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50';
+                } else {
+                  borderColor = 'border-green-300 bg-green-50/30';
+                }
+              }
               
               return (
                 <div key={index} className={`border-2 ${borderColor} rounded-lg p-3 transition-all`}>
@@ -2234,18 +2943,70 @@ function AnalyticsPanel({ session, onboarding }) {
                     </div>
                     <div className="flex gap-1.5">
                       {hasPurchase && (
-                        <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-100 rounded-full">
-                          <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                          </svg>
-                        </span>
+                        <>
+                          {indicatorType.type === 'complex' ? (
+                            <div className="relative">
+                              <span className="inline-flex items-center justify-center w-8 h-8 bg-purple-600 rounded-full shadow-[0_0_15px_rgba(147,51,234,0.5)] hover:shadow-[0_0_20px_rgba(147,51,234,0.7)] transition-shadow animate-pulse">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              </span>
+                              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-300 opacity-75"></span>
+                              </span>
+                            </div>
+                          ) : indicatorType.type === 'upsell' ? (
+                            <div className="relative">
+                              <span className="inline-flex items-center justify-center w-8 h-8 bg-purple-600 rounded-full shadow-[0_0_15px_rgba(147,51,234,0.5)] hover:shadow-[0_0_20px_rgba(147,51,234,0.7)] transition-shadow animate-pulse">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                                </svg>
+                              </span>
+                              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-300 opacity-75"></span>
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-100 rounded-full">
+                              <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                              </svg>
+                            </span>
+                          )}
+                        </>
                       )}
                       {hasCartAddition && !hasPurchase && (
-                        <span className="inline-flex items-center justify-center w-7 h-7 bg-green-100 rounded-full">
-                          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                          </svg>
-                        </span>
+                        <>
+                          {indicatorType.type === 'complex' ? (
+                            <div className="relative">
+                              <span className="inline-flex items-center justify-center w-8 h-8 bg-green-600 rounded-full shadow-[0_0_15px_rgba(22,163,74,0.5)] hover:shadow-[0_0_20px_rgba(22,163,74,0.7)] transition-shadow animate-pulse">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                              </span>
+                              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                              </span>
+                            </div>
+                          ) : indicatorType.type === 'upsell' ? (
+                            <div className="relative">
+                              <span className="inline-flex items-center justify-center w-8 h-8 bg-green-600 rounded-full shadow-[0_0_15px_rgba(22,163,74,0.5)] hover:shadow-[0_0_20px_rgba(22,163,74,0.7)] transition-shadow animate-pulse">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                                </svg>
+                              </span>
+                              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-7 h-7 bg-green-100 rounded-full">
+                              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                              </svg>
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -2264,12 +3025,30 @@ function AnalyticsPanel({ session, onboarding }) {
                   
                   {/* Purchase/Cart Products Info */}
                   {hasPurchase && (
-                    <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded">
-                      <div className="flex items-center gap-1 mb-1">
-                        <svg className="w-3.5 h-3.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                        </svg>
-                        <span className="text-xs font-semibold text-purple-700">נרכש</span>
+                    <div className={`mb-2 p-2 rounded-lg ${
+                      indicatorType.type === 'complex' 
+                        ? 'bg-purple-50/80 border border-purple-200' 
+                        : indicatorType.type === 'upsell'
+                        ? 'bg-purple-50/80 border border-purple-200'
+                        : 'bg-purple-50 border border-purple-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {indicatorType.type === 'complex' ? (
+                          <span className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded-full font-medium animate-pulse">
+                            חיפוש מורכב
+                          </span>
+                        ) : indicatorType.type === 'upsell' ? (
+                          <span className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded-full font-medium animate-pulse">
+                            Upsell
+                          </span>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        )}
+                        <span className="text-xs font-medium text-purple-800">
+                          {indicatorType.type === 'complex' || indicatorType.type === 'upsell' ? 'נרכש' : 'נרכש'}
+                        </span>
                       </div>
                       <div className="text-xs text-purple-800 space-y-0.5">
                         {purchaseProducts.slice(0, 2).map((product, idx) => (
@@ -2291,12 +3070,30 @@ function AnalyticsPanel({ session, onboarding }) {
                   )}
                   
                   {hasCartAddition && !hasPurchase && (
-                    <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded">
-                      <div className="flex items-center gap-1 mb-1">
-                        <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                        </svg>
-                        <span className="text-xs font-semibold text-green-700">נוסף לעגלה</span>
+                    <div className={`mb-2 p-2 rounded-lg ${
+                      indicatorType.type === 'complex'
+                        ? 'bg-green-50/80 border border-green-200'
+                        : indicatorType.type === 'upsell'
+                        ? 'bg-green-50/80 border border-green-200'
+                        : 'bg-green-50 border border-green-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {indicatorType.type === 'complex' ? (
+                          <span className="text-[10px] px-2 py-0.5 bg-green-600 text-white rounded-full font-medium animate-pulse">
+                            חיפוש מורכב
+                          </span>
+                        ) : indicatorType.type === 'upsell' ? (
+                          <span className="text-[10px] px-2 py-0.5 bg-green-600 text-white rounded-full font-medium animate-pulse">
+                            Upsell
+                          </span>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        )}
+                        <span className="text-xs font-medium text-green-800">
+                          נוסף לעגלה
+                        </span>
                       </div>
                       <div className="text-xs text-green-800 space-y-0.5">
                         {cartProducts.slice(0, 2).map((product, idx) => (
@@ -2380,6 +3177,18 @@ function AnalyticsPanel({ session, onboarding }) {
                 {displayedQueries.map((query, index) => {
                   // Check if this query led to cart addition or purchase and get products
                   const queryText = (query.query || '').toLowerCase().trim();
+                  const deliveredProducts = query.deliveredProducts || [];
+                  
+                  // Create a Set of normalized delivered product names for fast lookup
+                  const deliveredProductsSet = new Set(
+                    deliveredProducts.map(p => trimAndNormalize(p).toLowerCase())
+                  );
+                  
+                  // Helper function to check if product was in delivered results
+                  const wasProductDelivered = (productName) => {
+                    if (!productName || deliveredProductsSet.size === 0) return false;
+                    return deliveredProductsSet.has(trimAndNormalize(productName).toLowerCase());
+                  };
                   
                   const cartProducts = cartAnalytics
                     .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
@@ -2388,6 +3197,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       price: item.product_price || 0,
                       quantity: item.quantity || 1
                     }))
+                    .filter(product => wasProductDelivered(product.name)) // Only products that were shown
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
                   
                   const purchaseProducts = checkoutEvents
@@ -2407,13 +3217,11 @@ function AnalyticsPanel({ session, onboarding }) {
                         quantity: item.quantity || 1
                       }];
                     })
-                    .filter(item => item.name);
+                    .filter(item => item.name && wasProductDelivered(item.name)) // Only products that were shown
+                    .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
                   
                   const hasCartAddition = cartProducts.length > 0;
                   const hasPurchase = purchaseProducts.length > 0;
-                  
-                  // Check if query has delivered products (camelCase)
-                  const deliveredProducts = query.deliveredProducts || [];
                   const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
                   const isExpanded = expandedQueries[index] || false;
                   
@@ -2423,6 +3231,15 @@ function AnalyticsPanel({ session, onboarding }) {
                       [index]: !prev[index]
                     }));
                   };
+                  
+                  // Determine indicator type for desktop view
+                  const primaryProduct = purchaseProducts[0] || cartProducts[0];
+                  const indicatorType = getIndicatorType(
+                    query.query, 
+                    primaryProduct?.name, 
+                    deliveredProducts,
+                    hasCartAddition || hasPurchase
+                  );
                   
                   return (
                     <tr
@@ -2481,12 +3298,46 @@ function AnalyticsPanel({ session, onboarding }) {
                       </td>
                       <td className="px-6 py-4">
                         {hasCartAddition ? (
-                          <div className="flex flex-col items-center">
-                            <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 rounded-full mb-2">
-                              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                              </svg>
-                            </span>
+                          <div className="flex flex-col items-center gap-2">
+                            {indicatorType.type === 'complex' && !hasPurchase ? (
+                              <>
+                                <div className="relative">
+                                  <span className="inline-flex items-center justify-center w-7 h-7 bg-green-600 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.4)] hover:shadow-[0_0_16px_rgba(22,163,74,0.6)] transition-shadow animate-pulse">
+                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  </span>
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-semibold text-green-600 uppercase tracking-wide">
+                                  חיפוש מורכב
+                                </span>
+                              </>
+                            ) : indicatorType.type === 'upsell' && !hasPurchase ? (
+                              <>
+                                <div className="relative">
+                                  <span className="inline-flex items-center justify-center w-7 h-7 bg-green-600 rounded-full shadow-[0_0_12px_rgba(22,163,74,0.4)] hover:shadow-[0_0_16px_rgba(22,163,74,0.6)] transition-shadow animate-pulse">
+                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                                    </svg>
+                                  </span>
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-semibold text-green-600 uppercase tracking-wide">
+                                  Upsell
+                                </span>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
+                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                </svg>
+                              </span>
+                            )}
                             <div className="text-xs text-gray-700 max-w-xs space-y-1">
                               {cartProducts.slice(0, 2).map((product, idx) => (
                                 <div key={idx} className="flex flex-col items-center gap-0.5">
@@ -2504,12 +3355,46 @@ function AnalyticsPanel({ session, onboarding }) {
                       </td>
                       <td className="px-6 py-4">
                         {hasPurchase ? (
-                          <div className="flex flex-col items-center">
-                            <span className="inline-flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full mb-2">
-                              <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                              </svg>
-                            </span>
+                          <div className="flex flex-col items-center gap-2">
+                            {indicatorType.type === 'complex' ? (
+                              <>
+                                <div className="relative">
+                                  <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-600 rounded-full shadow-[0_0_12px_rgba(147,51,234,0.4)] hover:shadow-[0_0_16px_rgba(147,51,234,0.6)] transition-shadow animate-pulse">
+                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  </span>
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-300 opacity-75"></span>
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-semibold text-purple-600 uppercase tracking-wide">
+                                  חיפוש מורכב
+                                </span>
+                              </>
+                            ) : indicatorType.type === 'upsell' ? (
+                              <>
+                                <div className="relative">
+                                  <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-600 rounded-full shadow-[0_0_12px_rgba(147,51,234,0.4)] hover:shadow-[0_0_16px_rgba(147,51,234,0.6)] transition-shadow animate-pulse">
+                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                                    </svg>
+                                  </span>
+                                  <span className="absolute -top-0.5 -right-0.5 flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-300 opacity-75"></span>
+                                  </span>
+                                </div>
+                                <span className="text-[9px] font-semibold text-purple-600 uppercase tracking-wide">
+                                  Upsell
+                                </span>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
+                                <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                </svg>
+                              </span>
+                            )}
                             <div className="text-xs text-gray-700 max-w-xs space-y-1">
                               {purchaseProducts.slice(0, 2).map((product, idx) => (
                                 <div key={idx} className="flex flex-col items-center gap-0.5">
