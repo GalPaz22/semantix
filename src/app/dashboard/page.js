@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MenuConnector from '../components/MenuConnector';
 import ProductsPanel from '../components/ProductsPanel';
+import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
 
 // ===============================
 // Add this to your existing dashboard file
@@ -4802,6 +4803,7 @@ const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "insights", label: "תובנות עסקיות", link: "/analytics", icon: TrendingUp, external: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
+  { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
   { id: "apikey", label: "מפתח API", component: ApiKeyPanel, icon: ListTodo },
   { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard }
