@@ -399,10 +399,18 @@ export async function POST(req) {
     const isFirstTimeOnboarding = !existingUser?.onboardingComplete;
 
     // Remove platform from credentials.
+    // Initialize default boost values (1.0) for all soft categories
+    const softCategoryBoosts = {};
+    if (Array.isArray(softCategories)) {
+      softCategories.forEach(category => {
+        softCategoryBoosts[category] = 1.0;
+      });
+    }
+
     const credentials =
       platform === "shopify"
-        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories }
-        : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories };
+        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories, softCategoryBoosts }
+        : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories, softCategoryBoosts };
 
     // Update the user record with credentials and trial information
     const updateData = {

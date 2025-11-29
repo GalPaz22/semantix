@@ -10,15 +10,16 @@ const adminEmail = "galpaz2210@gmail.com"; // Admin user email
 
 /**
  * POST /api/admin/update-user-config
- * 
- * Admin endpoint to update user's categories, types, and soft categories
- * 
+ *
+ * Admin endpoint to update user's categories, types, soft categories, and category boosts
+ *
  * Body:
  * {
  *   "apiKey": "user-api-key-here",
  *   "categories": ["Cat1", "Cat2"],
  *   "types": ["Type1", "Type2"],
- *   "softCategories": ["Soft1", "Soft2"]
+ *   "softCategories": ["Soft1", "Soft2"],
+ *   "softCategoryBoosts": { "Soft1": 1.5, "Soft2": 2.0 } // optional
  * }
  */
 export async function POST(request) {
@@ -33,16 +34,25 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories } = body;
+    const { apiKey, categories, types, softCategories, softCategoryBoosts } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
     }
 
     if (!Array.isArray(categories) || !Array.isArray(types) || !Array.isArray(softCategories)) {
-      return NextResponse.json({ 
-        error: "categories, types, and softCategories must be arrays" 
+      return NextResponse.json({
+        error: "categories, types, and softCategories must be arrays"
       }, { status: 400 });
+    }
+
+    // Initialize boosts if not provided
+    let boosts = softCategoryBoosts;
+    if (!boosts || typeof boosts !== 'object') {
+      boosts = {};
+      softCategories.forEach(category => {
+        boosts[category] = 1.0;
+      });
     }
 
     // Connect to database
@@ -60,13 +70,14 @@ export async function POST(request) {
     // Update user's configuration
     const result = await users.updateOne(
       { apiKey },
-      { 
-        $set: { 
+      {
+        $set: {
           "credentials.categories": categories,
           "credentials.type": types,
           "credentials.softCategories": softCategories,
+          "credentials.softCategoryBoosts": boosts,
           updatedAt: new Date()
-        } 
+        }
       }
     );
 
