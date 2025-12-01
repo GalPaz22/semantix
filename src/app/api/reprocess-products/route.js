@@ -19,6 +19,7 @@ export async function POST(request) {
       reprocessVariants,
       reprocessEmbeddings,
       reprocessDescriptions,
+      translateBeforeEmbedding,
       reprocessAll
     } = await request.json();
     console.log(`📝 DB Name from request: ${dbNameFromRequest}`);
@@ -36,6 +37,7 @@ export async function POST(request) {
     console.log("- Variants:", reprocessVariants !== undefined ? reprocessVariants : "default (true)");
     console.log("- Embeddings:", reprocessEmbeddings !== undefined ? reprocessEmbeddings : "default (false)");
     console.log("- Descriptions:", reprocessDescriptions !== undefined ? reprocessDescriptions : "default (false)");
+    console.log("- Translation:", translateBeforeEmbedding !== undefined ? translateBeforeEmbedding : "default (false)");
     console.log("- All:", reprocessAll !== undefined ? reprocessAll : "default (false)");
     
     const client = await clientPromise;
@@ -95,6 +97,7 @@ export async function POST(request) {
         reprocessVariants: reprocessVariants !== undefined ? reprocessVariants : true,
         reprocessEmbeddings: reprocessEmbeddings !== undefined ? reprocessEmbeddings : false,
         reprocessDescriptions: reprocessDescriptions !== undefined ? reprocessDescriptions : false,
+        translateBeforeEmbedding: translateBeforeEmbedding !== undefined ? translateBeforeEmbedding : false,
         reprocessAll: reprocessAll !== undefined ? reprocessAll : false
       }
     };

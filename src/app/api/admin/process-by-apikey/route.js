@@ -120,8 +120,8 @@ export async function POST(request) {
     // Prepare processing options with defaults
     const processingOptions = {
       reprocessAll: options?.reprocessAll || false,
-      reprocessHardCategories: options?.reprocessCategories !== undefined 
-        ? options.reprocessCategories 
+      reprocessHardCategories: options?.reprocessHardCategories !== undefined 
+        ? options.reprocessHardCategories 
         : true,
       reprocessTypes: options?.reprocessTypes !== undefined 
         ? options.reprocessTypes 
@@ -129,24 +129,30 @@ export async function POST(request) {
       reprocessSoftCategories: options?.reprocessSoftCategories !== undefined 
         ? options.reprocessSoftCategories 
         : true,
-      reprocessVariants: options?.reprocessVariants || false,
-      reprocessDescriptions: options?.reprocessDescriptions || false,
-      reprocessEmbeddings: options?.reprocessEmbeddings || false,
-      translateBeforeEmbedding: options?.translateBeforeEmbedding || false,
-      targetCategory: options?.targetCategory || null
+      reprocessVariants: options?.reprocessVariants !== undefined 
+        ? options.reprocessVariants 
+        : false,
+      reprocessDescriptions: options?.reprocessDescriptions !== undefined 
+        ? options.reprocessDescriptions 
+        : false,
+      reprocessEmbeddings: options?.reprocessEmbeddings !== undefined 
+        ? options.reprocessEmbeddings 
+        : false,
+      translateBeforeEmbedding: options?.translateBeforeEmbedding !== undefined 
+        ? options.translateBeforeEmbedding 
+        : false
     };
 
     // Trigger reprocessing (this runs in background)
+    // Match the signature expected by reprocess-products.js
     reprocessProducts({
-      userEmail,
-      cliDbName: dbName,
+      dbName,
       categories,
       userTypes,
       softCategories,
-      context,
-      explain,
-      syncMode,
-      ...processingOptions
+      targetCategory: options?.targetCategory || null,
+      missingSoftCategoryOnly: options?.missingSoftCategoryOnly || false,
+      options: processingOptions
     }).catch(err => {
       console.error(`❌ Error in background processing for ${userEmail}:`, err);
     });

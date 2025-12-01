@@ -33,6 +33,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [selectedType, setSelectedType] = useState('');
   const [selectedSoftCategory, setSelectedSoftCategory] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, instock, outofstock
+  const [processedFilter, setProcessedFilter] = useState('all'); // all, processed, unprocessed
   const [currentPage, setCurrentPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -96,7 +97,8 @@ export default function ProductsPanel({ session, onboarding }) {
           category: selectedCategory,
           type: selectedType,
           softCategory: selectedSoftCategory,
-          status: statusFilter
+          status: statusFilter,
+          processed: processedFilter
         })
       });
       
@@ -148,7 +150,7 @@ export default function ProductsPanel({ session, onboarding }) {
       setCurrentPage(1);
       fetchProducts(true);
     }
-  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter]);
+  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter, processedFilter]);
 
 
 
@@ -271,7 +273,7 @@ export default function ProductsPanel({ session, onboarding }) {
           <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
             <div className="relative">
@@ -350,6 +352,19 @@ export default function ProductsPanel({ session, onboarding }) {
             </select>
           </div>
           
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Processing</label>
+            <select
+              value={processedFilter}
+              onChange={(e) => setProcessedFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="all">All Products</option>
+              <option value="processed">Processed</option>
+              <option value="unprocessed">Unprocessed</option>
+            </select>
+          </div>
+          
           <div className="flex items-end">
             <button
               onClick={() => {
@@ -359,6 +374,7 @@ export default function ProductsPanel({ session, onboarding }) {
                 setSelectedType('');
                 setSelectedSoftCategory('');
                 setStatusFilter('all');
+                setProcessedFilter('all');
                 setCurrentPage(1);
               }}
               className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"

@@ -6,6 +6,8 @@ import Link from "next/link";
 import MenuConnector from '../components/MenuConnector';
 import ProductsPanel from '../components/ProductsPanel';
 import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
+import AdminPanel from '../components/AdminPanel';
+import DemoPanel from '../components/DemoPanel';
 
 // ===============================
 // Add this to your existing dashboard file
@@ -44,6 +46,7 @@ import {
   ShoppingCart,
   Package,
   DollarSign,
+  Monitor,
   
 } from "lucide-react";
 
@@ -4806,7 +4809,9 @@ const PANELS = [
   { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
   { id: "apikey", label: "מפתח API", component: ApiKeyPanel, icon: ListTodo },
-  { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard }
+  { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard },
+  { id: "demo", label: "דמו חיפוש", component: DemoPanel, icon: Monitor },
+  { id: "admin", label: "פאנל ניהול", component: AdminPanel, icon: Shield }
 ];
 
 /* =================================================================== */

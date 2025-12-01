@@ -11,7 +11,8 @@ export async function POST(request) {
       category = '', 
       type = '', 
       softCategory = '',
-      status = 'all' 
+      status = 'all',
+      processed = 'all'
     } = await request.json();
     
     if (!dbName) {
@@ -45,14 +46,32 @@ export async function POST(request) {
       filter.softCategory = softCategory;
     }
     
-    // Status filter
-    if (status === 'processed') {
-      filter.embedding = { $exists: true, $ne: null };
-      filter.description1 = { $exists: true, $ne: null };
-    } else if (status === 'instock') {
+    // Status filter (stock status)
+    if (status === 'instock') {
       filter.stockStatus = { $ne: 'outofstock' };
     } else if (status === 'outofstock') {
       filter.stockStatus = 'outofstock';
+    }
+    
+    // Processing filter
+    if (processed === 'processed') {
+      filter.$and = [
+        { category: { $exists: true, $ne: null, $ne: [] } },
+        { $or: [
+          { type: { $exists: true, $ne: null, $ne: [] } },
+          { softCategory: { $exists: true, $ne: null, $ne: [] } }
+        ]}
+      ];
+    } else if (processed === 'unprocessed') {
+      filter.$or = [
+        { category: { $exists: false } },
+        { category: null },
+        { category: [] },
+        { $and: [
+          { $or: [{ type: { $exists: false } }, { type: null }, { type: [] }] },
+          { $or: [{ softCategory: { $exists: false } }, { softCategory: null }, { softCategory: [] }] }
+        ]}
+      ];
     }
     
     // Calculate pagination

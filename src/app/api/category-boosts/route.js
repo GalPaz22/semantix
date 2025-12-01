@@ -87,7 +87,7 @@ export async function POST(request) {
       { email: session.user.email },
       {
         $set: {
-          "credentials.softCategoryBoosts": boosts,
+          "credentials.softCategoryBoosted": boosts,
           updatedAt: new Date()
         }
       }
