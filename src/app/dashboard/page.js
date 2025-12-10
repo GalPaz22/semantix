@@ -1623,6 +1623,12 @@ function AnalyticsPanel({ session, onboarding }) {
     const complexPurchases = dataSource
       .filter((event) => {
         const query = event.search_query || "";
+        
+        // Skip events with more than 3 products
+        if (Array.isArray(event.products) && event.products.length > 3) {
+          return false;
+        }
+        
         return isComplex(query);
       })
       .map((event) => {
@@ -1680,10 +1686,13 @@ function AnalyticsPanel({ session, onboarding }) {
     let totalRevenue = 0;
     let totalItems = 0;
     let totalCartAdditions = 0; // Count of cart additions
+    let totalPurchases = 0; // Count of all purchase events
 
     complexPurchases.forEach((event) => {
       if (mode === 'checkout') {
-        // For checkout: count unique order IDs
+        // For checkout: count all purchase events
+        totalPurchases += 1;
+        // Also track unique order IDs for reference
         if (event.orderId) {
           orderSet.add(event.orderId);
         }
@@ -1804,7 +1813,7 @@ function AnalyticsPanel({ session, onboarding }) {
       assumptions,
       totals: {
         revenue: totalRevenue,
-        orders: mode === 'checkout' ? orderSet.size : totalCartAdditions,
+        orders: mode === 'checkout' ? totalPurchases : totalCartAdditions,
         items: totalItems
       },
       weekly,
@@ -1865,6 +1874,11 @@ function AnalyticsPanel({ session, onboarding }) {
       const deliveredProducts = findDeliveredProducts(event.search_query);
       
       if (!deliveredProducts) return;
+      
+      // Skip events with more than 3 products
+      if (Array.isArray(event.products) && event.products.length > 3) {
+        return;
+      }
 
       // Handle products array or single product
       const products = Array.isArray(event.products) && event.products.length > 0
@@ -2314,8 +2328,8 @@ function AnalyticsPanel({ session, onboarding }) {
                 </>
                 )}
 
-                {/* Semantix Purchases Funnel - Concise View */}
-                {semantixFunnel.hasData && (
+                {/* Combined Semantix Purchases - Complex Queries + Upsells */}
+                {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout') || upsellAnalytics.hasData) && (
                   <>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
                     <div className="flex items-center space-x-4 space-x-reverse">
@@ -2339,16 +2353,18 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                       <div className="mr-3 sm:mr-4 min-w-0 flex-1">
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                          ₪{(semantixFunnel.totals.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₪{((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.revenue || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.revenue || 0) : 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </h2>
                         <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                          {semantixFunnel.mode === 'checkout' 
-                            ? 'רכישות דרך סמנטיקס (שאילתות מורכבות)' 
-                            : 'הוספות לעגלה דרך סמנטיקס (הכנסות משוערות)'}
+                          רכישות דרך סמנטיקס - חיפושים מורכבים ו-Upsell
                         </p>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                           <span className="text-xs text-gray-500">
-                            {(semantixFunnel.totals.orders || 0).toLocaleString('en-US')} {semantixFunnel.mode === 'checkout' ? 'הזמנות' : 'הוספות לעגלה'}
+                            {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.orders || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.orders || 0) : 0)).toLocaleString('en-US')} רכישות
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.items || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.items || 0) : 0)).toLocaleString('en-US')} מוצרים
                           </span>
           </div>
             </div>
@@ -2372,13 +2388,20 @@ function AnalyticsPanel({ session, onboarding }) {
                     </button>
         </div>
 
-                  {/* Expanded Details for Semantix */}
+                  {/* Expanded Details - Combined View */}
                   {semantixExpanded && (
-                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
-                      <div>
-                        <h3 className="text-md font-medium text-gray-700 mb-4">
-                          שאילתות מורכבות מובילות (לפי {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'})
-                        </h3>
+                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-8">
+                      {/* Complex Queries Section */}
+                      {semantixFunnel.hasData && semantixFunnel.mode === 'checkout' && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                            חיפושים מורכבים
+                          </h3>
+                          <div className="space-y-6">
+                            <div>
+                              <h4 className="text-md font-medium text-gray-700 mb-4">
+                                שאילתות מורכבות מובילות (לפי הכנסות)
+                              </h4>
                         <div className="overflow-x-auto">
                           <table className="w-full table-auto">
                             <thead>
@@ -2511,64 +2534,21 @@ function AnalyticsPanel({ session, onboarding }) {
                           </table>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                {/* Upsell Analytics Section */}
-                {upsellAnalytics.hasData && (
-                  <>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
-                    <div className="flex items-center space-x-4 space-x-reverse">
-                      <div className="relative flex-shrink-0">
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                          <svg className="h-6 w-6 sm:h-7 sm:w-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                          </svg>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mr-3 sm:mr-4 min-w-0 flex-1">
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                          ₪{upsellAnalytics.totals.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">רכישות מ-Upsell</p>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
-                          <span className="text-xs text-gray-500">
-                            {upsellAnalytics.totals.orders.toLocaleString('en-US')} הזמנות
-                          </span>
-                          <span className="text-xs text-gray-500">•</span>
-                          <span className="text-xs text-gray-500">
-                            {upsellAnalytics.totals.items.toLocaleString('en-US')} מוצרים
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={() => setUpsellExpanded(!upsellExpanded)}
-                      className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
-                    >
-                      {upsellExpanded ? (
-                        <>
-                          <span>הסתר פרטים</span>
-                          <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
-                        </>
-                      ) : (
-                        <>
-                          <span>קרא עוד</span>
-                          <ChevronDown className="h-4 w-4 transition-transform" />
-                        </>
                       )}
-                    </button>
-                  </div>
 
-                  {/* Expanded Details for Upsell */}
-                  {upsellExpanded && (
-                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
-                      <div>
-                        <h3 className="text-md font-medium text-gray-700 mb-4">
-                          שאילתות מובילות ל-Upsell (לפי הכנסות)
-                        </h3>
+                      {/* Upsell Section */}
+                      {upsellAnalytics.hasData && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                            רכישות דרך Upsell
+                          </h3>
+                          <div className="space-y-6">
+                            <div>
+                              <h4 className="text-md font-medium text-gray-700 mb-4">
+                                שאילתות מובילות ל-Upsell (לפי הכנסות)
+                              </h4>
                         <div className="overflow-x-auto">
                           <table className="w-full table-auto">
                             <thead>
@@ -2689,6 +2669,9 @@ function AnalyticsPanel({ session, onboarding }) {
                           </table>
                         </div>
                       </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   </>
@@ -2828,8 +2811,6 @@ function AnalyticsPanel({ session, onboarding }) {
                     )}
                   </div>
                 )}
-              </>
-            )}
               </>
             )}
           </div>
