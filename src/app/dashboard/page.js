@@ -1253,12 +1253,12 @@ function AnalyticsPanel({ session, onboarding }) {
   const totalLoaded = queries.length;
   const filteredCount = filteredQueries.length;
   const totalPages = Math.ceil(filteredCount / itemsPerPage);
+
+  // Sort all filtered queries by timestamp (newest first), then paginate
   const displayedQueries = filteredQueries
-    .slice(0)
-    .reverse()
-    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
 
   const maxPageButtons = 5;
   let startPage = Math.max(1, currentPage - 2);
