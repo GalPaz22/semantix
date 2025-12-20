@@ -1058,11 +1058,11 @@ function AnalyticsPanel({ session, onboarding }) {
   const [categoryOptions, setCategoryOptions] = useState([]);
 
   // Date filtering defaults and pagination state.
-  // Initialize with 30 days by default
+  // Initialize with 7 days by default
   const getDefaultDates = () => {
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
+    startDate.setDate(startDate.getDate() - 7);
     return {
       start: startDate.toISOString().split('T')[0],
       end: endDate.toISOString().split('T')[0]
@@ -1077,7 +1077,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
   // Time period dropdown states
   const [timePeriodOpen, setTimePeriodOpen] = useState(false);
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("30d");
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState("7d");
 
   // Time period options
   const timePeriods = [
@@ -1115,7 +1115,7 @@ function AnalyticsPanel({ session, onboarding }) {
   // Get current time period label
   const getCurrentTimePeriodLabel = () => {
     const period = timePeriods.find(p => p.value === selectedTimePeriod);
-    return period ? period.label : "30 ימים אחרונים";
+    return period ? period.label : "7 ימים אחרונים";
   };
 
   // No need for initialization useEffect since dates are already set in useState
