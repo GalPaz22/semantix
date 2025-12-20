@@ -2818,15 +2818,75 @@ function AnalyticsPanel({ session, onboarding }) {
       )}
 
       {/* Table Section - Enhanced Design */}
-      {filteredQueries.length > 0 && (
-        <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-          <div className="border-b border-gray-100 p-5">
-            <h2 className="text-lg font-semibold text-gray-800">
-              תוצאות שאילתות ({filteredCount})
-            </h2>
+      <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <div className="border-b border-gray-100 p-5">
+          <h2 className="text-lg font-semibold text-gray-800">
+            תוצאות שאילתות ({filteredCount})
+          </h2>
+        </div>
+
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center p-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+            <span className="mr-3 text-gray-600">טוען שאילתות...</span>
           </div>
-          
-          {/* Mobile Cards View */}
+        )}
+
+        {/* Error State */}
+        {!loading && error && (
+          <div className="p-8 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+              <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">שגיאה בטעינת השאילתות</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <svg className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              נסה שוב
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && filteredCount === 0 && (
+          <div className="p-12 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+              <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">אין שאילתות זמינות</h3>
+            <p className="text-gray-600 mb-4">
+              {totalLoaded === 0
+                ? "לא נמצאו שאילתות במערכת. התחל לחפש כדי לראות נתונים כאן."
+                : "אין שאילתות בתקופה שנבחרה. נסה לשנות את סינון התאריך."}
+            </p>
+            {totalLoaded > 0 && (
+              <button
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setSelectedTimePeriod("all");
+                  setFilters({ category: "", type: "", minPrice: "", maxPrice: "" });
+                }}
+                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                אפס סינונים
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Mobile Cards View */}
+        {!loading && !error && filteredQueries.length > 0 && (
           <div className="block md:hidden p-4 space-y-3" dir="rtl">
             {displayedQueries.map((query, index) => {
               const queryText = (query.query || '').toLowerCase().trim();
@@ -3135,8 +3195,10 @@ function AnalyticsPanel({ session, onboarding }) {
               );
             })}
           </div>
-          
+        )}
+
           {/* Desktop Table View */}
+          {!loading && !error && filteredQueries.length > 0 && (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
@@ -3401,9 +3463,10 @@ function AnalyticsPanel({ session, onboarding }) {
               </tbody>
             </table>
           </div>
-          
+        )}
+
           {/* Pagination */}
-          {totalPages > 1 && (
+          {!loading && !error && filteredQueries.length > 0 && totalPages > 1 && (
             <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
               <nav className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="hidden sm:block">
@@ -3465,8 +3528,7 @@ function AnalyticsPanel({ session, onboarding }) {
               </nav>
             </div>
           )}
-        </section>
-      )}
+      </section>
     </div>
   );
 }
