@@ -1027,6 +1027,8 @@ function AnalyticsPanel({ session, onboarding }) {
   const [queries, setQueries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasMoreQueries, setHasMoreQueries] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   // Add state for cart analytics
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [loadingCart, setLoadingCart] = useState(false);
@@ -1123,32 +1125,80 @@ function AnalyticsPanel({ session, onboarding }) {
     }
   }, [timePeriodOpen]);
 
+  // Function to fetch queries with pagination support
+  const fetchQueries = async (skip = 0, limit = 100, append = false) => {
+    if (!onboardDB) return;
+    
+    try {
+      const res = await fetch("http://localhost:8080/queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          dbName: onboardDB,
+          skip: skip,
+          limit: limit
+        })
+      });
+      
+      // Handle 204 No Content
+      if (res.status === 204) {
+        if (!append) {
+          setQueries([]);
+          setHasMoreQueries(false);
+        } else {
+          setHasMoreQueries(false);
+        }
+        return { queries: [], hasMore: false };
+      }
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error fetching queries");
+      
+      const fetchedQueries = data.queries || [];
+      const hasMore = fetchedQueries.length === limit; // If we got exactly the limit, there might be more
+      
+      if (append) {
+        setQueries(prev => [...prev, ...fetchedQueries]);
+      } else {
+        setQueries(fetchedQueries);
+      }
+      
+      setHasMoreQueries(hasMore);
+      return { queries: fetchedQueries, hasMore };
+    } catch (err) {
+      if (!append) {
+        setError(err.message);
+      }
+      throw err;
+    }
+  };
+
+  // Load more queries
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMoreQueries) return;
+    
+    setLoadingMore(true);
+    try {
+      await fetchQueries(queries.length, 100, true);
+    } catch (err) {
+      console.error("Error loading more queries:", err);
+      // Error is already handled in fetchQueries for initial load
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Initial fetch
   useEffect(() => {
     if (!onboardDB) return;
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("https://dashboard-server-ae00.onrender.com/queries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dbName: onboardDB })
-        });
-        
-        // Handle 204 No Content
-        if (res.status === 204) {
-          setQueries([]);
-          setCurrentPage(1);
-          setLoading(false);
-          return;
-        }
-        
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error fetching queries");
-        setQueries(data.queries || []);
+        await fetchQueries(0, 100, false);
         setCurrentPage(1);
       } catch (err) {
-        setError(err.message);
+        // Error already set in fetchQueries
       } finally {
         setLoading(false);
       }
@@ -2809,9 +2859,19 @@ function AnalyticsPanel({ session, onboarding }) {
       {/* Table Section - Enhanced Design */}
       <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-5">
-          <h2 className="text-lg font-semibold text-gray-800">
-            תוצאות שאילתות ({filteredCount})
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">
+              תוצאות שאילתות ({filteredCount})
+            </h2>
+            {totalLoaded > 0 && (
+              <span className="text-sm text-gray-500">
+                נטענו {totalLoaded} מהשרת
+                {hasMoreQueries && (
+                  <span className="ml-2 text-indigo-600">• יש עוד שאילתות</span>
+                )}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Loading State */}
@@ -3515,6 +3575,46 @@ function AnalyticsPanel({ session, onboarding }) {
                   </button>
                 </div>
               </nav>
+            </div>
+          )}
+
+          {/* Load More Button - Load additional queries from server */}
+          {!loading && !error && hasMoreQueries && (
+            <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <p className="text-sm text-gray-600 text-center">
+                  נטענו <span className="font-medium">{totalLoaded}</span> שאילתות מהשרת
+                  {filteredCount < totalLoaded && (
+                    <span className="block mt-1 text-xs text-gray-500">
+                      ({filteredCount} תוצאות אחרי סינון)
+                    </span>
+                  )}
+                </p>
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className={`inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${
+                    loadingMore ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {loadingMore ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      טוען עוד שאילתות...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      טען עוד שאילתות
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
       </section>
