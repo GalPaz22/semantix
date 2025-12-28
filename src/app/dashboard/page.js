@@ -1130,7 +1130,7 @@ function AnalyticsPanel({ session, onboarding }) {
     if (!onboardDB) return;
     
     try {
-      const res = await fetch("http://localhost:8080/queries", {
+      const res = await fetch("https://dashboard-server-ae00.onrender.com/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
