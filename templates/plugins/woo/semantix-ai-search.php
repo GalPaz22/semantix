@@ -771,28 +771,1150 @@ function semantix_register_custom_search_widget() {
 add_action( 'widgets_init', 'semantix_register_custom_search_widget' );
 
 // remove_filter( 'template_include', 'semantix_custom_search_template', 99 ); // This was the old filter
-add_filter( 'template_include', 'semantix_native_search_template', 99 );
+/**
+ * Fetch AI search results from Semantix API (Server-Side)
+ */
+if (!function_exists('semantix_fetch_ai_results_server_side')) {
+    function semantix_fetch_ai_results_server_side( $query ) {
+        if ( empty( $query ) ) {
+            return array(
+                'products' => array(),
+                'pagination' => array(),
+                'metadata' => array()
+            );
+        }
+    
+        // Get API settings
+        $api_url = rtrim( get_option( 'semantix_search_api_endpoint', 'https://api.semantix-ai.com/search' ), '/' );
+        if ( substr( $api_url, -7 ) !== '/search' ) {
+            $api_url .= '/search';
+        }
+        
+        $api_key = get_option( 'semantix_api_key', '' );
+        $dbname  = get_option( 'semantix_dbname', 'alcohome' );
+        $c1      = get_option( 'semantix_collection1', 'products' );
+        $c2      = get_option( 'semantix_collection2', 'queries' );
+    
+        // Check cache first (5 minutes)
+        $cache_key = 'semantix_ssr_modern_' . md5( $query . $dbname );
+        $cached = get_transient( $cache_key );
+        if ( $cached !== false ) {
+            error_log( 'Semantix SSR: Using cached results for: ' . $query );
+            return $cached;
+        }
+    
+        // Call Semantix API with modern mode
+        $response = wp_remote_post( $api_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'x-api-key'    => $api_key,
+            ),
+            'body'    => wp_json_encode( array(
+                'query'           => $query,
+                'dbName'          => $dbname,
+                'collectionName1' => $c1,
+                'collectionName2' => $c2,
+                'modern'          => true, // ✅ Enable modern mode
+            ) ),
+            'timeout' => 15,
+            'sslverify' => true,
+        ) );
+    
+        // Handle errors
+        if ( is_wp_error( $response ) ) {
+            error_log( 'Semantix SSR API Error: ' . $response->get_error_message() );
+            return array( 'products' => array(), 'pagination' => array(), 'metadata' => array() );
+        }
+    
+        $status_code = wp_remote_retrieve_response_code( $response );
+        if ( $status_code !== 200 ) {
+            error_log( 'Semantix SSR API returned status: ' . $status_code );
+            return array( 'products' => array(), 'pagination' => array(), 'metadata' => array() );
+        }
+    
+        $body = wp_remote_retrieve_body( $response );
+        $data = json_decode( $body, true );
+    
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            error_log( 'Semantix SSR JSON decode error: ' . json_last_error_msg() );
+            return array( 'products' => array(), 'pagination' => array(), 'metadata' => array() );
+        }
+    
+        // 🎯 Handle modern response structure
+        $result = array(
+            'products' => array(),
+            'pagination' => array(),
+            'metadata' => array()
+        );
+    
+        // Modern mode response structure
+        if ( isset( $data['products'] ) && is_array( $data['products'] ) ) {
+            $result['products'] = $data['products'];
+            
+            // Store pagination info
+            if ( isset( $data['pagination'] ) ) {
+                $result['pagination'] = $data['pagination'];
+            }
+            
+            // Store metadata
+            if ( isset( $data['metadata'] ) ) {
+                $result['metadata'] = $data['metadata'];
+            }
+        } 
+        // Fallback for legacy response (just array of products)
+        elseif ( is_array( $data ) ) {
+            $result['products'] = $data;
+        }
+    
+        // Cache for 5 minutes
+        if ( ! empty( $result['products'] ) ) {
+            set_transient( $cache_key, $result, 5 * MINUTE_IN_SECONDS );
+        }
+    
+        return $result;
+    }
+    }
 
-if (!function_exists('semantix_native_search_template')) {
-function semantix_native_search_template( $template ) {
-    if ( is_search() && !is_admin() ) {
-        $template_type = get_option('semantix_template_type', 'native');
+/**
+ * SILENT OVERRIDE: Use Semantix AI for ALL searches (not just zero results)
+ * This ensures every search is powered by AI, providing better results
+ */
+add_action( 'pre_get_posts', 'semantix_smart_fallback_search', 999 );
 
-        if ($template_type === 'custom') {
-            $custom_template = plugin_dir_path( __FILE__ ) . 'templates/search-custom-template.php';
-            if ( file_exists( $custom_template ) ) {
-                return $custom_template;
+if (!function_exists('semantix_smart_fallback_search')) {
+function semantix_smart_fallback_search( $query ) {
+    // Only run on main query, search pages, not admin
+    if ( ! $query->is_main_query() || ! $query->is_search() || is_admin() ) {
+        return;
+    }
+    
+    // Check if this is a product search
+    $post_type = $query->get( 'post_type' );
+    if ( $post_type !== 'product' && ! is_array( $post_type ) ) {
+        return;
+    }
+    
+    // Get the search term
+    $search_query = $query->get( 's' );
+    if ( empty( $search_query ) ) {
+        return;
+    }
+    
+    // 🎯 SILENT OVERRIDE: ALWAYS use AI (no test query needed)
+    // This makes EVERY search powered by Semantix AI
+    error_log( '🔍 Semantix Silent Override: Using AI for search: ' . $search_query );
+    
+    // Get AI results directly (modern mode)
+    $ai_response = semantix_fetch_ai_results_server_side( $search_query );
+    
+    // Extract products from modern response
+    $ai_products = isset( $ai_response['products'] ) ? $ai_response['products'] : array();
+    $pagination = isset( $ai_response['pagination'] ) ? $ai_response['pagination'] : array();
+    $metadata = isset( $ai_response['metadata'] ) ? $ai_response['metadata'] : array();
+    
+    if ( empty( $ai_products ) ) {
+        return; // No AI results either, show native "no results"
+    }
+    
+    // Extract product IDs and metadata
+    $product_ids = array();
+    $highlight_map = array();
+    $explanation_map = array();
+    
+    foreach ( $ai_products as $product ) {
+        if ( isset( $product['id'] ) ) {
+            $pid = intval( $product['id'] );
+            if ( $pid > 0 ) {
+                $product_ids[] = $pid;
+                
+                if ( ! empty( $product['highlight'] ) ) {
+                    $highlight_map[ $pid ] = true;
+                }
+                
+                if ( ! empty( $product['explanation'] ) ) {
+                    $explanation_map[ $pid ] = sanitize_text_field( $product['explanation'] );
+                }
             }
         }
-
-        // Fallback to the original 'native' custom template if it exists,
-        // otherwise return the theme's default search.php.
-        $native_template = plugin_dir_path( __FILE__ ) . 'templates/search-custom.php';
-        if ( file_exists( $native_template ) ) {
-            return $native_template;
-        }
     }
-    return $template;
+    
+    if ( empty( $product_ids ) ) {
+        return;
+    }
+    
+    // 🎯 PAGINATION LOGIC
+    $per_page = 12; // Show 12 products initially
+    $paged = max( 1, $query->get( 'paged', 1 ) );
+    
+    // Calculate which products to show on this page
+    $offset = ( $paged - 1 ) * $per_page;
+    $current_page_ids = array_slice( $product_ids, $offset, $per_page );
+    
+    if ( empty( $current_page_ids ) ) {
+        return; // No products for this page
+    }
+    
+    // 🎯 HIJACK THE QUERY with current page products
+    $query->set( 'post_type', 'product' );
+    $query->set( 'post_status', 'publish' );
+    $query->set( 'post__in', $current_page_ids );
+    $query->set( 'orderby', 'post__in' );
+    $query->set( 'posts_per_page', $per_page );
+    $query->set( 'paged', $paged );
+    $query->set( 'ignore_sticky_posts', 1 );
+    $query->set( 's', '' ); // Clear search string
+    
+    // Store ALL data including modern API response in global
+    global $semantix_ai_metadata;
+    $semantix_ai_metadata = array(
+        'highlight_map' => $highlight_map,
+        'explanation_map' => $explanation_map,
+        'search_term' => $search_query,
+        'all_product_ids' => $product_ids,
+        'total_products' => count( $product_ids ),
+        'current_page' => $paged,
+        'per_page' => $per_page,
+        'total_pages' => ceil( count( $product_ids ) / $per_page ),
+        
+        // 🎯 Modern API data
+        'pagination' => $pagination,
+        'metadata' => $metadata,
+        'total_available' => isset( $pagination['totalAvailable'] ) ? $pagination['totalAvailable'] : count( $product_ids ),
+        'has_more_on_server' => isset( $pagination['hasMore'] ) ? $pagination['hasMore'] : false,
+        'next_token' => isset( $pagination['nextToken'] ) ? $pagination['nextToken'] : null,
+        'execution_time' => isset( $metadata['executionTime'] ) ? $metadata['executionTime'] : null,
+        'tier_info' => isset( $metadata['tiers'] ) ? $metadata['tiers'] : null,
+    );
+    
+    // Hook to inject AI features
+    add_action( 'woocommerce_before_shop_loop', 'semantix_inject_ai_styles', 5 );
+    add_action( 'woocommerce_before_shop_loop', 'semantix_inject_container_wrapper_start', 1 );
+    add_action( 'woocommerce_before_shop_loop', 'semantix_inject_search_info', 3 );
+    add_action( 'woocommerce_after_shop_loop', 'semantix_inject_container_wrapper_end', 999 );
+    add_action( 'woocommerce_after_shop_loop_item_title', 'semantix_inject_ai_explanation', 999 );
+    add_action( 'woocommerce_after_shop_loop', 'semantix_inject_load_more_button', 997 );
+    add_action( 'woocommerce_after_shop_loop', 'semantix_inject_ai_credit', 998 );
+    
+    // 🎯 FALLBACK: Also try other WooCommerce hooks in case after_shop_loop doesn't fire
+    add_action( 'woocommerce_after_main_content', 'semantix_inject_load_more_button_fallback', 10 );
+    
+    // 🎯 ULTIMATE FALLBACK: wp_footer for search pages
+    add_action( 'wp_footer', 'semantix_inject_load_more_button_ultimate_fallback', 999 );
+    
+    // Hide "no results" messages
+    add_filter( 'woocommerce_no_products_found', '__return_false' );
+    add_action( 'wp_head', 'semantix_hide_no_results_css', 999 );
+}
+}
+
+
+/**
+ * Hide any "no results" messages via CSS
+ */
+if (!function_exists('semantix_hide_no_results_css')) {
+function semantix_hide_no_results_css() {
+    ?>
+    <style>
+        /* Hide theme's "no results" messages when AI products are showing */
+        .woocommerce-no-products-found,
+        .no-results,
+        .search-no-results,
+        .class-no-found-main,
+        .woocommerce-info {
+            display: none !important;
+        }
+    </style>
+    <?php
+}
+}
+
+/**
+ * Inject search info with tier breakdown (if available)
+ */
+if (!function_exists('semantix_inject_search_info')) {
+function semantix_inject_search_info() {
+    global $semantix_ai_metadata;
+    
+    if ( empty( $semantix_ai_metadata ) ) {
+        return;
+    }
+    
+    $tier_info = isset( $semantix_ai_metadata['tier_info'] ) ? $semantix_ai_metadata['tier_info'] : null;
+    $total_available = isset( $semantix_ai_metadata['total_available'] ) ? $semantix_ai_metadata['total_available'] : 0;
+    $execution_time = isset( $semantix_ai_metadata['execution_time'] ) ? $semantix_ai_metadata['execution_time'] : null;
+    
+    // Only show if we have tier info
+    if ( ! $tier_info || empty( $tier_info['description'] ) ) {
+        return;
+    }
+    ?>
+    <div style="direction: rtl; margin-bottom: 20px; padding: 15px; background: #f9fafb; border-radius: 8px; border-right: 3px solid #667eea;">
+        <p style="margin: 0; color: #4b5563; font-size: 14px;">
+            ✨ <strong>חיפוש חכם:</strong> <?php echo esc_html( $tier_info['description'] ); ?>
+            <?php if ( $execution_time ) : ?>
+                <span style="color: #9ca3af; font-size: 12px;">(<?php echo esc_html( $execution_time ); ?>ms)</span>
+            <?php endif; ?>
+        </p>
+    </div>
+    <?php
+}
+}
+
+/**
+ * Inject opening wrapper with theme's container class
+ */
+if (!function_exists('semantix_inject_container_wrapper_start')) {
+function semantix_inject_container_wrapper_start() {
+    echo '<div class="category-products-section-margin">';
+}
+}
+
+/**
+ * Inject closing wrapper
+ */
+if (!function_exists('semantix_inject_container_wrapper_end')) {
+function semantix_inject_container_wrapper_end() {
+    echo '</div><!-- .category-products-section-margin -->';
+}
+}
+
+/**
+ * Inject AI styles (only for explanations, no badges)
+ */
+if (!function_exists('semantix_inject_ai_styles')) {
+function semantix_inject_ai_styles() {
+    ?>
+    <style>
+        /* AI Explanation styling */
+        .semantix-product-explanation {
+            direction: rtl;
+            text-align: right;
+            font-size: .9rem;
+            line-height: 1.5;
+            color: #4b5563;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin: .5rem 0;
+            padding: .5rem .75rem;
+            position: relative;
+        }
+        
+        .semantix-product-explanation .semantix-ai-icon {
+            position: absolute;
+            right: .5rem;
+            top: .5rem;
+        }
+        
+        .semantix-product-explanation .semantix-explanation-text {
+            display: block;
+            padding-right: 1.25rem;
+        }
+    </style>
+    <?php
+}
+}
+
+/**
+ * Inject AI explanation for each product
+ */
+if (!function_exists('semantix_inject_ai_explanation')) {
+function semantix_inject_ai_explanation() {
+    global $semantix_ai_metadata;
+    static $already_rendered = array();
+    
+    if ( empty( $semantix_ai_metadata['explanation_map'] ) ) {
+        return;
+    }
+    
+    $explanation_map = $semantix_ai_metadata['explanation_map'];
+    $pid = get_the_ID();
+    
+    // Prevent duplicates
+    if ( isset( $already_rendered[ $pid ] ) ) {
+        return;
+    }
+    
+    if ( $pid && isset( $explanation_map[ $pid ] ) && $explanation_map[ $pid ] !== '' ) {
+        $allowed = array(
+            'br'     => array(),
+            'em'     => array(),
+            'strong' => array(),
+            'span'   => array( 'class' => array() ),
+        );
+        $text = wp_kses( $explanation_map[ $pid ], $allowed );
+        
+        // Mark as rendered
+        $already_rendered[ $pid ] = true;
+        ?>
+        <div class="semantix-product-explanation">
+            <span class="semantix-ai-icon">✨</span>
+            <span class="semantix-explanation-text"><?php echo $text; ?></span>
+        </div>
+        <?php
+    }
+}
+}
+
+/**
+ * Inject "Load More" button with AJAX functionality
+ */
+
+/**
+ * Inject "Load More" button - using data already in memory
+ */
+if (!function_exists('semantix_inject_load_more_button')) {
+    function semantix_inject_load_more_button() {
+        global $semantix_ai_metadata;
+        
+        // Only show if we have AI metadata
+        if ( empty( $semantix_ai_metadata ) ) {
+            echo '<!-- Semantix: No AI metadata -->';
+            return;
+        }
+        
+        $current_page = isset( $semantix_ai_metadata['current_page'] ) ? $semantix_ai_metadata['current_page'] : 1;
+        $total_pages = isset( $semantix_ai_metadata['total_pages'] ) ? $semantix_ai_metadata['total_pages'] : 1;
+        $per_page = isset( $semantix_ai_metadata['per_page'] ) ? $semantix_ai_metadata['per_page'] : 12;
+        $total_products = isset( $semantix_ai_metadata['total_products'] ) ? $semantix_ai_metadata['total_products'] : 0;
+        $all_ids = isset( $semantix_ai_metadata['all_product_ids'] ) ? $semantix_ai_metadata['all_product_ids'] : array();
+        
+        $shown_so_far = $current_page * $per_page;
+        
+        // 🎯 Check modern API pagination data
+        $total_available = isset( $semantix_ai_metadata['total_available'] ) ? $semantix_ai_metadata['total_available'] : $total_products;
+        $has_more_on_server = isset( $semantix_ai_metadata['has_more_on_server'] ) ? $semantix_ai_metadata['has_more_on_server'] : false;
+        
+        // Calculate if we have more products
+        $has_more_in_memory = $total_products > $shown_so_far;
+        $remaining = max( 0, $total_products - $shown_so_far );
+        
+        // Debug output (DETAILED)
+        echo sprintf(
+            '<!-- Semantix Load More Debug: 
+            current_page=%d, total_pages=%d, per_page=%d, 
+            total_products=%d, shown_so_far=%d, remaining=%d,
+            has_more_in_memory=%s, has_more_on_server=%s, total_available=%d,
+            all_ids_count=%d
+            -->',
+            $current_page, $total_pages, $per_page, 
+            $total_products, $shown_so_far, $remaining,
+            $has_more_in_memory ? 'YES' : 'NO',
+            $has_more_on_server ? 'YES' : 'NO',
+            $total_available,
+            count($all_ids)
+        );
+        
+        // 🎯 SIMPLIFIED CHECK - Show button if there are more products
+        if ( $remaining <= 0 && ! $has_more_on_server ) {
+            echo '<!-- Semantix: No more products available (remaining=' . $remaining . ', server=' . ($has_more_on_server ? 'yes' : 'no') . ') -->';
+            return;
+        }
+        
+        // If we got here, we have products to show!
+        
+        $search_term = $semantix_ai_metadata['search_term'];
+        $next_page = $current_page + 1;
+        
+        // Get next batch of product IDs
+        $next_offset = $shown_so_far;
+        $next_batch_ids = array_slice( $all_ids, $next_offset, $per_page );
+        
+        if ( empty( $next_batch_ids ) ) {
+            echo '<!-- Semantix: Next batch is empty (offset=' . $next_offset . ', per_page=' . $per_page . ') -->';
+            return;
+        }
+        
+        echo '<!-- Semantix: Showing Load More button (next_batch_count=' . count($next_batch_ids) . ') -->';
+        
+        // Also get their metadata
+        $highlight_map = isset( $semantix_ai_metadata['highlight_map'] ) ? $semantix_ai_metadata['highlight_map'] : array();
+        $explanation_map = isset( $semantix_ai_metadata['explanation_map'] ) ? $semantix_ai_metadata['explanation_map'] : array();
+        
+        $next_highlights = array();
+        $next_explanations = array();
+        
+        foreach ( $next_batch_ids as $pid ) {
+            if ( isset( $highlight_map[ $pid ] ) ) {
+                $next_highlights[ $pid ] = true;
+            }
+            if ( isset( $explanation_map[ $pid ] ) ) {
+                $next_explanations[ $pid ] = $explanation_map[ $pid ];
+            }
+        }
+        
+        $ajax_url = admin_url('admin-ajax.php');
+        $ajax_nonce = wp_create_nonce('semantix_load_more');
+        ?>
+        <div id="semantix-load-more-section" style="text-align: center; margin: 30px 0; padding: 20px;">
+            <button 
+                id="semantix-load-more-btn" 
+                class="button" 
+                style="padding: 12px 30px; font-size: 16px; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 8px; transition: all 0.3s;"
+                data-page="<?php echo esc_attr( $next_page ); ?>"
+                data-search="<?php echo esc_attr( $search_term ); ?>"
+            >
+                <?php 
+                if ( $has_more_on_server && $total_available > $shown_so_far ) {
+                    // Show server total if available
+                    $server_remaining = $total_available - $shown_so_far;
+                    echo sprintf( 'טען עוד מוצרים (%d+ נוספים)', min( $per_page, $server_remaining ) );
+                } elseif ( $remaining > 0 ) {
+                    // Show memory remaining
+                    echo sprintf( 'טען עוד מוצרים (%d נוספים)', min( $per_page, $remaining ) );
+                } else {
+                    echo 'טען עוד מוצרים';
+                }
+                ?>
+            </button>
+            <div id="semantix-load-more-spinner" style="display: none; margin-top: 15px;">
+                <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: semantix-spin 1s linear infinite;"></div>
+            </div>
+        </div>
+        
+        <style>
+            @keyframes semantix-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+        
+        <script>
+        (function() {
+            const btn = document.getElementById('semantix-load-more-btn');
+            const spinner = document.getElementById('semantix-load-more-spinner');
+            const section = document.getElementById('semantix-load-more-section');
+            
+            if (!btn) {
+                console.error('Semantix: Load More button not found');
+                return;
+            }
+            
+            console.log('Semantix: Load More button initialized');
+            
+            // ALL product data from server
+            const allProductIds = <?php echo wp_json_encode( $semantix_ai_metadata['all_product_ids'] ); ?>;
+            const allHighlightMap = <?php echo wp_json_encode( $semantix_ai_metadata['highlight_map'] ); ?>;
+            const allExplanationMap = <?php echo wp_json_encode( $semantix_ai_metadata['explanation_map'] ); ?>;
+            const ajaxUrl = <?php echo wp_json_encode( $ajax_url ); ?>;
+            const nonce = <?php echo wp_json_encode( $ajax_nonce ); ?>;
+            const perPage = <?php echo intval( $per_page ); ?>;
+            
+            // Track how many products we've shown
+            let currentOffset = <?php echo intval( $shown_so_far ); ?>;
+            
+            console.log('Semantix: Total products available: ' + allProductIds.length);
+            console.log('Semantix: Already shown: ' + currentOffset);
+            console.log('Semantix: Remaining: ' + (allProductIds.length - currentOffset));
+            
+            async function loadMoreProducts() {
+                console.log('Semantix: Load More clicked (offset=' + currentOffset + ')');
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                spinner.style.display = 'block';
+                
+                try {
+                    // Get next batch of product IDs
+                    const nextBatch = allProductIds.slice(currentOffset, currentOffset + perPage);
+                    
+                    if (nextBatch.length === 0) {
+                        section.innerHTML = '<p style="color: #666; font-size: 14px;">✨ כל המוצרים הוצגו</p>';
+                        return;
+                    }
+                    
+                    // Get metadata for this batch
+                    const batchHighlights = {};
+                    const batchExplanations = {};
+                    
+                    nextBatch.forEach(id => {
+                        if (allHighlightMap[id]) {
+                            batchHighlights[id] = true;
+                        }
+                        if (allExplanationMap[id]) {
+                            batchExplanations[id] = allExplanationMap[id];
+                        }
+                    });
+                    
+                    console.log('Semantix: Loading batch of ' + nextBatch.length + ' products');
+                    
+                    // Call WordPress AJAX to render these products
+                    const formData = new URLSearchParams();
+                    formData.append('action', 'semantix_load_more_products');
+                    formData.append('product_ids', JSON.stringify(nextBatch));
+                    formData.append('highlight_map', JSON.stringify(batchHighlights));
+                    formData.append('explanation_map', JSON.stringify(batchExplanations));
+                    formData.append('nonce', nonce);
+                    
+                    const response = await fetch(ajaxUrl, {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    console.log('Semantix: Load More response:', data);
+                    
+                    if (data.success && data.data.html) {
+                        // Append new products
+                        const productsContainer = document.querySelector('ul.products');
+                        if (productsContainer) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = data.data.html;
+                            
+                            const newProductElements = tempDiv.querySelectorAll('li.product');
+                            console.log('Semantix: Appending ' + newProductElements.length + ' products');
+                            
+                            newProductElements.forEach(product => {
+                                productsContainer.appendChild(product);
+                            });
+                            
+                            // Update offset
+                            currentOffset += nextBatch.length;
+                            const remaining = allProductIds.length - currentOffset;
+                            
+                            console.log('Semantix: New offset: ' + currentOffset + ', remaining: ' + remaining);
+                            
+                            // Check if there are more products
+                            if (remaining > 0) {
+                                // Update button text
+                                const nextCount = Math.min(perPage, remaining);
+                                btn.innerHTML = 'טען עוד מוצרים (' + nextCount + ' נוספים)';
+                                btn.disabled = false;
+                                btn.style.opacity = '1';
+                            } else {
+                                // No more products
+                                section.innerHTML = '<p style="color: #666; font-size: 14px;">✨ כל המוצרים הוצגו</p>';
+                            }
+                            
+                            // Re-initialize WooCommerce scripts
+                            if (typeof jQuery !== 'undefined') {
+                                jQuery(document.body).trigger('wc_fragment_refresh');
+                            }
+                        } else {
+                            console.error('Semantix: Products container not found');
+                            throw new Error('Products container not found');
+                        }
+                    } else {
+                        throw new Error(data.data?.message || 'Failed to load products');
+                    }
+                } catch (error) {
+                    console.error('Semantix: Load more error:', error);
+                    alert('שגיאה בטעינת מוצרים נוספים');
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                } finally {
+                    spinner.style.display = 'none';
+                }
+            }
+            
+            btn.addEventListener('click', loadMoreProducts);
+        })();
+        </script>
+        <?php
+    }
+    }
+/**
+ * Fallback: Inject Load More button via woocommerce_after_main_content
+ */
+if (!function_exists('semantix_inject_load_more_button_fallback')) {
+function semantix_inject_load_more_button_fallback() {
+    global $semantix_ai_metadata;
+    
+    // Only inject if we have AI metadata and button wasn't already rendered
+    static $button_rendered = false;
+    
+    if ( $button_rendered || empty( $semantix_ai_metadata ) ) {
+        return;
+    }
+    
+    echo '<!-- Semantix: Load More injected via woocommerce_after_main_content fallback -->';
+    semantix_inject_load_more_button();
+    $button_rendered = true;
+}
+}
+
+/**
+ * Ultimate Fallback: Inject Load More button via wp_footer
+ */
+if (!function_exists('semantix_inject_load_more_button_ultimate_fallback')) {
+function semantix_inject_load_more_button_ultimate_fallback() {
+    if ( ! is_search() ) {
+        return;
+    }
+    
+    global $semantix_ai_metadata;
+    
+    // Only inject if we have AI metadata and button wasn't already rendered
+    static $button_rendered = false;
+    
+    if ( $button_rendered || empty( $semantix_ai_metadata ) ) {
+        return;
+    }
+    
+    echo '<!-- Semantix: Load More injected via wp_footer ultimate fallback -->';
+    
+    // Try to inject inside the products container if it exists
+    ?>
+    <script>
+    (function() {
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', injectLoadMoreButton);
+        } else {
+            injectLoadMoreButton();
+        }
+        
+        function injectLoadMoreButton() {
+            // Look for the products container
+            const productsContainer = document.querySelector('ul.products');
+            const mainContent = document.querySelector('.woocommerce');
+            const categorySection = document.querySelector('.category-products-section-margin');
+            
+            const targetContainer = categorySection || mainContent || document.querySelector('main');
+            
+            if (targetContainer && !document.getElementById('semantix-load-more-section')) {
+                console.log('Semantix: Injecting Load More button via JavaScript fallback');
+                const buttonHtml = <?php 
+                    ob_start();
+                    semantix_inject_load_more_button();
+                    echo wp_json_encode( ob_get_clean() );
+                ?>;
+                
+                if (buttonHtml) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = buttonHtml;
+                    targetContainer.appendChild(tempDiv.firstElementChild);
+                }
+            }
+        }
+    })();
+    </script>
+    <?php
+    
+    $button_rendered = true;
+}
+}
+
+/**
+ * Inject subtle AI credit after product loop
+ */
+if (!function_exists('semantix_inject_ai_credit')) {
+function semantix_inject_ai_credit() {
+    global $wp_query;
+    ?>
+    <div style="text-align: center; margin: 40px 0 20px 0; padding: 20px; border-top: 1px solid #eee;">
+        <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">
+            מוצגים <?php echo $wp_query->found_posts; ?> תוצאות מותאמות עבורך
+        </p>
+        <a href="https://semantix.co.il" target="_blank" rel="noopener" style="display: inline-block; opacity: 0.6; transition: opacity 0.3s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">
+            <img src="https://semantix-ai.com/powered.png" alt="Powered by Semantix" width="100" style="vertical-align: middle;">
+        </a>
+    </div>
+    <?php
+}
+}
+
+/**
+ * Inject AI Search Trigger Widget on search pages with results
+ */
+if (!function_exists('semantix_inject_ai_search_trigger')) {
+function semantix_inject_ai_search_trigger() {
+    // Get API settings
+    $semantix_search_host = rtrim( get_option( 'semantix_search_api_endpoint', 'https://dashboard-server-ae00.onrender.com/search' ), '/' );
+    $semantix_api_key     = get_option( 'semantix_api_key', '' );
+    $dbname               = get_option( 'semantix_dbname', 'alcohome' );
+    $c1                   = get_option( 'semantix_collection1', 'products' );
+    $c2                   = get_option( 'semantix_collection2', 'queries' );
+    $ajax_url             = admin_url('admin-ajax.php');
+    $ajax_nonce           = wp_create_nonce('semantix_nonce');
+    $search_term          = get_search_query();
+    ?>
+    <style id="semantix-ai-trigger-styles">
+        #semantix-ai-trigger-widget {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999999;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 18px 32px;
+            border-radius: 50px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            direction: rtl;
+            text-align: center;
+            transition: all 0.3s ease;
+            opacity: 0;
+            animation: semantix-slide-up 0.5s ease forwards 1s;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        #semantix-ai-trigger-widget:hover {
+            transform: translateX(-50%) translateY(-3px);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        
+        #semantix-ai-trigger-widget .semantix-ai-icon {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 20px;
+            animation: semantix-pulse 2s ease-in-out infinite;
+        }
+        
+        /* Modal Overlay */
+        #semantix-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 9999998;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #semantix-modal-overlay.semantix-visible {
+            display: flex;
+            opacity: 1;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Modal Window */
+        #semantix-modal-window {
+            background: white;
+            border-radius: 24px;
+            width: 95%;
+            max-width: 1400px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transform: scale(0.9) translateY(20px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #semantix-modal-overlay.semantix-visible #semantix-modal-window {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+        
+        /* Modal Header */
+        #semantix-modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 24px 24px 0 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        #semantix-modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+            direction: rtl;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        #semantix-modal-title .semantix-ai-icon {
+            font-size: 28px;
+            animation: semantix-pulse 2s ease-in-out infinite;
+        }
+        
+        #semantix-modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+        
+        #semantix-modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+        
+        /* Modal Content */
+        #semantix-modal-content {
+            overflow-y: auto;
+            padding: 32px;
+            flex: 1;
+            background: #fafbfc;
+        }
+        
+        #semantix-modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #semantix-modal-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        #semantix-modal-content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+        
+        #semantix-modal-content::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+        
+        @keyframes semantix-slide-up {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        @keyframes semantix-pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            #semantix-ai-trigger-widget {
+                bottom: 20px;
+                padding: 14px 24px;
+                font-size: 14px;
+                max-width: 90%;
+            }
+            
+            #semantix-modal-window {
+                width: 98%;
+                max-height: 95vh;
+                border-radius: 16px;
+            }
+            
+            #semantix-modal-header {
+                padding: 18px 20px;
+                border-radius: 16px 16px 0 0;
+            }
+            
+            #semantix-modal-title {
+                font-size: 18px;
+            }
+            
+            #semantix-modal-close {
+                width: 36px;
+                height: 36px;
+                font-size: 20px;
+            }
+            
+            #semantix-modal-content {
+                padding: 20px 16px;
+            }
+        }
+    </style>
+    
+    <div id="semantix-ai-trigger-widget">
+        <span class="semantix-ai-icon">✨</span>
+        לא אהבת את התוצאות? לחץ כאן וAI יעשה את העבודה
+    </div>
+    
+    <!-- Modal Overlay -->
+    <div id="semantix-modal-overlay">
+        <div id="semantix-modal-window">
+            <div id="semantix-modal-header">
+                <h2 id="semantix-modal-title">
+                    <span class="semantix-ai-icon">✨</span>
+                    חיפוש AI חכם
+                </h2>
+                <button id="semantix-modal-close" aria-label="Close">×</button>
+            </div>
+            <div id="semantix-modal-content">
+                <!-- AI search results will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <script id="semantix-ai-trigger-script">
+    (function() {
+        'use strict';
+        
+        const SEMANTIX_API_SEARCH_ENDPOINT = <?php echo wp_json_encode( $semantix_search_host ); ?>;
+        const SEMANTIX_API_KEY = <?php echo wp_json_encode( $semantix_api_key ); ?>;
+        const SEMANTIX_DBNAME = <?php echo wp_json_encode( $dbname ); ?>;
+        const SEMANTIX_COLLECTION1 = <?php echo wp_json_encode( $c1 ); ?>;
+        const SEMANTIX_COLLECTION2 = <?php echo wp_json_encode( $c2 ); ?>;
+        const WP_AJAX_URL = <?php echo wp_json_encode( $ajax_url ); ?>;
+        const WP_AJAX_NONCE = <?php echo wp_json_encode( $ajax_nonce ); ?>;
+        const SEARCH_TERM = <?php echo wp_json_encode( $search_term ); ?>;
+        
+        const widget = document.getElementById('semantix-ai-trigger-widget');
+        const modalOverlay = document.getElementById('semantix-modal-overlay');
+        const modalWindow = document.getElementById('semantix-modal-window');
+        const modalContent = document.getElementById('semantix-modal-content');
+        const modalClose = document.getElementById('semantix-modal-close');
+        
+        if (!widget || !modalOverlay) return;
+        
+        // Open modal on widget click
+        widget.addEventListener('click', function() {
+            openModal();
+        });
+        
+        // Close modal on close button click
+        modalClose.addEventListener('click', function() {
+            closeModal();
+        });
+        
+        // Close modal on overlay click (outside the modal window)
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target === modalOverlay) {
+                closeModal();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modalOverlay.classList.contains('semantix-visible')) {
+                closeModal();
+            }
+        });
+        
+        function openModal() {
+            modalOverlay.classList.add('semantix-visible');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            loadModalContent();
+        }
+        
+        function closeModal() {
+            modalOverlay.classList.remove('semantix-visible');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+        
+        async function loadModalContent() {
+            try {
+                // Show loading state in modal
+                modalContent.innerHTML = `
+                    <div style="text-align: center; padding: 80px 20px; direction: rtl;">
+                        <div style="display: inline-block; width: 60px; height: 60px; border: 5px solid #f3f3f3; border-top: 5px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <h3 style="margin-top: 30px; font-size: 24px; color: #667eea; font-weight: 700;">✨ AI מעבד את החיפוש שלך</h3>
+                        <p style="margin-top: 10px; font-size: 16px; color: #6b7280;">מוצא את המוצרים המתאימים ביותר בשבילך...</p>
+                    </div>
+                `;
+                
+                // Add spinner animation
+                const spinnerStyle = document.createElement('style');
+                spinnerStyle.textContent = `
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                `;
+                document.head.appendChild(spinnerStyle);
+                
+                // Fetch the AI search template via AJAX
+                const formData = new URLSearchParams();
+                formData.append('action', 'semantix_render_custom_template');
+                formData.append('search_term', SEARCH_TERM);
+                formData.append('nonce', WP_AJAX_NONCE);
+                
+                const response = await fetch(WP_AJAX_URL, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Server Error: ' + response.status);
+                }
+                
+                const templateHtml = await response.text();
+                
+                if (!templateHtml || templateHtml.trim() === '0') {
+                    throw new Error('Empty template response');
+                }
+                
+                // Insert template into modal
+                modalContent.innerHTML = templateHtml;
+                
+                // Execute any scripts in the template
+                const scripts = modalContent.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+                    newScript.textContent = oldScript.textContent;
+                    
+                    // Remove old script and append new one to ensure execution
+                    oldScript.parentNode.removeChild(oldScript);
+                    modalContent.appendChild(newScript);
+                });
+                
+            } catch (error) {
+                console.error('Semantix Modal Load Error:', error);
+                
+                // Show error message in modal
+                modalContent.innerHTML = `
+                    <div style="text-align: center; padding: 80px 20px; direction: rtl; background: #fef2f2; border-radius: 12px;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                        <h3 style="font-size: 24px; color: #dc2626; margin: 0 0 10px 0;">שגיאה בטעינת חיפוש AI</h3>
+                        <p style="font-size: 16px; color: #6b7280; margin: 0;">${error.message}</p>
+                        <button onclick="document.getElementById('semantix-modal-close').click()" style="
+                            margin-top: 30px;
+                            padding: 12px 32px;
+                            background: #667eea;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            font-weight: 600;
+                            cursor: pointer;
+                        ">סגור</button>
+                    </div>
+                `;
+            }
+        }
+        
+        // Add keyframes for spinner
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+    })();
+    </script>
+    <?php
     }
 }
 
@@ -858,6 +1980,446 @@ add_action('wp_ajax_nopriv_semantix_render_products', 'semantix_render_products_
 // Add the native action handler (same as the regular one)
 add_action('wp_ajax_semantix_render_products_native', 'semantix_render_products_ajax');
 add_action('wp_ajax_nopriv_semantix_render_products_native', 'semantix_render_products_ajax');
+
+/**
+ * AJAX handler to render the full custom template
+ */
+add_action('wp_ajax_semantix_render_custom_template', 'semantix_render_custom_template_ajax');
+add_action('wp_ajax_nopriv_semantix_render_custom_template', 'semantix_render_custom_template_ajax');
+
+if (!function_exists('semantix_render_custom_template_ajax')) {
+function semantix_render_custom_template_ajax() {
+    // Verify nonce
+    if ( ! isset($_POST['nonce']) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'semantix_nonce' ) ) {
+        wp_send_json_error( ['message' => 'Invalid nonce'] );
+        wp_die();
+    }
+    
+    // Get search term
+    $search_term = isset($_POST['search_term']) ? sanitize_text_field( wp_unslash( $_POST['search_term'] ) ) : '';
+    
+    if (empty($search_term)) {
+        wp_send_json_error( ['message' => 'Missing search term'] );
+        wp_die();
+    }
+    
+    // Get template settings
+    $show_header_title = get_option('semantix_show_header_title', 1);
+    $title_font_family = get_option( 'semantix_title_font_family', "'Inter', sans-serif" );
+    $title_font_weight = get_option( 'semantix_title_font_weight', '600' );
+    $price_font_family = get_option( 'semantix_price_font_family', "'Inter', sans-serif" );
+    $price_font_weight = get_option( 'semantix_price_font_weight', '700' );
+    $card_width     = get_option( 'semantix_card_width', '320' );
+    $card_height    = get_option( 'semantix_card_height', '420' );
+    $image_height   = get_option( 'semantix_image_height', '240' );
+    $card_bg        = get_option( 'semantix_card_bg_color', '#ffffff' );
+    $title_color    = get_option( 'semantix_title_color', '#1a1a1a' );
+    $price_color    = get_option( 'semantix_price_color', '#2563eb' );
+    $grid_gap       = get_option( 'semantix_grid_gap', '2' );
+    $card_border_radius = get_option( 'semantix_card_border_radius', '16' );
+    $image_fit      = get_option( 'semantix_image_fit', 'contain' );
+    $api_endpoint   = get_option( 'semantix_search_api_endpoint', 'https://dashboard-server-ae00.onrender.com/search' );
+    $api_key        = get_option( 'semantix_api_key', '' );
+    $dbname         = get_option( 'semantix_dbname', 'alcohome' );
+    $c1             = get_option( 'semantix_collection1', 'products' );
+    $c2             = get_option( 'semantix_collection2', 'queries' );
+    
+    $js_data = [
+        'apiEndpoint'  => $api_endpoint,
+        'apiKey'       => $api_key,
+        'dbName'       => $dbname,
+        'collection1'  => $c1,
+        'collection2'  => $c2,
+        'searchQuery'  => $search_term
+    ];
+    
+    // Render the template inline (without get_header/get_footer)
+    ob_start();
+    ?>
+    <style id="semantix-custom-styles">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        .semantix-results-page-wrapper {
+            width: 100%;
+            margin: 0 auto;
+            padding: 0;
+            font-family: <?php echo esc_attr( $title_font_family ); ?>;
+        }
+
+        #semantix-custom-results-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .semantix-header {
+            direction: rtl;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px 0 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .semantix-search-title {
+            font-size: 24px;
+            margin: 0;
+            color: inherit;
+            font-family: inherit;
+        }
+
+        .semantix-powered-logo {
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .semantix-powered-logo:hover {
+            opacity: 1;
+        }
+
+        #semantix-custom-results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(<?php echo esc_attr( max(280, $card_width) ); ?>px, 1fr));
+            gap: <?php echo esc_attr( $grid_gap ); ?>rem;
+            justify-items: center;
+            margin-top: 2rem;
+        }
+
+        .semantix-product-card {
+            width: 100%;
+            max-width: <?php echo esc_attr( $card_width ); ?>px;
+            min-height: <?php echo esc_attr( $card_height ); ?>px;
+            background: <?php echo esc_attr( $card_bg ); ?>;
+            border-radius: <?php echo esc_attr( $card_border_radius ); ?>px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #f3f4f6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .semantix-product-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 24px -5px rgba(0,0,0,0.1);
+        }
+
+        .semantix-product-link { text-decoration: none; }
+
+        .semantix-product-image-container {
+            position: relative;
+            width: 100%;
+            height: <?php echo esc_attr( $image_height ); ?>px !important;
+            overflow: hidden;
+            background: #fdfdfd;
+        }
+
+        .semantix-product-image {
+            width: 100%; height: 100% !important; object-fit: <?php echo esc_attr( $image_fit ); ?>; transition: transform 0.3s ease;
+        }
+        .semantix-product-card:hover .semantix-product-image { transform: scale(1.05); }
+        
+        .semantix-product-content {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .semantix-product-title {
+            font-family: <?php echo esc_attr( $title_font_family ); ?>;
+            font-weight: <?php echo esc_attr( $title_font_weight ); ?>;
+            color: <?php echo esc_attr( $title_color ); ?>;
+            margin: 0;
+            font-size: 1.1rem;
+            line-height: 1.4;
+            flex-grow: 1;
+        }
+        .semantix-product-title a { text-decoration: none; color: inherit; transition: color 0.2s ease; }
+        .semantix-product-title a:hover { color: #2563eb; }
+
+        .semantix-product-price {
+            font-family: <?php echo esc_attr( $price_font_family ); ?>;
+            font-weight: <?php echo esc_attr( $price_font_weight ); ?>;
+            color: <?php echo esc_attr( $price_color ); ?>;
+            font-size: 1.2rem;
+            margin: 0.5rem 0 1rem;
+        }
+        
+        .semantix-product-explanation {
+            font-size: 0.875rem;
+            color: #4b5563;
+            line-height: 1.5;
+            margin: 1rem 0;
+            padding: 0.75rem 2.5rem 0.75rem 1rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            text-align: right;
+            direction: rtl;
+            position: relative;
+        }
+
+        .semantix-product-explanation::before {
+            content: '✨';
+            position: absolute;
+            top: 0.75rem;
+            right: 1rem;
+            font-size: 1rem;
+            color: #60a5fa;
+        }
+
+        .semantix-perfect-match-badge {
+            position: absolute; 
+            top: 12px; 
+            left: 12px; 
+            background: #1a1a1a; 
+            color: white;
+            padding: 6px 12px; 
+            border-radius: 12px; 
+            font-size: 0.75rem; 
+            font-weight: 700;
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .semantix-perfect-match-badge::before {
+            content: '✨';
+            font-size: 0.9rem;
+        }
+        
+        .semantix-loader, .semantix-empty-state, .semantix-error-state {
+            grid-column: 1 / -1; text-align: center; padding: 4rem 2rem; color: #6b7280;
+        }
+        .semantix-loader::before {
+            content: ''; display: inline-block; width: 2rem; height: 2rem; border: 3px solid #e5e7eb;
+            border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 1rem; vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .semantix-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            .semantix-search-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+
+    <div class="semantix-results-page-wrapper">
+        <div id="semantix-custom-results-container">
+            <?php if ($show_header_title) : ?>
+            <div class="semantix-header">
+                <h1 class="semantix-search-title" id="semantix-search-title">
+                    תוצאות חיפוש AI עבור "<?php echo esc_html($search_term); ?>"
+                </h1>
+                <a href="https://semantix.co.il" target="_blank" class="semantix-powered-logo">
+                    <img src="https://semantix-ai.com/powered.png" alt="Semantix logo" width="120">
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <div id="semantix-custom-results-grid">
+                <div class="semantix-loader">טוען תוצאות...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+        
+        const SEMANTIX_DATA = <?php echo wp_json_encode( $js_data ); ?>;
+        const resultsGrid = document.getElementById('semantix-custom-results-grid');
+        
+        const C = {
+            cacheKey: 'semantix_search_cache',
+            maxItems: 50,
+            expiryHours: 24
+        };
+
+        const query = SEMANTIX_DATA.searchQuery;
+
+        function loadCache() {
+            try { 
+                const cached = JSON.parse(sessionStorage.getItem(C.cacheKey));
+                if (cached && cached.query === query && cached.ts) {
+                    const now = Date.now();
+                    const expiryTime = cached.ts + (C.expiryHours * 60 * 60 * 1000);
+                    if (now < expiryTime) {
+                        console.log('Semantix: Loaded ' + cached.results.length + ' cached results for "' + query + '"');
+                        return cached.results;
+                    }
+                }
+                return null;
+            }
+            catch { return null; }
+        }
+
+        function saveCache(items) {
+            try {
+                sessionStorage.setItem(C.cacheKey, JSON.stringify({ 
+                    query: query, 
+                    results: items.slice(0, C.maxItems), 
+                    ts: Date.now() 
+                }));
+                console.log('Semantix: Cached ' + items.length + ' results for "' + query + '"');
+            }
+            catch (error) {
+                console.warn('Semantix: Failed to save cache:', error);
+            }
+        }
+
+        async function fetchResults() {
+    if (!query || !SEMANTIX_DATA.apiEndpoint) {
+        showErrorState('Search configuration is incomplete.');
+        return;
+    }
+
+    const cachedResults = loadCache();
+    if (cachedResults) {
+        renderProducts(cachedResults);
+        return;
+    }
+
+    try {
+        const response = await fetch(SEMANTIX_DATA.apiEndpoint, { 
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Accept': 'application/json',
+                ...(SEMANTIX_DATA.apiKey && {'x-api-key': SEMANTIX_DATA.apiKey}) 
+            },
+            body: JSON.stringify({
+                query: query,
+                dbName: SEMANTIX_DATA.dbName,
+                collectionName1: SEMANTIX_DATA.collection1,
+                collectionName2: SEMANTIX_DATA.collection2,
+                modern: true  // ✅ Enable modern mode
+            }),
+            mode: 'cors'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error('API Error: ' + response.status + ' - ' + errorText);
+        }
+
+        const data = await response.json();
+        
+        // 🎯 Handle modern response structure
+        let products = [];
+        let pagination = null;
+        let metadata = null;
+        
+        if (data.products && Array.isArray(data.products)) {
+            // Modern mode response
+            products = data.products;
+            pagination = data.pagination || null;
+            metadata = data.metadata || null;
+            
+            // Log useful info
+            if (metadata && metadata.executionTime) {
+                console.log(`Semantix: Search completed in ${metadata.executionTime}ms`);
+            }
+            if (pagination && pagination.totalAvailable) {
+                console.log(`Semantix: Found ${pagination.totalAvailable} total results, showing ${pagination.returned}`);
+            }
+            if (metadata && metadata.tiers && metadata.tiers.description) {
+                console.log(`Semantix: ${metadata.tiers.description}`);
+            }
+        } else if (Array.isArray(data)) {
+            // Legacy response (fallback)
+            products = data;
+        }
+        
+        saveCache(products);
+        renderProducts(products);
+        
+        // Show tier info if available
+        if (metadata && metadata.tiers && metadata.tiers.description) {
+            showTierInfo(metadata.tiers.description);
+        }
+
+    } catch (error) {
+        console.error('Semantix Search Fetch Error:', error);
+        showErrorState(error.message);
+    }
+}
+        function renderProducts(products) {
+            resultsGrid.innerHTML = '';
+            
+            if (!products || products.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            products.forEach(function(product) {
+                const card = document.createElement('div');
+                card.className = 'semantix-product-card';
+
+                const productLink = product.url || '/?p=' + product.id;
+                const productImage = product.image || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+                const productPrice = product.price ? product.price + ' ₪' : '';
+                const perfectMatchBadge = product.highlight ? '<div class="semantix-perfect-match-badge">PERFECT MATCH</div>' : '';
+                const productExplanation = product.explanation ? '<div class="semantix-product-explanation">' + product.explanation + '</div>' : '';
+
+                card.innerHTML = 
+                    '<a href="' + productLink + '" class="semantix-product-link" aria-label="View ' + (product.name || 'product') + '">' +
+                        '<div class="semantix-product-image-container">' +
+                            perfectMatchBadge +
+                            '<img src="' + productImage + '" alt="' + (product.name || 'Product Image') + '" class="semantix-product-image" loading="lazy">' +
+                        '</div>' +
+                    '</a>' +
+                    '<div class="semantix-product-content">' +
+                        '<h2 class="semantix-product-title">' +
+                            '<a href="' + productLink + '">' + (product.name || 'Untitled Product') + '</a>' +
+                        '</h2>' +
+                        productExplanation +
+                        (productPrice ? '<div class="semantix-product-price">' + productPrice + '</div>' : '') +
+                    '</div>';
+                
+                resultsGrid.appendChild(card);
+            });
+        }
+
+        function showEmptyState() {
+            resultsGrid.innerHTML = '<div class="semantix-empty-state"><h3>לא נמצאו מוצרים</h3><p>לא הצלחנו למצוא מוצרים התואמים לחיפוש שלך. נסה מילות חיפוש שונות.</p></div>';
+        }
+
+        function showErrorState(message) {
+            resultsGrid.innerHTML = '<div class="semantix-error-state"><h3>משהו השתבש</h3><p>' + message + '</p></div>';
+        }
+
+        window.semantixClearSearchCache = function() {
+            try {
+                sessionStorage.removeItem(C.cacheKey);
+                console.log('Semantix: Search cache cleared');
+            } catch (error) {
+                console.warn('Semantix: Failed to clear search cache:', error);
+            }
+        };
+
+        // Execute search immediately
+        fetchResults();
+    })();
+    </script>
+    <?php
+    
+    $template_html = ob_get_clean();
+    echo $template_html;
+    wp_die();
+}
+}
 
 if (!function_exists('semantix_render_products_ajax')) {
 function semantix_render_products_ajax() {
@@ -2182,5 +3744,188 @@ function semantix_add_to_cart_ajax() {
     wp_die();
     }
 }
+
+/**
+ * AJAX handler for "Load More" button
+ */
+add_action( 'wp_ajax_semantix_load_more_products', 'semantix_load_more_products_ajax' );
+add_action( 'wp_ajax_nopriv_semantix_load_more_products', 'semantix_load_more_products_ajax' );
+
+if (!function_exists('semantix_load_more_products_ajax')) {
+function semantix_load_more_products_ajax() {
+    // Verify nonce
+    if ( ! isset($_POST['nonce']) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'semantix_load_more' ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed' ), 403 );
+    }
+    
+    $product_ids_json = isset( $_POST['product_ids'] ) ? stripslashes( $_POST['product_ids'] ) : '[]';
+    $highlight_map_json = isset( $_POST['highlight_map'] ) ? stripslashes( $_POST['highlight_map'] ) : '{}';
+    $explanation_map_json = isset( $_POST['explanation_map'] ) ? stripslashes( $_POST['explanation_map'] ) : '{}';
+    
+    $product_ids = json_decode( $product_ids_json, true );
+    $highlight_map = json_decode( $highlight_map_json, true );
+    $explanation_map = json_decode( $explanation_map_json, true );
+    
+    if ( empty( $product_ids ) || ! is_array( $product_ids ) ) {
+        wp_send_json_error( array( 'message' => 'Invalid product IDs' ), 400 );
+    }
+    
+    // Setup WooCommerce loop
+    $columns = (int) wc_get_theme_support( 'product_grid::default_columns', 4 );
+    
+    wc_setup_loop( array(
+        'name' => 'semantix_load_more',
+        'columns' => $columns,
+        'is_shortcode' => false,
+        'is_paginated' => false,
+        'total' => count( $product_ids ),
+    ) );
+    
+    // Query products
+    $products_query = new WP_Query( array(
+        'post_type'           => 'product',
+        'post_status'         => 'publish',
+        'post__in'            => $product_ids,
+        'orderby'             => 'post__in',
+        'posts_per_page'      => -1,
+        'ignore_sticky_posts' => 1,
+    ) );
+    
+    // Add explanation hook if needed
+    if ( ! empty( $explanation_map ) ) {
+        add_action( 'woocommerce_after_shop_loop_item_title', function() use ( $explanation_map ) {
+            static $rendered = array();
+            $pid = get_the_ID();
+            
+            if ( isset( $rendered[ $pid ] ) ) return;
+            
+            if ( $pid && isset( $explanation_map[ $pid ] ) && $explanation_map[ $pid ] !== '' ) {
+                $text = wp_kses( $explanation_map[ $pid ], array(
+                    'br' => array(), 
+                    'em' => array(), 
+                    'strong' => array(), 
+                    'span' => array( 'class' => array() )
+                ) );
+                $rendered[ $pid ] = true;
+                ?>
+                <div class="semantix-product-explanation">
+                    <span class="semantix-ai-icon">✨</span>
+                    <span class="semantix-explanation-text"><?php echo $text; ?></span>
+                </div>
+                <?php
+            }
+        }, 999 );
+    }
+    
+    // Render products
+    ob_start();
+    
+    if ( $products_query->have_posts() ) {
+        while ( $products_query->have_posts() ) {
+            $products_query->the_post();
+            wc_get_template_part( 'content', 'product' );
+        }
+    }
+    
+    $html = ob_get_clean();
+    wp_reset_postdata();
+    wc_reset_loop();
+    
+    // Return response
+    wp_send_json_success( array(
+        'html' => $html,
+        'count' => $products_query->found_posts
+    ) );
+} 
+}
+/**
+ * Clear Semantix SSR cache
+ * Useful for debugging or when products are updated
+ */
+if (!function_exists('semantix_clear_ssr_cache')) {
+function semantix_clear_ssr_cache( $query = '' ) {
+    global $wpdb;
+    
+    if ( ! empty( $query ) ) {
+        // Clear specific query cache
+        $dbname = get_option( 'semantix_dbname', 'alcohome' );
+        $cache_key = 'semantix_ssr_' . md5( $query . $dbname );
+        delete_transient( $cache_key );
+        error_log( 'Semantix SSR: Cleared cache for query: ' . $query );
+    } else {
+        // Clear all Semantix SSR caches
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options} 
+             WHERE option_name LIKE '_transient_semantix_ssr_%' 
+             OR option_name LIKE '_transient_timeout_semantix_ssr_%'"
+        );
+        error_log( 'Semantix SSR: Cleared all SSR caches' );
+    }
+}
+}
+
+/**
+ * AJAX handler to clear SSR cache (for admin use)
+ */
+add_action( 'wp_ajax_semantix_clear_ssr_cache', 'semantix_clear_ssr_cache_ajax' );
+
+if (!function_exists('semantix_clear_ssr_cache_ajax')) {
+function semantix_clear_ssr_cache_ajax() {
+    // Verify nonce
+    if ( ! isset($_POST['nonce']) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'semantix_nonce' ) ) {
+        wp_send_json_error( array( 'message' => 'Security check failed' ), 403 );
+    }
+    
+    // Check user permissions
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Insufficient permissions' ), 403 );
+    }
+    
+    semantix_clear_ssr_cache();
+    
+    wp_send_json_success( array( 'message' => 'SSR cache cleared successfully' ) );
+}
+}
+
+/**
+ * Clear SSR cache when products are updated
+ */
+add_action( 'woocommerce_update_product', 'semantix_clear_ssr_cache_on_product_update' );
+add_action( 'woocommerce_new_product', 'semantix_clear_ssr_cache_on_product_update' );
+
+if (!function_exists('semantix_clear_ssr_cache_on_product_update')) {
+function semantix_clear_ssr_cache_on_product_update( $product_id ) {
+    // Clear all SSR caches when a product is updated
+    // This ensures search results always show current data
+    semantix_clear_ssr_cache();
+    }
+}
+
+/**
+ * 🧪 TEMPORARY DIAGNOSTIC HOOKS - Remove after testing
+ */
+add_action( 'woocommerce_after_shop_loop', function() {
+    echo '<!-- 🧪 HOOK TEST: woocommerce_after_shop_loop fired! -->';
+}, 1 );
+
+add_action( 'woocommerce_after_main_content', function() {
+    echo '<!-- 🧪 HOOK TEST: woocommerce_after_main_content fired! -->';
+}, 1 );
+
+add_action( 'wp_footer', function() {
+    if ( is_search() ) {
+        echo '<!-- 🧪 HOOK TEST: wp_footer on search page -->';
+        global $semantix_ai_metadata;
+        if ( ! empty( $semantix_ai_metadata ) ) {
+            $product_count = isset( $semantix_ai_metadata['all_product_ids'] ) ? count( $semantix_ai_metadata['all_product_ids'] ) : 0;
+            echo '<!-- 🧪 HOOK TEST: semantix_ai_metadata exists with ' . $product_count . ' products -->';
+            echo '<!-- 🧪 HOOK TEST: current_page=' . ( isset( $semantix_ai_metadata['current_page'] ) ? $semantix_ai_metadata['current_page'] : 'N/A' ) . ' -->';
+            echo '<!-- 🧪 HOOK TEST: per_page=' . ( isset( $semantix_ai_metadata['per_page'] ) ? $semantix_ai_metadata['per_page'] : 'N/A' ) . ' -->';
+            echo '<!-- 🧪 HOOK TEST: total_products=' . ( isset( $semantix_ai_metadata['total_products'] ) ? $semantix_ai_metadata['total_products'] : 'N/A' ) . ' -->';
+        } else {
+            echo '<!-- 🧪 HOOK TEST: semantix_ai_metadata is EMPTY -->';
+        }
+    }
+}, 999 );
 
 ?>

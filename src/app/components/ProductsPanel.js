@@ -169,6 +169,12 @@ export default function ProductsPanel({ session, onboarding }) {
     if (typeof finalType === 'string') {
       finalType = finalType.split(',').map(t => t.trim()).filter(Boolean);
     }
+
+    // Ensure softCategory is converted to array if it's still a string
+    let finalSoftCategory = editingProduct.softCategory;
+    if (typeof finalSoftCategory === 'string') {
+      finalSoftCategory = finalSoftCategory.split(',').map(s => s.trim()).filter(Boolean);
+    }
     
     try {
       const response = await fetch('/api/products/update', {
@@ -182,6 +188,7 @@ export default function ProductsPanel({ session, onboarding }) {
             description1: editingProduct.description1,
             category: editingProduct.category,
             type: finalType,
+            softCategory: finalSoftCategory,
             price: editingProduct.price
           }
         })
@@ -191,8 +198,12 @@ export default function ProductsPanel({ session, onboarding }) {
         throw new Error(`HTTP ${response.status}`);
       }
       
-      // Update local state with the final type array
-      const updatedProduct = { ...editingProduct, type: finalType };
+      // Update local state with the final arrays
+      const updatedProduct = { 
+        ...editingProduct, 
+        type: finalType,
+        softCategory: finalSoftCategory 
+      };
       setProducts(products.map(p => 
         p.id === editingProduct.id ? updatedProduct : p
       ));
@@ -680,6 +691,38 @@ export default function ProductsPanel({ session, onboarding }) {
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   Type new product types separated by commas. Press Tab or click elsewhere to save them.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Soft Categories (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={Array.isArray(editingProduct.softCategory) ? editingProduct.softCategory.join(', ') : (editingProduct.softCategory || '')}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    setEditingProduct({
+                      ...editingProduct, 
+                      softCategory: inputValue, 
+                      _softCategoryInput: inputValue 
+                    });
+                  }}
+                  onBlur={(e) => {
+                    const inputValue = e.target.value;
+                    const softCatsArray = inputValue.split(',').map(s => s.trim()).filter(Boolean);
+                    setEditingProduct({
+                      ...editingProduct, 
+                      softCategory: softCatsArray,
+                      _softCategoryInput: undefined 
+                    });
+                  }}
+                  placeholder="e.g., איטליה, צרפת, פרי, ארוחת ערב"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Type soft categories separated by commas. Press Tab or click elsewhere to save them.
                 </p>
               </div>
             </div>

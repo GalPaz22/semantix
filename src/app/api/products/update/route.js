@@ -54,6 +54,11 @@ export async function POST(request) {
     if (updates.type && Array.isArray(updates.type) && updates.type.length > 0) {
       userUpdateOps['credentials.type'] = { $each: updates.type };
     }
+
+    // Add soft categories to the softCategories array if provided
+    if (updates.softCategory && Array.isArray(updates.softCategory) && updates.softCategory.length > 0) {
+      userUpdateOps['credentials.softCategories'] = { $each: updates.softCategory };
+    }
     
     // Only perform the update if there's something to add
     if (Object.keys(userUpdateOps).length > 0) {

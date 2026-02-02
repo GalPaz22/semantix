@@ -66,7 +66,8 @@ export async function GET(request) {
       type: userTypes = [],
       softCategories = [],
       shopifyDomain,
-      wooUrl
+      wooUrl,
+      siteConfig
     } = credentials;
 
     // Get product count from the user's database if dbName exists
@@ -88,6 +89,9 @@ export async function GET(request) {
         apiKey,
         onboardingComplete,
         createdAt
+      },
+      credentials: {
+        siteConfig: siteConfig || null
       },
       configuration: {
         dbName,

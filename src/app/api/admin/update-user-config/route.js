@@ -11,7 +11,7 @@ const adminEmail = "galpaz2210@gmail.com"; // Admin user email
 /**
  * POST /api/admin/update-user-config
  *
- * Admin endpoint to update user's categories, types, soft categories, and category boosts
+ * Admin endpoint to update user's categories, types, soft categories, category boosts, and site configuration
  *
  * Body:
  * {
@@ -19,7 +19,17 @@ const adminEmail = "galpaz2210@gmail.com"; // Admin user email
  *   "categories": ["Cat1", "Cat2"],
  *   "types": ["Type1", "Type2"],
  *   "softCategories": ["Soft1", "Soft2"],
- *   "softCategoryBoosts": { "Soft1": 1.5, "Soft2": 2.0 } // optional
+ *   "softCategoryBoosts": { "Soft1": 1.5, "Soft2": 2.0 }, // optional
+ *   "siteConfig": { // optional
+ *     "domains": ["example.com"],
+ *     "queryParams": ["s", "q"],
+ *     "selectors": {...},
+ *     "nativeCard": {...},
+ *     "behavior": {...},
+ *     "features": {...},
+ *     "texts": {...},
+ *     "debug": {...}
+ *   }
  * }
  */
 export async function POST(request) {
@@ -34,7 +44,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, softCategoryBoosts } = body;
+    const { apiKey, categories, types, softCategories, softCategoryBoosts, siteConfig } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
@@ -67,17 +77,25 @@ export async function POST(request) {
       return NextResponse.json({ error: "User not found with provided API key" }, { status: 404 });
     }
 
+    // Prepare update object
+    const updateFields = {
+      "credentials.categories": categories,
+      "credentials.type": types,
+      "credentials.softCategories": softCategories,
+      "credentials.softCategoryBoosts": boosts,
+      updatedAt: new Date()
+    };
+
+    // Add siteConfig if provided
+    if (siteConfig) {
+      updateFields["credentials.siteConfig"] = siteConfig;
+    }
+
     // Update user's configuration
     const result = await users.updateOne(
       { apiKey },
       {
-        $set: {
-          "credentials.categories": categories,
-          "credentials.type": types,
-          "credentials.softCategories": softCategories,
-          "credentials.softCategoryBoosts": boosts,
-          updatedAt: new Date()
-        }
+        $set: updateFields
       }
     );
 
@@ -87,6 +105,20 @@ export async function POST(request) {
 
     console.log(`✅ Admin updated configuration for user: ${user.email}`);
     console.log(`   Categories: ${categories.length}, Types: ${types.length}, Soft Categories: ${softCategories.length}`);
+    if (siteConfig) {
+      console.log(`   Site Config: Updated with ${siteConfig.domains?.length || 0} domains`);
+      console.log(`   🔍 nativeCard.cardTemplate length: ${siteConfig.nativeCard?.cardTemplate?.length || 0}`);
+      if (siteConfig.nativeCard?.cardTemplate) {
+        console.log(`   📋 cardTemplate preview: ${siteConfig.nativeCard.cardTemplate.substring(0, 100)}...`);
+      }
+      console.log(`   🎯 Zero config saved:`, {
+        enabled: siteConfig.selectors?.zero?.enabled,
+        gridTag: siteConfig.selectors?.zero?.gridTag,
+        gridClass: siteConfig.selectors?.zero?.gridClass,
+        columns: siteConfig.selectors?.zero?.columns,
+        style: siteConfig.selectors?.zero?.style
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -94,7 +126,8 @@ export async function POST(request) {
       updated: {
         categoriesCount: categories.length,
         typesCount: types.length,
-        softCategoriesCount: softCategories.length
+        softCategoriesCount: softCategories.length,
+        siteConfigUpdated: !!siteConfig
       }
     });
 

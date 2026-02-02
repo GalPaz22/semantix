@@ -98,7 +98,7 @@ export default function DemoPanel({ session, onboarding }) {
 
     try {
       // Phase 1: Text matches
-      const phase1Response = await fetch('https://api.semantix-ai.com/search', {
+      const phase1Response = await fetch('http://localhost:8080/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

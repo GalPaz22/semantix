@@ -1,32 +1,73 @@
 <?php
 /**
- * Template Name: Semantix AI – Native WooCommerce Search (Preserve Original Design)
- * File: search-custom.php
- * Place this file in: /wp-content/plugins/semantix-ai-search/templates/search-custom.php
+ * Template Name: Semantix AI – Server-Side Rendered Search Results
+ * Description: Products are fetched and rendered server-side for maximum performance and reliability
+ * File: search-ssr.php
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// API settings
-$semantix_search_host = rtrim( get_option( 'semantix_api_endpoint', '' ), '/' );
-$semantix_api_key     = get_option( 'semantix_api_key', '' );
-$ajax_url   = admin_url('admin-ajax.php');
-$ajax_nonce = wp_create_nonce('semantix_nonce');
+// Get AI products from global (set in semantix_native_search_template)
+global $semantix_ai_products;
+
+if ( empty( $semantix_ai_products ) || ! is_array( $semantix_ai_products ) ) {
+    // Fallback to theme's default search template
+    get_template_part( 'search' );
+    return;
+}
+
+// Extract product data
+$product_ids = array();
+$highlight_map = array();
+$explanation_map = array();
+
+foreach ( $semantix_ai_products as $product ) {
+    if ( isset( $product['id'] ) ) {
+        $pid = intval( $product['id'] );
+        if ( $pid > 0 ) {
+            $product_ids[] = $pid;
+            
+            // Store highlight status
+            if ( ! empty( $product['highlight'] ) ) {
+                $highlight_map[ $pid ] = true;
+            }
+            
+            // Store AI explanation
+            if ( ! empty( $product['explanation'] ) ) {
+                $explanation_map[ $pid ] = sanitize_text_field( $product['explanation'] );
+            }
+        }
+    }
+}
+
+// If no valid product IDs, show error
+if ( empty( $product_ids ) ) {
+    get_header();
+    ?>
+    <div class="woocommerce">
+        <div class="woocommerce-info">לא נמצאו מוצרים מתאימים לחיפוש שלך.</div>
+    </div>
+    <?php
+    get_footer();
+    return;
+}
 
 get_header();
+
+$search_query = get_search_query();
 ?>
 
 <style>
 /* ===== MINIMAL STYLING - LET WOOCOMMERCE HANDLE EVERYTHING ===== */
 
-.semantix-wrapper {
+.semantix-ssr-wrapper {
     max-width: inherit;
     margin: 0;
     padding: 0;
 }
 
 /* Simple header styling */
-.semantix-header {
+.semantix-ssr-header {
     direction: rtl;
     display: flex;
     justify-content: space-between;
@@ -36,12 +77,18 @@ get_header();
     border-bottom: 1px solid #eee;
 }
 
-.semantix-search-title {
+.semantix-ssr-title {
     font-size: 24px;
     margin: 0;
     color: inherit;
     font-family: inherit;
     padding-right: 15px;
+}
+
+.semantix-ssr-count {
+    font-size: 16px;
+    color: #666;
+    margin: 8px 0 0 0;
 }
 
 .semantix-powered-logo {
@@ -54,350 +101,184 @@ get_header();
     opacity: 1;
 }
 
-/* ===== CONTAINER - NO OVERRIDES ===== */
-.semantix-results-container {
+/* AI Perfect Match Badge */
+<?php if ( ! empty( $highlight_map ) ) : ?>
+    <?php foreach ( array_keys( $highlight_map ) as $hid ) : ?>
+        .post-<?php echo esc_attr( $hid ); ?> {
+            position: relative;
+            margin-bottom: 35px;
+        }
+        .post-<?php echo esc_attr( $hid ); ?>::before {
+            content: "✨ AI PERFECT MATCH ✨";
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: .75rem;
+            font-weight: 600;
+            z-index: 15;
+            border: 1px solid #333;
+            white-space: nowrap;
+            min-width: 160px;
+            text-align: center;
+        }
+    <?php endforeach; ?>
+<?php endif; ?>
+
+/* AI Explanation styling */
+.semantix-product-explanation {
+    direction: rtl;
+    text-align: right;
+    font-size: .9rem;
+    line-height: 1.5;
+    color: #4b5563;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin: .5rem 0;
+    padding: .5rem .75rem;
     position: relative;
 }
 
-/* ===== LOADING AND MESSAGES ONLY ===== */
-.semantix-loading {
-    text-align: center;
-    padding: 40px 20px;
+.semantix-product-explanation .semantix-ai-icon {
+    position: absolute;
+    right: .5rem;
+    top: .5rem;
 }
 
-.semantix-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #007cba;
-    border-radius: 50%;
-    animation: semantix-spin 1s linear infinite;
-    margin: 0 auto 15px;
-}
-
-@keyframes semantix-spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.semantix-message {
-    text-align: center;
-    padding: 30px 20px;
-    color: #666;
-    background: #f9f9f9;
-    border-radius: 4px;
-    margin: 20px 0;
+.semantix-product-explanation .semantix-explanation-text {
+    display: block;
+    padding-right: 1.25rem;
 }
 
 /* ===== RESPONSIVE HEADER ONLY ===== */
 @media (max-width: 768px) {
-    .semantix-header {
+    .semantix-ssr-header {
         flex-direction: column;
         text-align: center;
         gap: 15px;
     }
-    .semantix-search-title {
+    .semantix-ssr-title {
         font-size: 20px;
     }
 }
 </style>
 
-<div class="semantix-wrapper">
-    <div class="semantix-header">
-        <h1 class="semantix-search-title" id="semantix-search-title">תוצאות חיפוש</h1>
+<div class="semantix-ssr-wrapper">
+    <div class="semantix-ssr-header">
+        <div>
+            <h1 class="semantix-ssr-title">
+                <?php echo esc_html( sprintf( 'תוצאות חיפוש עבור: "%s"', $search_query ) ); ?>
+            </h1>
+            <p class="semantix-ssr-count">
+                <?php echo esc_html( sprintf( 'נמצאו %d תוצאות', count( $product_ids ) ) ); ?>
+            </p>
+        </div>
         <a href="https://semantix.co.il" target="_blank" class="semantix-powered-logo" rel="noopener">
             <img src="https://semantix-ai.com/powered.png" alt="Semantix logo" width="120" loading="lazy">
         </a>
     </div>
 
     <div class="woocommerce">
-        <div id="semantix-results-container" class="semantix-results-container"></div>
+        <?php
+        // Set up WooCommerce loop context
+        $columns = (int) wc_get_theme_support( 'product_grid::default_columns' );
+        if ( ! $columns ) {
+            $columns = (int) wc_get_default_products_per_row();
+            if ( ! $columns ) {
+                $columns = 4;
+            }
+        }
+
+        wc_setup_loop( array(
+            'name'         => 'semantix_ssr_search',
+            'columns'      => $columns,
+            'is_shortcode' => false,
+            'is_paginated' => false,
+            'total'        => count( $product_ids ),
+            'per_page'     => count( $product_ids ),
+            'current_page' => 1,
+        ) );
+
+        // Query products in the order returned by AI
+        $products_query = new WP_Query( array(
+            'post_type'           => 'product',
+            'post_status'         => 'any', // Include ALL statuses to debug
+            'post__in'            => $product_ids,
+            'orderby'             => 'post__in', // Preserve AI ranking
+            'posts_per_page'      => -1,
+            'ignore_sticky_posts' => 1,
+        ) );
+
+        // Hook to inject AI explanations below product title (ONCE ONLY)
+        if ( ! empty( $explanation_map ) ) {
+            // Remove any existing hook first to prevent duplicates
+            remove_all_actions( 'woocommerce_after_shop_loop_item_title', 999 );
+            
+            add_action( 'woocommerce_after_shop_loop_item_title', function() use ( $explanation_map ) {
+                static $already_rendered = array(); // Track what we've already shown
+                
+                $pid = get_the_ID();
+                
+                // If we already rendered this product's explanation, skip it
+                if ( isset( $already_rendered[ $pid ] ) ) {
+                    return;
+                }
+                
+                if ( $pid && isset( $explanation_map[ $pid ] ) && $explanation_map[ $pid ] !== '' ) {
+                    $allowed = array(
+                        'br'     => array(),
+                        'em'     => array(),
+                        'strong' => array(),
+                        'span'   => array( 'class' => array() ),
+                    );
+                    $text = wp_kses( $explanation_map[ $pid ], $allowed );
+                    
+                    // Mark as rendered
+                    $already_rendered[ $pid ] = true;
+                    ?>
+                    <div class="semantix-product-explanation">
+                        <span class="semantix-ai-icon">✨</span>
+                        <span class="semantix-explanation-text"><?php echo $text; ?></span>
+                    </div>
+                    <?php
+                }
+            }, 999 );
+        }
+
+        // Render products using native WooCommerce templates
+        if ( $products_query->have_posts() ) {
+            woocommerce_product_loop_start();
+
+            while ( $products_query->have_posts() ) {
+                $products_query->the_post();
+                
+                /**
+                 * Hook: woocommerce_shop_loop
+                 * 
+                 * This is where WooCommerce renders each product card
+                 * using the theme's content-product.php template
+                 */
+                wc_get_template_part( 'content', 'product' );
+            }
+
+            woocommerce_product_loop_end();
+        } else {
+            // No products found (shouldn't happen, but just in case)
+            wc_get_template( 'loop/no-products-found.php' );
+        }
+
+        // Cleanup
+        wp_reset_postdata();
+        wc_reset_loop();
+        ?>
     </div>
 </div>
 
-<script>
-(function () {
-    'use strict';
-    
-    // Configuration
-    const SEMANTIX_API_SEARCH_ENDPOINT = <?php echo wp_json_encode( rtrim($semantix_search_host, '/') . '/search' ); ?>;
-    const SEMANTIX_API_KEY = <?php echo wp_json_encode( $semantix_api_key ); ?>;
-    const WP_AJAX_URL = <?php echo wp_json_encode( $ajax_url ); ?>;
-    const WP_AJAX_NONCE = <?php echo wp_json_encode( $ajax_nonce ); ?>;
+<?php
+get_footer();
+?>
 
-    // DOM Elements
-    const searchTitleEl = document.getElementById('semantix-search-title');
-    const resultsContainer = document.getElementById('semantix-results-container');
-
-    // Get search term
-    const params = new URLSearchParams(window.location.search);
-    const searchTerm = params.get('s') || '';
-
-    // Cache
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-    
-    // Initialize
-    if (!searchTerm) {
-        showMessage('אנא הכנס מונח חיפוש.');
-        return;
-    }
-
-    if (searchTitleEl) {
-        searchTitleEl.textContent = `תוצאות חיפוש עבור "${searchTerm}"`;
-    }
-
-    // Start search
-    showLoading();
-    executeSearch();
-
-    // Helper functions
-    function showLoading() {
-        resultsContainer.innerHTML = `
-            <div class="semantix-loading">
-                <div class="semantix-spinner"></div>
-                <p>טוען תוצאות...</p>
-            </div>
-        `;
-    }
-
-    function showMessage(message) {
-        resultsContainer.innerHTML = `
-            <div class="semantix-message">${message}</div>
-        `;
-    }
-
-    function getCacheKey(term) {
-        return `semantix_native_${encodeURIComponent(term)}`;
-    }
-
-    function getFromCache(key) {
-        try {
-            const cached = localStorage.getItem(key);
-            if (cached) {
-                const { timestamp, data } = JSON.parse(cached);
-                if (Date.now() - timestamp < CACHE_DURATION) {
-                    return data;
-                }
-                localStorage.removeItem(key);
-            }
-        } catch (e) {
-            localStorage.removeItem(key);
-        }
-        return null;
-    }
-
-    function saveToCache(key, data) {
-        try {
-            localStorage.setItem(key, JSON.stringify({
-                timestamp: Date.now(),
-                data: data
-            }));
-        } catch (e) {
-            console.warn('Failed to save to cache:', e);
-        }
-    }
-
-    // --- make theme CSS apply like native search/archive ---
-    function applyWooBodyClasses() {
-        const cls = [
-            'archive','search','woocommerce','woocommerce-page',
-            'post-type-archive','post-type-archive-product'
-        ];
-        cls.forEach(c => document.body.classList.add(c));
-    }
-
-    // Wrap raw <li class="product"> items with expected WooCommerce structure if needed
-    function ensureNativeWrappers(html) {
-        const hasProductsWrapper = /<ul[^>]*class="[^"]*\bproducts\b[^"]*"/i.test(html);
-        if (hasProductsWrapper) return html;
-
-        const items = html.match(/<li[^>]*class="[^"]*\bproduct\b[^"]*"[\s\S]*?<\/li>/gi) || [];
-        if (!items.length) return html;
-
-        const columns = 4; // adjust to your theme if needed
-        const wrapped = `
-            <div class="semantix-native-archive archive woocommerce woocommerce-page">
-              <div class="woocommerce-notices-wrapper"></div>
-              <ul class="products columns-${columns}">
-                ${items.join('\n')}
-              </ul>
-            </div>
-        `;
-        return wrapped;
-    }
-
-    // Fetch products from Semantix API
-    async function fetchSemantixProducts() {
-        try {
-            const response = await fetch(SEMANTIX_API_SEARCH_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(SEMANTIX_API_KEY ? { 'x-api-key': SEMANTIX_API_KEY } : {})
-                },
-                body: JSON.stringify({ 
-                    query: searchTerm, 
-                    dbName: 'alcohome',
-                    collectionName1: 'products',
-                    collectionName2: 'queries'
-                }),
-                credentials: 'same-origin'
-            });
-
-            if (!response.ok) {
-                throw new Error(`Semantix API Error: ${response.status}`);
-            }
-
-            const products = await response.json();
-            return Array.isArray(products) ? products : [];
-
-        } catch (error) {
-            console.error('Semantix API Error:', error);
-            throw error;
-        }
-    }
-
-    // Send POST to admin-ajax with fallback
-    async function requestRendered(formData) {
-        const res = await fetch(WP_AJAX_URL, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin'
-        });
-
-        const text = await res.text();
-        if (!res.ok || text.trim() === '0') {
-            throw new Error(`WP ${res.status} - ${text.trim()}`);
-        }
-        return text;
-    }
-
-    // Get rendered WooCommerce products using NATIVE theme styling
-    async function fetchRenderedWooCommerceProducts(semantixProducts) {
-        const productIds = semantixProducts
-            .map(p => p.id)
-            .filter(id => id && Number.isInteger(Number(id)) && Number(id) > 0);
-
-        const highlightMap = {};
-        const explanationMap = {}; // <-- NEW
-
-        semantixProducts.forEach(p => {
-            if (p.id) {
-                highlightMap[p.id]  = p.highlight || false;
-                if (p.explanation) {
-                    explanationMap[p.id] = String(p.explanation);
-                }
-            }
-        });
-
-        if (productIds.length === 0) {
-            showMessage('לא נמצאו מוצרים תואמים במערכת לאחר סינון.');
-            return;
-        }
-
-        try {
-            // try "native" action if present
-            const fdNative = new URLSearchParams();
-            fdNative.append('action', 'semantix_render_products_native');
-            fdNative.append('product_ids', JSON.stringify(productIds));
-            fdNative.append('highlight_map', JSON.stringify(highlightMap));
-            fdNative.append('explanation_map', JSON.stringify(explanationMap)); // <-- NEW
-            fdNative.append('search_term', searchTerm);
-            fdNative.append('render_mode', 'native');
-            fdNative.append('use_theme_templates', '1');
-            fdNative.append('nonce', WP_AJAX_NONCE);
-
-            let html;
-            try {
-                html = await requestRendered(fdNative);
-            } catch (e) {
-                // fallback to existing action
-                console.warn('Native action failed, falling back. Reason:', e.message);
-                const fdFallback = new URLSearchParams();
-                fdFallback.append('action', 'semantix_render_products');
-                fdFallback.append('product_ids', JSON.stringify(productIds));
-                fdFallback.append('highlight_map', JSON.stringify(highlightMap));
-                fdFallback.append('explanation_map', JSON.stringify(explanationMap)); // <-- NEW
-                fdFallback.append('search_term', searchTerm);
-                fdFallback.append('render_mode', 'native');
-                fdFallback.append('nonce', WP_AJAX_NONCE);
-                html = await requestRendered(fdFallback);
-            }
-
-            if (!html || !html.trim()) {
-                showMessage('לא ניתן היה להציג את המוצרים (תשובה ריקה מהשרת).');
-                return;
-            }
-
-            // Ensure theme styling context
-            applyWooBodyClasses();
-
-            const nativeHtml = ensureNativeWrappers(html);
-            resultsContainer.innerHTML = nativeHtml;
-
-        } catch (error) {
-            console.error('WordPress AJAX Error:', error);
-            showMessage(`שגיאה בהצגת המוצרים: ${error.message}`);
-        } finally {
-            initializeNativeWooCommerce();
-        }
-    }
-
-    function initializeNativeWooCommerce() {
-        if (typeof jQuery !== 'undefined') {
-            const $ = jQuery;
-            $(document.body).trigger('wc_fragment_refresh');
-            $(document.body).trigger('wc_fragments_loaded');
-            $(document.body).trigger('woocommerce_update_order_review');
-
-            $('.variations_form').each(function() {
-                if (typeof $(this).wc_variation_form === 'function') {
-                    $(this).wc_variation_form();
-                }
-            });
-
-            $('.add_to_cart_button').off('click.wc-add-to-cart');
-        }
-        
-        document.dispatchEvent(new CustomEvent('semantix_native_products_loaded', { 
-            bubbles: true,
-            detail: { searchTerm }
-        }));
-        
-        setTimeout(() => {
-            if (window.wc_add_to_cart_params && typeof jQuery !== 'undefined') {
-                jQuery(document.body).trigger('init_add_to_cart_button');
-            }
-        }, 100);
-    }
-
-    // Main execution - preserve native WooCommerce experience
-    async function executeSearch() {
-        const cacheKey = getCacheKey(searchTerm);
-        const cached = getFromCache(cacheKey);
-
-        if (cached) {
-            console.log('Loading results from cache');
-            await fetchRenderedWooCommerceProducts(cached);
-            return;
-        }
-
-        try {
-            const semantixProducts = await fetchSemantixProducts();
-            if (semantixProducts.length === 0) {
-                showMessage('לא נמצאו תוצאות עבור החיפוש שלך.');
-                return;
-            }
-            saveToCache(cacheKey, semantixProducts);
-            await fetchRenderedWooCommerceProducts(semantixProducts);
-
-        } catch (error) {
-            console.error('Search execution error:', error);
-            showMessage(`שגיאה בטעינת התוצאות: ${error.message}`);
-        }
-    }
-
-})();
-</script>
-
-<?php get_footer(); ?>

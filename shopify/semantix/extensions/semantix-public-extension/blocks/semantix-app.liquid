@@ -1,0 +1,326 @@
+{% schema %}
+{
+  "name": "⚡ Semantix AI",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "🔍 **Semantix AI Search & Personalization** - Configure your API key below to enable intelligent search powered by CDN."
+    },
+    {
+      "type": "text",
+      "id": "api_key",
+      "label": "🔑 API Key",
+      "info": "Get your API key from dashboard.semantix-ai.com"
+    },
+    {
+      "type": "header",
+      "content": "CDN Configuration"
+    },
+    {
+      "type": "text",
+      "id": "cdn_base",
+      "label": "CDN Base URL",
+      "default": "https://rough-lab-9118.galpaz2210.workers.dev",
+      "info": "Base URL for Semantix CDN (usually no need to change)"
+    },
+    {
+      "type": "header",
+      "content": "Features"
+    },
+    {
+      "type": "checkbox",
+      "id": "enabled",
+      "label": "✅ Enable Extension",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "search_page",
+      "label": "Load on Search Pages",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "collection_page",
+      "label": "Load on Collection Pages",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_tracking",
+      "label": "📊 Enable Event Tracking",
+      "default": true,
+      "info": "Track add-to-cart, checkout events (client-side)"
+    },
+    {
+      "type": "checkbox",
+      "id": "debug",
+      "label": "🐛 Debug Mode",
+      "default": false,
+      "info": "Show debug panel and console logs"
+    }
+  ]
+}
+{% endschema %}
+
+{% if block.settings.enabled and block.settings.api_key != blank %}
+
+<style>
+  /* Force 4 columns grid - Override CDN */
+  .semantix-ai-grid,
+  div[class*="semantix"][style*="grid-template-columns"] {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  
+  @media (max-width: 1024px) {
+    .semantix-ai-grid,
+    div[class*="semantix"][style*="grid-template-columns"] {
+      grid-template-columns: repeat(3, 1fr) !important;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .semantix-ai-grid,
+    div[class*="semantix"][style*="grid-template-columns"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .semantix-ai-grid,
+    div[class*="semantix"][style*="grid-template-columns"] {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+</style>
+
+<script>
+(function() {
+  'use strict';
+
+  // ==================== Configuration ====================
+  const CONFIG = {
+    apiKey: {{ block.settings.api_key | json }},
+    cdnBase: {{ block.settings.cdn_base | default: "https://rough-lab-9118.galpaz2210.workers.dev" | json }},
+    apiBase: 'https://api.semantix-ai.com',
+    debug: {{ block.settings.debug | json }},
+    platform: 'shopify',
+    
+    // Page type settings
+    enableSearch: {{ block.settings.search_page | json }},
+    enableCollection: {{ block.settings.collection_page | json }},
+    enableTracking: {{ block.settings.enable_tracking | json }},
+    
+    // Shopify metadata
+    shop: {{ shop.permanent_domain | json }},
+    locale: {{ request.locale.iso_code | json }},
+    currency: {{ cart.currency.iso_code | json }},
+    theme: {{ theme.name | json }}
+  };
+
+  // ==================== Utilities ====================
+  function log(...args) {
+    if (CONFIG.debug) {
+      console.log('%c[Semantix]', 'color: #0066ff; font-weight: bold;', ...args);
+    }
+  }
+
+  function error(...args) {
+    console.error('%c[Semantix Error]', 'color: #ff0000; font-weight: bold;', ...args);
+  }
+
+  function generateSessionId() {
+    return 'sess_' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  }
+
+  function setCookie(name, value, days = 30) {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  function getOrCreateSession() {
+    const SESSION_KEY = 'semantix_session_id';
+    let sid = getCookie(SESSION_KEY);
+    if (!sid) {
+      sid = generateSessionId();
+      setCookie(SESSION_KEY, sid, 30);
+      log('Created new session:', sid);
+    }
+    return sid;
+  }
+
+  // ==================== Page Detection ====================
+  function shouldLoad() {
+    const path = window.location.pathname;
+    const search = window.location.search;
+
+    // Search pages
+    if (CONFIG.enableSearch && (search.includes('q=') || path.includes('/search'))) {
+      log('✅ Loading on search page');
+      return true;
+    }
+
+    // Collection pages
+    if (CONFIG.enableCollection && path.includes('/collections/')) {
+      log('✅ Loading on collection page');
+      return true;
+    }
+
+    log('⏭️ Skipping - not a search/collection page');
+    return false;
+  }
+
+  // ==================== CDN Loader ====================
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        log('Script already loaded:', src);
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => {
+        log('✅ Loaded:', src);
+        resolve();
+      };
+      script.onerror = () => {
+        error('❌ Failed to load:', src);
+        reject(new Error(`Failed to load ${src}`));
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  async function initSemantics() {
+    try {
+      const sessionId = getOrCreateSession();
+      
+      // Set up global configuration
+      window.SemantixSettings = {
+        apiKey: CONFIG.apiKey,
+        apiBase: CONFIG.apiBase,
+        platform: CONFIG.platform,
+        debug: CONFIG.debug,
+        sessionId: sessionId,
+        
+        engineSrc: `${CONFIG.cdnBase}/semantix-engine.min.js`,
+        
+        metadata: {
+          shop: CONFIG.shop,
+          locale: CONFIG.locale,
+          currency: CONFIG.currency,
+          theme: CONFIG.theme
+        },
+
+        // Direct API calls (no proxy in Shopify)
+        // Note: endpoints are paths only, engine will prepend apiBase
+        endpoints: {
+          siteConfig: '/site-config',
+          search: '/search',
+          fastSearch: '/fast-search',
+          productClick: '/product-click',
+          searchToCart: '/search-to-cart'
+        },
+
+        // Session helpers
+        getSessionId: () => sessionId,
+        getCookie: getCookie,
+        setCookie: setCookie
+      };
+
+      log('🚀 Configuration ready:', window.SemantixSettings);
+
+      // Load the loader script from CDN
+      const loaderUrl = `${CONFIG.cdnBase}/semantix-loader.min.js`;
+      await loadScript(loaderUrl);
+
+      log('✅ Semantix loader initialized');
+
+      // Load tracking script if enabled
+      if (CONFIG.enableTracking) {
+        const trackingUrl = '{{ "semantix-tracking.js" | asset_url }}';
+        await loadScript(trackingUrl);
+        log('✅ Tracking initialized');
+      }
+
+      log('✅ Semantix initialized successfully');
+
+    } catch (err) {
+      error('Failed to initialize:', err);
+    }
+  }
+
+  // ==================== Entry Point ====================
+  function init() {
+    log('Semantix CDN Extension v2.0');
+    log('Config:', CONFIG);
+
+    if (!shouldLoad()) {
+      return;
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSemantics);
+    } else {
+      initSemantics();
+    }
+  }
+
+  // Start
+  init();
+
+  // Debug tools
+  if (CONFIG.debug) {
+    window.SemantixDebug = {
+      config: CONFIG,
+      reload: initSemantics,
+      getSettings: () => window.SemantixSettings
+    };
+    log('🐛 Debug tools: window.SemantixDebug');
+  }
+})();
+</script>
+
+{% if block.settings.debug %}
+<div style="position: fixed; bottom: 10px; right: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 16px; font-family: -apple-system, system-ui, sans-serif; font-size: 12px; z-index: 99999; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 250px;">
+  <div style="font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 18px;">🤖</span>
+    Semantix CDN Active
+  </div>
+  <div style="font-size: 10px; opacity: 0.9; line-height: 1.4;">
+    Session: <code style="background: rgba(255,255,255,0.2); padding: 2px 4px; border-radius: 3px; font-family: monospace;">{{ "now" | date: "%s" }}</code><br>
+    Shop: {{ shop.name }}<br>
+    <a href="javascript:console.log(window.SemantixDebug)" style="color: #fff; text-decoration: underline;">View Debug Info</a>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+
+{% comment %} Extension disabled or missing API key {% endcomment %}
+{% if block.settings.debug %}
+<div style="background: #fff3cd; border: 2px solid #ffc107; color: #856404; padding: 16px; margin: 20px; border-radius: 8px; font-family: -apple-system, system-ui, sans-serif;">
+  <strong>⚠️ Semantix Extension:</strong>
+  {% if block.settings.api_key == blank %}
+    <br>API Key is missing. Add it in the Theme Editor → App embeds → Semantix AI.
+  {% else %}
+    <br>Extension is disabled. Enable it in the Theme Editor.
+  {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+

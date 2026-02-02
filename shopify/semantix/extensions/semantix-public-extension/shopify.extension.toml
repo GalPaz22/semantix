@@ -1,29 +1,14 @@
-name = "Semantix AI Search"
+name = "Semantix AI (CDN)"
+uid = "a1847e4e-1a98-7c10-f424-696ab6f99b6ab57c98ae"
 type = "theme"
-handle = "semantix-search"
+handle = "semantix-cdn"
 
 [capabilities]
 network_access = true
-block_progress = true
+block_progress = false
 
 [extension_points]
+  # Main CDN loader block
   [[extension_points.targets]]
   target = "section"
-  module = "blocks/semantix-search-loader.liquid"
-
-  [[extension_points.targets]]
-  target = "section" 
-  module = "blocks/search-results.liquid"
-
-[settings]
-  [settings.api_endpoint]
-    type = "single_line_text_field"
-    default = "https://shopifyserver-1.onrender.com"
-    label = "API Endpoint"
-    info = "The base URL for the Semantix search API"
-
-  [settings.default_db_name]
-    type = "single_line_text_field"
-    default = "manoVino"
-    label = "Default Database Name"
-    info = "Default database name for new installations"
+  module = "blocks/semantix-app.liquid"

@@ -40,6 +40,7 @@ export default function OnboardingPage() {
   const sDB = session?.user?.dbName ?? "";
   const sCats = (sCreds.categories && Array.isArray(sCreds.categories)) ? sCreds.categories.join(", ") : "";
   const sType = Array.isArray(sCreds.type) ? sCreds.type.join(', ') : (sCreds.type ?? ""); // Ensure sType is a string
+  const sSoftCats = (sCreds.softCategories && Array.isArray(sCreds.softCategories)) ? sCreds.softCategories.join(", ") : "";
   const sContext = session?.user?.context ?? "";
   const sPreset = session?.user?.preset ?? "";
 
@@ -117,7 +118,7 @@ export default function OnboardingPage() {
   });
   const [categories, setCategories] = useState(sCats);
   const [typeFilter, setTypeFilter] = useState(sType);
-  const [softCategories, setSoftCategories] = useState("");
+  const [softCategories, setSoftCategories] = useState(sSoftCats);
   const [dbName, setDbName] = useState(sDB);
   const [context, setContext] = useState(sContext);
 
@@ -940,6 +941,33 @@ export default function OnboardingPage() {
                     }
                     colors={colors}
                     hint={typeFilter ? `${typeFilter.split(',').filter(t => t.trim()).length} סוגים הוגדרו` : "טרם הוגדרו סוגי מוצרים"}
+                  />
+                </div>
+                
+                <div className="relative">
+                  <StylishInput
+                    label={
+                      <div className="flex items-center">
+                        <span>קטגוריות רכות (Soft Categories)</span>
+                        <div className="relative ml-2 group">
+                          <div className="cursor-help w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300">?</div>
+                          <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-3 bg-white rounded-lg shadow-lg border border-gray-200 text-sm text-gray-600 z-10">
+                            קטגוריות רכות הן תגיות גמישות שמאפשרות סיווג נוסף של מוצרים לפי מאפיינים כמו מקור, סגנון, טעם, או כל מאפיין אחר שרלוונטי לחנות שלך (למשל, "איטליה", "פרי", "אורגני"). מוצרים יכולים להשתייך למספר קטגוריות רכות.
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    value={softCategories}
+                    disabled={processing}
+                    onChange={setSoftCategories}
+                    placeholder="הזן קטגוריות רכות, מופרדות בפסיקים"
+                    icon={
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                      </svg>
+                    }
+                    colors={colors}
+                    hint={softCategories ? `${softCategories.split(',').filter(s => s.trim()).length} קטגוריות רכות הוגדרו` : "אופציונלי - קטגוריות רכות מאפשרות סיווג גמיש יותר"}
                   />
                 </div>
                 
