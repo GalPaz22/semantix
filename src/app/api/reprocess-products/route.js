@@ -12,6 +12,8 @@ export async function POST(request) {
       softCategories, 
       targetCategory, 
       missingSoftCategoryOnly,
+      onlyWithoutSoftCategories, // New parameter from AdminPanel
+      onlyUnprocessed, // New parameter for fresh products
       // New reprocessing options
       reprocessHardCategories,
       reprocessSoftCategories,
@@ -20,14 +22,25 @@ export async function POST(request) {
       reprocessEmbeddings,
       reprocessDescriptions,
       translateBeforeEmbedding,
-      reprocessAll
+      reprocessAll,
+      // Incremental mode
+      incrementalMode,
+      incrementalSoftCategories
     } = await request.json();
+    
+    // Map the new parameter to the existing one
+    const filterMissingSoftCategories = onlyWithoutSoftCategories || missingSoftCategoryOnly || false;
+    const filterOnlyUnprocessed = onlyUnprocessed || false;
+    
     console.log(`📝 DB Name from request: ${dbNameFromRequest}`);
     console.log("📝 Categories from request:", categories);
     console.log("📝 Types from request:", userTypes);
     console.log("📝 Soft Categories from request:", softCategories);
     console.log("📝 Target Category from request:", targetCategory);
-    console.log("📝 Missing Soft Category Only from request:", missingSoftCategoryOnly);
+    console.log("📝 Only Without Soft Categories from request:", filterMissingSoftCategories);
+    console.log("📝 Only Unprocessed from request:", filterOnlyUnprocessed);
+    console.log("📝 Incremental Mode from request:", incrementalMode);
+    console.log("📝 Incremental Soft Categories from request:", incrementalSoftCategories);
     
     // Log reprocessing options
     console.log("📝 Reprocess Options:");
@@ -65,7 +78,7 @@ export async function POST(request) {
     console.log("userTypes:", userTypes ? `Array(${userTypes.length})` : "UNDEFINED");
     console.log("softCategories:", softCategories ? `Array(${softCategories.length})` : "UNDEFINED");
     console.log("targetCategory:", targetCategory || "NONE");
-    console.log("missingSoftCategoryOnly:", missingSoftCategoryOnly || false);
+    console.log("filterMissingSoftCategories:", filterMissingSoftCategories);
 
     // Basic validation
     if (!userDbName || !categories) {
@@ -80,14 +93,38 @@ export async function POST(request) {
     // Set job state
     await setJobState(userDbName, "running");
 
+    // If incremental mode, merge new soft categories with existing ones and update user document
+    let finalSoftCategories = softCategories || [];
+    if (incrementalMode && incrementalSoftCategories && incrementalSoftCategories.length > 0) {
+      // Merge and remove duplicates
+      const mergedCategories = [...new Set([...finalSoftCategories, ...incrementalSoftCategories])];
+      finalSoftCategories = mergedCategories;
+      
+      // Update user document with merged soft categories
+      try {
+        await usersCollection.updateOne(
+          { dbName: dbNameFromRequest },
+          { $set: { softCategories: mergedCategories } }
+        );
+        console.log(`✅ Updated user softCategories: added ${incrementalSoftCategories.length} new categories`);
+        console.log(`📝 New total soft categories: ${mergedCategories.length}`);
+      } catch (updateErr) {
+        console.error("⚠️ Failed to update user softCategories:", updateErr);
+        // Continue anyway - the reprocessing will still work
+      }
+    }
+
     // Create the payload - handle undefined values
     const payload = {
       dbName: userDbName,
       categories: categories,
       userTypes: userTypes || [],  // Fallback to empty array
-      softCategories: softCategories || [],  // Fallback to empty array
+      softCategories: finalSoftCategories,  // Use merged categories
       targetCategory: targetCategory || null,  // Optional category filter
-      missingSoftCategoryOnly: missingSoftCategoryOnly || false,  // Optional missing field filter
+      missingSoftCategoryOnly: filterMissingSoftCategories,  // Filter for products without soft categories
+      onlyUnprocessed: filterOnlyUnprocessed, // Filter for fresh products
+      incrementalMode: incrementalMode || false, // Incremental mode for adding new categories
+      incrementalSoftCategories: incrementalSoftCategories || [], // New soft categories to add
       
       // Add reprocessing options if provided
       options: {
@@ -108,7 +145,7 @@ export async function POST(request) {
     console.log("userTypes length:", payload.userTypes.length);
     console.log("softCategories length:", payload.softCategories.length);
     console.log("targetCategory:", payload.targetCategory);
-    console.log("missingSoftCategoryOnly:", payload.missingSoftCategoryOnly);
+    console.log("missingSoftCategoryOnly (filter):", payload.missingSoftCategoryOnly);
     console.log("reprocessing options:", payload.options);
 
     // Background processing
