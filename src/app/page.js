@@ -54,7 +54,7 @@ const HomePage = () => {
             {/* Copy - right side in RTL (first child) */}
             <div className="max-w-2xl" dir="rtl">
               <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-100 rounded-full mb-6">
-                <span className="text-sm font-medium text-purple-700">Search Saver by Semantix</span>
+               
                 <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
               </span>
 
