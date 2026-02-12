@@ -19,7 +19,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "Semantix - חיפוש חכם באמת | מנוע חיפוש AI לחנויות אי-קומרס",
   description: "מנוע החיפוש שמבין עברית, מתקן שגיאות כתיב ומגדיל המרות. Semantix הופכת את שורת החיפוש שלכם למוכר הכי טוב בחנות - מדייקת תוצאות, מבינה כוונה ומגדילה סלי קנייה.",
-  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, גילוי מוצרים, חיפוש בעברית, site search, semantic search, ecommerce",
+  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, גילוי מוצרים, חיפוש בעברית, site search, semantic search, ecommerce, בינה מלאכותית לעסקים",
   openGraph: {
     title: "Semantix - חיפוש חכם שמגדיל מכירות",
     description: "מנוע החיפוש שמבין עברית, מתקן שגיאות ומגדיל המרות בעסק שלכם",
