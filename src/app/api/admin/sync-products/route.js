@@ -183,5 +183,5 @@ export async function POST(request) {
   }
 }
 
-// Long timeout for processing - up to 5 minutes on Vercel
-export const maxDuration = 300;
+// Vercel Hobby plan allows 1-60 seconds for Serverless Functions
+export const maxDuration = 60;
