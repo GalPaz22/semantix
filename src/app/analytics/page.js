@@ -336,12 +336,39 @@ export default function AnalyticsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [queries, setQueries] = useState([]);
+  const [filteredQueries, setFilteredQueries] = useState([]);
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [checkoutAnalytics, setCheckoutAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [onboardDB, setOnboardDB] = useState("");
   const [dataLoaded, setDataLoaded] = useState({ onboarding: false, queries: false, cart: false, checkout: false });
+  const [dateRange, setDateRange] = useState("last7days");
+
+  // Calculate date range
+  const getDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+
+    switch (dateRange) {
+      case "today":
+        start.setHours(0, 0, 0, 0);
+        break;
+      case "last7days":
+        start.setDate(end.getDate() - 7);
+        break;
+      case "last30days":
+        start.setDate(end.getDate() - 30);
+        break;
+      case "thisMonth":
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        break;
+      default: // "all"
+        return { startDate: null, endDate: null };
+    }
+    return { startDate: start, endDate: end };
+  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -361,14 +388,14 @@ export default function AnalyticsPage() {
       try {
         const res = await fetch("/api/get-onboarding");
         const data = await res.json();
-        
+
         // Check for dbName in multiple possible locations
-        const dbName = data.onboarding?.credentials?.dbName 
-                    || data.credentials?.dbName 
-                    || data.onboarding?.dbName
-                    || data.dbName 
-                    || "";
-        
+        const dbName = data.onboarding?.credentials?.dbName
+          || data.credentials?.dbName
+          || data.onboarding?.dbName
+          || data.dbName
+          || "";
+
         if (dbName) {
           setOnboardDB(dbName);
           setDataLoaded(prev => ({ ...prev, onboarding: true }));
@@ -383,6 +410,22 @@ export default function AnalyticsPage() {
     })();
   }, [session, status]);
 
+  // Filter queries when dateRange or raw queries change
+  useEffect(() => {
+    const { startDate, endDate } = getDateRange();
+    if (!startDate || !endDate) {
+      setFilteredQueries(queries);
+      return;
+    }
+
+    const filtered = queries.filter(q => {
+      if (!q.timestamp) return false;
+      const qDate = new Date(q.timestamp);
+      return qDate >= startDate && qDate <= endDate;
+    });
+    setFilteredQueries(filtered);
+  }, [queries, dateRange]);
+
   // Fetch queries data
   useEffect(() => {
     if (!onboardDB) {
@@ -390,20 +433,21 @@ export default function AnalyticsPage() {
     }
     (async () => {
       setError("");
+      // We fetch ALL queries first, then filter client-side because the external API might not support filtering
       try {
         const res = await fetch("https://dashboard-server-ae00.onrender.com/queries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dbName: onboardDB })
         });
-        
+
         // Handle 204 No Content
         if (res.status === 204) {
           setQueries([]);
           setDataLoaded(prev => ({ ...prev, queries: true }));
           return;
         }
-        
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error fetching queries");
         setQueries(data.queries || []);
@@ -438,7 +482,7 @@ export default function AnalyticsPage() {
       .map((event, index) => {
         const searchQueryRaw = event.search_query || event.query || "";
         const searchQuery = trimAndNormalize(searchQueryRaw);
-        
+
         // Extract product name - handle both direct fields and products array
         let productNameRaw = "";
         if (event.product_name) {
@@ -456,12 +500,12 @@ export default function AnalyticsPage() {
           productNameRaw = productNames;
         }
         const productName = trimAndNormalize(productNameRaw) || "ללא שם מוצר";
-        
+
         const orderId = trimAndNormalize(
           event.order_id || event.orderId || event.checkout_id || `purchase-${index}`
         );
         const quantity = Number(event.quantity ?? event.qty ?? 1) || 1;
-        
+
         // For checkout events, use cart_total as the revenue (it's already the total amount)
         const cartTotal = normalizePrice(event.cart_total ?? 0);
         const revenue = cartTotal > 0 ? cartTotal : normalizePrice(event.product_price ?? event.price ?? event.unit_price ?? 0) * quantity;
@@ -638,12 +682,18 @@ export default function AnalyticsPage() {
     if (!onboardDB) {
       return;
     }
+    const { startDate, endDate } = getDateRange();
+
     (async () => {
       try {
         const res = await fetch("/api/cart-analytics", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dbName: onboardDB })
+          body: JSON.stringify({
+            dbName: onboardDB,
+            startDate: startDate ? startDate.toISOString() : null,
+            endDate: endDate ? endDate.toISOString() : null
+          })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error fetching cart analytics");
@@ -654,19 +704,26 @@ export default function AnalyticsPage() {
         setDataLoaded(prev => ({ ...prev, cart: true }));
       }
     })();
-  }, [onboardDB]);
+  }, [onboardDB, dateRange]);
 
   // Fetch checkout (purchase) analytics data
   useEffect(() => {
     if (!onboardDB) {
       return;
     }
+    const { startDate, endDate } = getDateRange();
+
     (async () => {
       try {
         const res = await fetch("/api/cart-analytics", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dbName: onboardDB, type: "checkout" })
+          body: JSON.stringify({
+            dbName: onboardDB,
+            type: "checkout",
+            startDate: startDate ? startDate.toISOString() : null,
+            endDate: endDate ? endDate.toISOString() : null
+          })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error fetching checkout analytics");
@@ -677,7 +734,7 @@ export default function AnalyticsPage() {
         setDataLoaded(prev => ({ ...prev, checkout: true }));
       }
     })();
-  }, [onboardDB]);
+  }, [onboardDB, dateRange]);
 
   // Update loading state when all data is loaded
   useEffect(() => {
@@ -700,22 +757,22 @@ export default function AnalyticsPage() {
 
     queries.forEach(query => {
       // Format timestamp properly
-      const timestamp = query.timestamp 
+      const timestamp = query.timestamp
         ? new Date(query.timestamp).toLocaleString('he-IL', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          })
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })
         : 'N/A';
-      
+
       // Ensure search query is properly formatted
-      const searchQuery = query.query && typeof query.query === 'string' 
-        ? `"${query.query.replace(/"/g, '""')}"` 
+      const searchQuery = query.query && typeof query.query === 'string'
+        ? `"${query.query.replace(/"/g, '""')}"`
         : 'N/A';
-      
+
       // Handle category properly - check if it's actually a category or something else
       let category = 'N/A';
       if (query.category) {
@@ -726,11 +783,11 @@ export default function AnalyticsPage() {
           category = `"${query.category.replace(/"/g, '""')}"`;
         }
       }
-      
+
       // Ensure price values are actually numeric and formatted correctly
       const minPrice = (query.minPrice && typeof query.minPrice === 'number') ? `₪${query.minPrice}` : 'N/A';
       const maxPrice = (query.maxPrice && typeof query.maxPrice === 'number') ? `₪${query.maxPrice}` : 'N/A';
-      
+
       // Ensure results count is numeric
       const resultsCount = (typeof query.resultsCount === 'number' && query.resultsCount >= 0) ? query.resultsCount.toString() : 'N/A';
 
@@ -743,7 +800,7 @@ export default function AnalyticsPage() {
         `"${maxPrice}"`,         // מחיר מקסימלי (עמודה 5)
         `"${resultsCount}"`      // כמות תוצאות (עמודה 6)
       ];
-      
+
       csvRows.push(row.join(','));
     });
 
@@ -752,7 +809,7 @@ export default function AnalyticsPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', `semantix-queries-${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
@@ -763,25 +820,13 @@ export default function AnalyticsPage() {
 
   // Calculate advanced business insights - Professional Data Analysis
   const businessInsights = useMemo(() => {
-    if (!queries.length) {
-      return {
-        topKeywords: [],
-        actionableInsights: [],
-        missedOpportunities: [],
-        seoRecommendations: [],
-        revenueInsights: [],
-        customerBehavior: [],
-        totalSearches: 0,
-        averageDaily: 0,
-        conversionRate: 0,
-        totalRevenue: 0
-      };
-    }
+    // Use filteredQueries for analysis
+    const activeQueries = filteredQueries;
 
     // Calculate basic metrics
-    const totalSearches = queries.length;
-    const timestamps = queries.map(q => new Date(q.timestamp).getTime()).filter(t => !isNaN(t));
-    
+    const totalSearches = activeQueries.length;
+    const timestamps = activeQueries.map(q => new Date(q.timestamp).getTime()).filter(t => !isNaN(t));
+
     // Use reduce instead of spread operator to avoid stack overflow with large arrays
     let daySpan = 1;
     if (timestamps.length > 0) {
@@ -793,7 +838,7 @@ export default function AnalyticsPage() {
 
     // Analyze search keywords with conversion data
     const queryAnalysis = {};
-    queries.forEach(q => {
+    activeQueries.forEach(q => {
       const query = (q.query || "").toLowerCase().trim();
       if (query) {
         if (!queryAnalysis[query]) {
@@ -863,7 +908,7 @@ export default function AnalyticsPage() {
     const totalConversions = cartAnalytics.length;
     const conversionRate = totalSearches > 0 ? (totalConversions / totalSearches) * 100 : 0;
     const totalRevenue = Object.values(queryAnalysis).reduce((sum, q) => sum + q.revenue, 0);
-    
+
     // Calculate total revenue from all cart items (both checkout and add to cart)
     const totalRevenueFromCart = cartAnalytics.reduce((sum, item) => {
       const price = parseFloat((item.product_price || "0").replace(/[^0-9.]/g, ''));
@@ -884,15 +929,15 @@ export default function AnalyticsPage() {
 
     const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
-    queries.forEach(q => {
+    activeQueries.forEach(q => {
       if (!q.timestamp) return;
-      
+
       const date = new Date(q.timestamp);
       const hour = date.getHours();
       const dayOfWeek = date.getDay();
       const dayName = dayNames[dayOfWeek];
       const category = Array.isArray(q.category) ? q.category[0] : q.category;
-      
+
       // Hourly analysis
       if (!timeAnalysis.hourly[hour]) {
         timeAnalysis.hourly[hour] = { searches: 0, conversions: 0, revenue: 0, keywords: new Set() };
@@ -925,7 +970,7 @@ export default function AnalyticsPage() {
       const dayOfWeek = date.getDay();
       const dayName = dayNames[dayOfWeek];
       const price = parseFloat((item.product_price || "0").replace(/[^0-9.]/g, ''));
-      
+
       // Initialize if doesn't exist
       if (!timeAnalysis.hourly[hour]) {
         timeAnalysis.hourly[hour] = { searches: 0, conversions: 0, revenue: 0, keywords: new Set() };
@@ -933,10 +978,10 @@ export default function AnalyticsPage() {
       if (!timeAnalysis.daily[dayName]) {
         timeAnalysis.daily[dayName] = { searches: 0, conversions: 0, revenue: 0, keywords: new Set() };
       }
-      
+
       timeAnalysis.hourly[hour].conversions += 1;
       timeAnalysis.daily[dayName].conversions += 1;
-      
+
       if (!isNaN(price)) {
         const totalPrice = price * (item.quantity || 1);
         timeAnalysis.hourly[hour].revenue += totalPrice;
@@ -1013,7 +1058,7 @@ export default function AnalyticsPage() {
         icon: '💰',
         type: 'revenue',
         title: 'מילת מפתח מובילה בהכנסות',
-        description: `"${topRevenue[0].keyword}" הניב ₪${topRevenue[0].revenue.toLocaleString('en-US', {minimumFractionDigits: 2})}`,
+        description: `"${topRevenue[0].keyword}" הניב ₪${topRevenue[0].revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
         action: 'השקע בקמפיין PPC ממומן וקידום אורגני עבור מילת מפתח זו במיוחד בשעות השיא'
       });
     }
@@ -1039,10 +1084,10 @@ export default function AnalyticsPage() {
       const dayOfWeek = date.getDay();
       const dayName = dayNames[dayOfWeek];
       const category = Array.isArray(q.category) ? q.category[0] : q.category;
-      
+
       // Skip unknown categories
       if (category === 'unknown') return;
-      
+
       const key = `${dayName}-${category}`;
       if (!dailyCategoryInsights[key]) {
         dailyCategoryInsights[key] = { day: dayName, category, searches: 0 };
@@ -1078,10 +1123,10 @@ export default function AnalyticsPage() {
 
     // Generate SEO recommendations - only with sufficient data
     const seoRecommendations = [];
-    
+
     // Only show SEO recommendations if we have meaningful data
     const MIN_SEARCHES_FOR_SEO = 5;
-    
+
     // Long-tail keywords with meaningful volume
     const longTailKeywords = Object.values(queryAnalysis)
       .filter(q => q.keyword.split(' ').length >= 3 && q.searches >= MIN_SEARCHES_FOR_SEO)
@@ -1099,7 +1144,7 @@ export default function AnalyticsPage() {
 
     // Category-based SEO - only if we have clear category patterns, exclude unknown
     const categoryFreq = {};
-    queries.forEach(q => {
+    activeQueries.forEach(q => {
       const cats = Array.isArray(q.category) ? q.category : [q.category];
       cats.forEach(cat => {
         if (cat && cat !== 'unknown') categoryFreq[cat] = (categoryFreq[cat] || 0) + 1;
@@ -1135,7 +1180,7 @@ export default function AnalyticsPage() {
       totalRevenueFromCart,
       timeAnalysis
     };
-  }, [queries, cartAnalytics]);
+  }, [filteredQueries, cartAnalytics]);
 
   if (status === "loading" || loading) {
     return (
@@ -1168,14 +1213,14 @@ export default function AnalyticsPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header with Back Button and Export */}
         <div className="flex items-center justify-between mb-8">
-          <Link 
+          <Link
             href="/dashboard"
             className="inline-flex items-center text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
           >
             <ArrowRight className="h-4 w-4 ml-2" />
             חזרה ללוח הבקרה
           </Link>
-          
+
           {queries.length > 0 && (
             <button
               onClick={downloadCSV}
@@ -1205,21 +1250,41 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="relative p-8 flex justify-between items-center">
                   <div>
-                    <h1 className="text-3xl font-bold text-white mb-1">תובנות עסקיות</h1>
-                    <p className="text-purple-100">ניתוח נתוני החיפוש והביצועים</p>
+                    <h1 className="text-3xl font-bold text-white mb-2">תובנות עסקיות</h1>
+                    <div className="flex items-center space-x-4 space-x-reverse">
+                      <p className="text-purple-100 ml-4">ניתוח נתוני החיפוש והביצועים</p>
+                      {/* Date Filter */}
+                      <div className="bg-white/10 backdrop-blur-md rounded-lg flex items-center p-1 border border-white/20">
+                        <button
+                          onClick={() => setDateRange('last7days')}
+                          className={`px-3 py-1 text-sm rounded-md transition-all ${dateRange === 'last7days' ? 'bg-white text-indigo-700 font-medium shadow-sm' : 'text-white hover:bg-white/10'}`}
+                        >
+                          7 ימים אחרונים
+                        </button>
+                        <button
+                          onClick={() => setDateRange('last30days')}
+                          className={`px-3 py-1 text-sm rounded-md transition-all ${dateRange === 'last30days' ? 'bg-white text-indigo-700 font-medium shadow-sm' : 'text-white hover:bg-white/10'}`}
+                        >
+                          30 ימים אחרונים
+                        </button>
+                        <button
+                          onClick={() => setDateRange('all')}
+                          className={`px-3 py-1 text-sm rounded-md transition-all ${dateRange === 'all' ? 'bg-white text-indigo-700 font-medium shadow-sm' : 'text-white hover:bg-white/10'}`}
+                        >
+                          הכל
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-4 space-x-reverse flex-wrap gap-4">
-                    <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm">
+                    <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm shadow-lg border border-white/10">
                       <p className="text-white/80 text-sm">סה"כ חיפושים</p>
                       <p className="text-xl font-bold text-white">{(businessInsights.totalSearches || 0).toLocaleString('en-US')}</p>
                     </div>
-                    <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm">
-                      <p className="text-white/80 text-sm">ממוצע יומי</p>
-                      <p className="text-xl font-bold text-white">{(parseFloat(businessInsights.averageDaily) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
-                    </div>
-                    <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm">
+                    {/* Removed Average Daily */}
+                    <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm shadow-lg border border-white/10">
                       <p className="text-white/80 text-sm">הכנסות כוללות</p>
-                      <p className="text-xl font-bold text-white">₪{(businessInsights.totalRevenueFromCart || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                      <p className="text-xl font-bold text-white">₪{(businessInsights.totalRevenueFromCart || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                     </div>
                   </div>
                 </div>
@@ -1270,16 +1335,16 @@ export default function AnalyticsPage() {
                             .sort((a, b) => b[1].searches - a[1].searches)
                             .slice(0, 4)
                             .map(([day, data], index) => (
-                            <div key={index} className="flex justify-between items-center p-2 bg-indigo-50 rounded">
-                              <span className="text-sm font-medium text-indigo-700">{day}</span>
-                              <span className="text-sm text-indigo-600">{data.searches} חיפושים</span>
-                            </div>
-                          ))}
+                              <div key={index} className="flex justify-between items-center p-2 bg-indigo-50 rounded">
+                                <span className="text-sm font-medium text-indigo-700">{day}</span>
+                                <span className="text-sm text-indigo-600">{data.searches} חיפושים</span>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     )}
                   </div>
-                
+
                   {/* Conversion Performance by Hour */}
                   {businessInsights.timeAnalysis.peakHours.length > 0 && (
                     <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
@@ -1300,26 +1365,24 @@ export default function AnalyticsPage() {
                           .sort((a, b) => b.conversionRate - a.conversionRate)
                           .slice(0, 6)
                           .map((item, index) => (
-                          <div key={index} className={`rounded-lg p-3 border ${
-                            item.conversionRate >= 10 ? 'bg-green-50 border-green-200' :
-                            item.conversionRate >= 5 ? 'bg-yellow-50 border-yellow-200' :
-                            'bg-red-50 border-red-200'
-                          }`}>
-                            <div className="text-sm font-medium text-gray-800">
-                              {item.hour}:00-{item.hour + 1}:00
+                            <div key={index} className={`rounded-lg p-3 border ${item.conversionRate >= 10 ? 'bg-green-50 border-green-200' :
+                              item.conversionRate >= 5 ? 'bg-yellow-50 border-yellow-200' :
+                                'bg-red-50 border-red-200'
+                              }`}>
+                              <div className="text-sm font-medium text-gray-800">
+                                {item.hour}:00-{item.hour + 1}:00
+                              </div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                {item.searches} חיפושים • {item.conversions} המרות
+                              </div>
+                              <div className={`text-xs font-semibold ${item.conversionRate >= 10 ? 'text-green-700' :
+                                item.conversionRate >= 5 ? 'text-yellow-700' :
+                                  'text-red-700'
+                                }`}>
+                                {item.conversionRate.toFixed(1)}% המרה
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {item.searches} חיפושים • {item.conversions} המרות
-                            </div>
-                            <div className={`text-xs font-semibold ${
-                              item.conversionRate >= 10 ? 'text-green-700' :
-                              item.conversionRate >= 5 ? 'text-yellow-700' :
-                              'text-red-700'
-                            }`}>
-                              {item.conversionRate.toFixed(1)}% המרה
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   )}
@@ -1349,9 +1412,7 @@ export default function AnalyticsPage() {
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           המרות
                         </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          שיעור המרה
-                        </th>
+                        {/* Removed Conversion Rate Header */}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -1366,15 +1427,7 @@ export default function AnalyticsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {item.conversions.toLocaleString('en-US')}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              item.conversionRate > 15 ? 'bg-green-100 text-green-700' :
-                              item.conversionRate > 5 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {item.conversionRate.toFixed(1)}%
-                            </span>
-                          </td>
+                          {/* Removed Conversion Rate Column */}
                         </tr>
                       ))}
                     </tbody>
@@ -1395,29 +1448,26 @@ export default function AnalyticsPage() {
                 <div className="p-6">
                   <div className="space-y-4">
                     {businessInsights.actionableInsights.map((insight, index) => (
-                      <div key={index} className={`rounded-lg p-4 border transition-all hover:shadow-md ${
-                        insight.type === 'success' ? 'bg-green-50 border-green-200 hover:border-green-300' :
+                      <div key={index} className={`rounded-lg p-4 border transition-all hover:shadow-md ${insight.type === 'success' ? 'bg-green-50 border-green-200 hover:border-green-300' :
                         insight.type === 'revenue' ? 'bg-yellow-50 border-yellow-200 hover:border-yellow-300' :
-                        insight.type === 'warning' ? 'bg-orange-50 border-orange-200 hover:border-orange-300' :
-                        'bg-blue-50 border-blue-200 hover:border-blue-300'
-                      }`}>
+                          insight.type === 'warning' ? 'bg-orange-50 border-orange-200 hover:border-orange-300' :
+                            'bg-blue-50 border-blue-200 hover:border-blue-300'
+                        }`}>
                         <div className="flex items-start">
                           <span className="text-lg ml-3">{insight.icon}</span>
                           <div className="flex-1">
-                            <h4 className={`font-semibold mb-1 ${
-                              insight.type === 'success' ? 'text-green-800' :
+                            <h4 className={`font-semibold mb-1 ${insight.type === 'success' ? 'text-green-800' :
                               insight.type === 'revenue' ? 'text-yellow-800' :
-                              insight.type === 'warning' ? 'text-orange-800' :
-                              'text-blue-800'
-                            }`}>{insight.title}</h4>
+                                insight.type === 'warning' ? 'text-orange-800' :
+                                  'text-blue-800'
+                              }`}>{insight.title}</h4>
                             <p className="text-gray-700 mb-2 text-sm">{insight.description}</p>
                             <div className="bg-white/70 backdrop-blur-sm rounded-lg p-3 border border-white/50">
-                              <p className={`text-xs font-medium ${
-                                insight.type === 'success' ? 'text-green-700' :
+                              <p className={`text-xs font-medium ${insight.type === 'success' ? 'text-green-700' :
                                 insight.type === 'revenue' ? 'text-yellow-700' :
-                                insight.type === 'warning' ? 'text-orange-700' :
-                                'text-blue-700'
-                              }`}>
+                                  insight.type === 'warning' ? 'text-orange-700' :
+                                    'text-blue-700'
+                                }`}>
                                 <span className="font-bold">💡 פעולה מומלצת:</span> {insight.action}
                               </p>
                             </div>
@@ -1475,13 +1525,12 @@ export default function AnalyticsPage() {
                       <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold text-gray-800">{rec.title}</h4>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            rec.priority === 'high' ? 'bg-red-100 text-red-700' :
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${rec.priority === 'high' ? 'bg-red-100 text-red-700' :
                             rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {rec.priority === 'high' ? 'גבוהה' : 
-                             rec.priority === 'medium' ? 'בינונית' : 'נמוכה'}
+                              'bg-green-100 text-green-700'
+                            }`}>
+                            {rec.priority === 'high' ? 'גבוהה' :
+                              rec.priority === 'medium' ? 'בינונית' : 'נמוכה'}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-2 mb-3">
@@ -1513,7 +1562,7 @@ export default function AnalyticsPage() {
             <p className="text-gray-600 mb-6">
               לא נמצאו נתונים עדיין. התחל לאסוף נתונים על ידי חיפושים באתר שלך.
             </p>
-            <Link 
+            <Link
               href="/dashboard"
               className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
             >

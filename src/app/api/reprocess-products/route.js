@@ -10,6 +10,7 @@ export async function POST(request) {
       categories, 
       type: userTypes, 
       softCategories, 
+      colors,
       targetCategory, 
       missingSoftCategoryOnly,
       onlyWithoutSoftCategories, // New parameter from AdminPanel
@@ -18,6 +19,7 @@ export async function POST(request) {
       reprocessHardCategories,
       reprocessSoftCategories,
       reprocessTypes,
+      reprocessColors,
       reprocessVariants,
       reprocessEmbeddings,
       reprocessDescriptions,
@@ -25,7 +27,8 @@ export async function POST(request) {
       reprocessAll,
       // Incremental mode
       incrementalMode,
-      incrementalSoftCategories
+      incrementalSoftCategories,
+      incrementalHardCategories
     } = await request.json();
     
     // Map the new parameter to the existing one
@@ -41,6 +44,7 @@ export async function POST(request) {
     console.log("📝 Only Unprocessed from request:", filterOnlyUnprocessed);
     console.log("📝 Incremental Mode from request:", incrementalMode);
     console.log("📝 Incremental Soft Categories from request:", incrementalSoftCategories);
+    console.log("📝 Incremental Hard Categories from request:", incrementalHardCategories);
     
     // Log reprocessing options
     console.log("📝 Reprocess Options:");
@@ -93,44 +97,64 @@ export async function POST(request) {
     // Set job state
     await setJobState(userDbName, "running");
 
-    // If incremental mode, merge new soft categories with existing ones and update user document
+    // If incremental mode, merge new categories with existing ones and update user document
     let finalSoftCategories = softCategories || [];
+    let finalCategories = categories || [];
     if (incrementalMode && incrementalSoftCategories && incrementalSoftCategories.length > 0) {
       // Merge and remove duplicates
       const mergedCategories = [...new Set([...finalSoftCategories, ...incrementalSoftCategories])];
       finalSoftCategories = mergedCategories;
-      
-      // Update user document with merged soft categories
+
+      // Update user document with merged soft categories under credentials
       try {
         await usersCollection.updateOne(
           { dbName: dbNameFromRequest },
-          { $set: { softCategories: mergedCategories } }
+          { $set: { "credentials.softCategories": mergedCategories } }
         );
-        console.log(`✅ Updated user softCategories: added ${incrementalSoftCategories.length} new categories`);
+        console.log(`✅ Updated user credentials.softCategories: added ${incrementalSoftCategories.length} new categories`);
         console.log(`📝 New total soft categories: ${mergedCategories.length}`);
       } catch (updateErr) {
         console.error("⚠️ Failed to update user softCategories:", updateErr);
-        // Continue anyway - the reprocessing will still work
+      }
+    }
+    if (incrementalMode && incrementalHardCategories && incrementalHardCategories.length > 0) {
+      // Merge and remove duplicates
+      const mergedHardCategories = [...new Set([...finalCategories, ...incrementalHardCategories])];
+      finalCategories = mergedHardCategories;
+
+      // Update user document with merged hard categories under credentials
+      try {
+        await usersCollection.updateOne(
+          { dbName: dbNameFromRequest },
+          { $set: { "credentials.categories": mergedHardCategories } }
+        );
+        console.log(`✅ Updated user credentials.categories: added ${incrementalHardCategories.length} new hard categories`);
+        console.log(`📝 New total hard categories: ${mergedHardCategories.length}`);
+      } catch (updateErr) {
+        console.error("⚠️ Failed to update user categories:", updateErr);
       }
     }
 
     // Create the payload - handle undefined values
     const payload = {
       dbName: userDbName,
-      categories: categories,
+      categories: finalCategories,  // Use merged categories
       userTypes: userTypes || [],  // Fallback to empty array
       softCategories: finalSoftCategories,  // Use merged categories
+      colors: colors || [],  // Colors filter
       targetCategory: targetCategory || null,  // Optional category filter
       missingSoftCategoryOnly: filterMissingSoftCategories,  // Filter for products without soft categories
       onlyUnprocessed: filterOnlyUnprocessed, // Filter for fresh products
       incrementalMode: incrementalMode || false, // Incremental mode for adding new categories
       incrementalSoftCategories: incrementalSoftCategories || [], // New soft categories to add
+      incrementalHardCategories: incrementalHardCategories || [], // New hard categories to add
       
       // Add reprocessing options if provided
       options: {
         reprocessHardCategories: reprocessHardCategories !== undefined ? reprocessHardCategories : true,
         reprocessSoftCategories: reprocessSoftCategories !== undefined ? reprocessSoftCategories : true,
         reprocessTypes: reprocessTypes !== undefined ? reprocessTypes : true,
+        reprocessColors: reprocessColors !== undefined ? reprocessColors : true,
         reprocessVariants: reprocessVariants !== undefined ? reprocessVariants : true,
         reprocessEmbeddings: reprocessEmbeddings !== undefined ? reprocessEmbeddings : false,
         reprocessDescriptions: reprocessDescriptions !== undefined ? reprocessDescriptions : false,

@@ -1,4 +1,4 @@
-import { Inter } from "next/font/google"; 
+import { Inter } from "next/font/google";
 import Link from 'next/link';
 import "./globals.css";
 import Script from "next/script";
@@ -45,15 +45,15 @@ export default function RootLayout({ children }) {
   gtag('config', 'G-8KT8DK42GV');
           `}
         </Script>
-        
+
         {/* Shopify App Bridge Script - Add this to enable app embedding */}
-        <Script 
-          id="shopify-app-bridge" 
-          src="https://cdn.shopify.com/shopifycloud/app-bridge.js" 
+        <Script
+          id="shopify-app-bridge"
+          src="https://cdn.shopify.com/shopifycloud/app-bridge.js"
           data-api-key={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || 'ed3834d550c5d814851e0ad46493ca2c'}
           strategy="beforeInteractive"
         />
-        
+
         {/* Session Token Authentication Script */}
         <Script id="shopify-app-bridge-init">
           {`
@@ -78,12 +78,12 @@ export default function RootLayout({ children }) {
             }
           `}
         </Script>
-        
+
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content={metadata.description} />
         <meta name="keywords" content={metadata.keywords} />
-        <meta name="author" content="Semantix"/>
+        <meta name="author" content="Semantix" />
 
         {/* Open Graph / Facebook */}
         <meta property="og:title" content={metadata.openGraph.title} />
@@ -92,17 +92,17 @@ export default function RootLayout({ children }) {
         <meta property="og:url" content="https://www.semantix.co.il" />
         <meta property="og:site_name" content="Semantix" />
         <meta property="og:image" content="https://www.semantix.co.il/main-logo.png" />
-        
+
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={metadata.openGraph.title} />
         <meta name="twitter:description" content={metadata.openGraph.description} />
         <meta name="twitter:image" content="https://www.semantix.co.il/main-logo.png" />
-        
+
         {/* Robots */}
         <meta name="robots" content="index, follow, noimageindex" />
         <meta name="googlebot" content="index, follow, noimageindex" />
-        
+
         {/* JSON-LD Structured Data */}
         <Script id="json-ld-organization" type="application/ld+json">
           {JSON.stringify({
@@ -117,7 +117,7 @@ export default function RootLayout({ children }) {
             ]
           })}
         </Script>
-        
+
         <Script id="json-ld-website" type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -132,7 +132,7 @@ export default function RootLayout({ children }) {
             }
           })}
         </Script>
-        
+
         <Script id="json-ld-software" type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -147,13 +147,13 @@ export default function RootLayout({ children }) {
             "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לחנויות אי-קומרס - מבין עברית, מתקן שגיאות ומגדיל המרות"
           })}
         </Script>
-        
-        
+
+
         <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="shortcut icon" href="/favicon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/favicon.png" />
-        
-        
+
+
         <title>{metadata.title}</title>
       </head>
       <body className={`${inter.className} min-h-screen flex flex-col bg-white`}>

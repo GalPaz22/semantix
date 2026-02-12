@@ -18,6 +18,9 @@ import { useUserDetails } from '../hooks/useUserDetails'; // Make sure this path
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config'; // Make sure this path is correct
 import CancellationModal from '../components/CancellationModal';
 
+// Charts
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+
 // Lucide icons
 import {
   LayoutDashboard,
@@ -47,7 +50,7 @@ import {
   Package,
   DollarSign,
   Monitor,
-  
+
 } from "lucide-react";
 
 
@@ -91,7 +94,7 @@ const knownBrandsWithTypos = [
   { correct: "באלוויני", typos: ["באלביני", "בלוויני", "balvenie", "balvanie", "באלו ויני", "בלו ויני"] },
   { correct: "בלנטיינס", typos: ["בלנטיינס", "בלנטייס", "בלנט ינס", "ballantines", "בלנט ינס"] },
   { correct: "צ'יווס רגל", typos: ["צ'יווס רגל", "צ'יווס רג ל", "chivas regal", "צ'יווס רגל", "צ'יווס רג ל"] },
-  
+
   // Wine brands
   { correct: "יקב רמת הגולן", typos: ["רמת גולן", "רמת ה גולן", "ramot hagolan", "רמת גולן", "רמת ה גולן"] },
   { correct: "קסטל", typos: ["קאסטל", "קס טל", "castel", "kastl", "קס טל", "קאס טל"] },
@@ -100,7 +103,7 @@ const knownBrandsWithTypos = [
   { correct: "ירדן", typos: ["ירדאן", "יר דן", "yarden", "jardn", "יר דן", "ירד אן"] },
   { correct: "גולן", typos: ["גול ן", "גו לן", "golan", "גול ן", "גו לן"] },
   { correct: "גמא", typos: ["גמ א", "ג מא", "gama", "גמ א", "ג מא"] },
-  
+
   // Common typos
   { correct: "שאטו", typos: ["שטו", "שאטאו", "שאטיו", "chateau", "chato", "שטו", "שאט או"] },
   { correct: "בלאן", typos: ["בלן", "בלאנק", "blanc", "blan", "בלן", "בלאנ ק"] },
@@ -159,14 +162,14 @@ knownBrandsWithTypos.forEach(brand => {
 // Typos indicate the user needs semantic search to find what they're looking for
 function hasSignificantTypo(query) {
   const lower = query.toLowerCase().trim();
-  
+
   // Fast lookup using Set - O(1) instead of nested loops
   for (const typo of allTyposSet) {
     if (lower.includes(typo)) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -251,32 +254,32 @@ const commonTransliterations = [
 function isTransliteration(text1, text2) {
   const t1 = text1.toLowerCase().trim();
   const t2 = text2.toLowerCase().trim();
-  
+
   if (!t1 || !t2) return false;
-  
+
   // Check if one contains English and the other contains Hebrew
   const t1HasEnglish = /[a-z]/.test(t1);
   const t2HasHebrew = /[\u0590-\u05FF]/.test(t2);
   const t2HasEnglish = /[a-z]/.test(t2);
   const t1HasHebrew = /[\u0590-\u05FF]/.test(t1);
-  
+
   // Need one to have English and the other to have Hebrew
   if (!((t1HasEnglish && t2HasHebrew) || (t2HasEnglish && t1HasHebrew))) {
     return false;
   }
-  
+
   // Check against known transliterations
   for (const trans of commonTransliterations) {
     const enLower = trans.en.toLowerCase();
-    
+
     // Check if English word appears in text1 and Hebrew appears in text2
     if (t1HasEnglish && t2HasHebrew) {
       // Check if English word is in text1 (as whole word or substring)
       // First try exact match, then substring, then word boundary
-      const enInT1 = t1 === enLower || 
-                     t1.includes(enLower) || 
-                     new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t1);
-      
+      const enInT1 = t1 === enLower ||
+        t1.includes(enLower) ||
+        new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t1);
+
       if (enInT1) {
         // Check if any Hebrew variant appears in text2
         if (trans.he.some(he => {
@@ -288,13 +291,13 @@ function isTransliteration(text1, text2) {
         }
       }
     }
-    
+
     // Check if English word appears in text2 and Hebrew appears in text1
     if (t2HasEnglish && t1HasHebrew) {
-      const enInT2 = t2 === enLower || 
-                     t2.includes(enLower) || 
-                     new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t2);
-      
+      const enInT2 = t2 === enLower ||
+        t2.includes(enLower) ||
+        new RegExp(`\\b${enLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t2);
+
       if (enInT2) {
         if (trans.he.some(he => {
           const heLower = he.toLowerCase();
@@ -305,7 +308,7 @@ function isTransliteration(text1, text2) {
       }
     }
   }
-  
+
   return false;
 }
 
@@ -329,12 +332,12 @@ function isComplex(query) {
   if (currencyRegex.test(lower)) return true;
   if (rangeRegex.test(lower)) return true;
   if (dealRegex.test(lower)) return true;
-  
+
   // Check for price-related words with numbers (e.g., "בפחות מ 50", "במחיר של 100")
   if (/(?:מחיר|במחיר|עולה|עד|מעל|מתחת|פחות|יותר|בתקציב|תקציב|ב-|זול|יקר)\s*(?:של|מ)?[-\s]?\s*\d+/i.test(lower)) return true;
   if (containsAny(lower, attributeDescriptors)) return true;
   if (containsAny(lower, geoCountries)) return true;
-  
+
   // Special location/brand searches that should be treated as complex queries
   // These are location-based or brand-based searches that require semantic understanding
   const mudHouseVariants = ["mud house", "mudhouse", "mud-house"];
@@ -367,19 +370,19 @@ function isUpsell(query, productName, deliveredProducts) {
   if (!query || !productName || !deliveredProducts || deliveredProducts.length === 0) {
     return false;
   }
-  
+
   const normalizedQuery = trimAndNormalize(query).toLowerCase();
   const normalizedProduct = trimAndNormalize(productName).toLowerCase();
-  
+
   // Check if product was in delivered results
-  const productInResults = deliveredProducts.some(p => 
+  const productInResults = deliveredProducts.some(p =>
     trimAndNormalize(p).toLowerCase() === normalizedProduct
   );
-  
+
   if (!productInResults) {
     return false; // Product wasn't even shown, so not an upsell
   }
-  
+
   // FIRST: Check for transliteration/translation match (e.g., "talisker" vs "טליסקר", "shiraz" vs "שירז")
   // This must be checked BEFORE direct match to catch English->Hebrew translations
   if (isTransliteration(normalizedQuery, normalizedProduct)) {
@@ -389,27 +392,27 @@ function isUpsell(query, productName, deliveredProducts) {
     const newZealandVariants = ["new zealand", "newzealand", "new-zealand", "ניו זילנד", "ניוזילנד", "ניו-זילנד"];
     const queryLower = normalizedQuery.toLowerCase();
     const productLower = normalizedProduct.toLowerCase();
-    
+
     // Check if query contains mud house or new zealand variants
     const hasMudHouse = mudHouseVariants.some(variant => queryLower.includes(variant));
     const hasNewZealand = newZealandVariants.some(variant => queryLower.includes(variant));
-    
+
     // If query has these terms, it's a complex query, not an upsell
     if (hasMudHouse || hasNewZealand) {
       return false; // It's a complex query (location-based), not an upsell
     }
-    
+
     return false; // It's a transliteration, not an upsell
   }
-  
+
   // Extract meaningful words from query (ignore common words)
-  const queryWords = normalizedQuery.split(/\s+/).filter(word => 
+  const queryWords = normalizedQuery.split(/\s+/).filter(word =>
     word.length > 2 && !['עם', 'של', 'עד', 'מעל', 'מתחת', 'עבור', 'ליום', 'with', 'for', 'and', 'the'].includes(word)
   );
-  
+
   // Extract meaningful words from product
   const productWords = normalizedProduct.split(/\s+/).filter(word => word.length > 2);
-  
+
   // Check word-by-word for transliterations
   for (const qWord of queryWords) {
     for (const pWord of productWords) {
@@ -419,16 +422,16 @@ function isUpsell(query, productName, deliveredProducts) {
       }
     }
   }
-  
+
   // Check for direct match (all query words in product)
-  const directMatch = queryWords.length > 0 && queryWords.every(word => 
+  const directMatch = queryWords.length > 0 && queryWords.every(word =>
     normalizedProduct.includes(word)
   );
-  
+
   if (directMatch) {
     return false; // Direct match - not an upsell
   }
-  
+
   // Compare using Levenshtein distance for similar-sounding words (same script)
   for (const qWord of queryWords) {
     for (const pWord of productWords) {
@@ -437,14 +440,14 @@ function isUpsell(query, productName, deliveredProducts) {
       const pIsEnglish = /^[a-z0-9\s'\"-]+$/i.test(pWord);
       const qIsHebrew = /[\u0590-\u05FF]/.test(qWord);
       const pIsHebrew = /[\u0590-\u05FF]/.test(pWord);
-      
+
       // If both are same script, use Levenshtein
       if ((qIsEnglish && pIsEnglish) || (qIsHebrew && pIsHebrew)) {
         const maxDistance = qWord.length <= 5 ? 2 : 3;
         if (levenshtein(qWord, pWord) <= maxDistance) {
           return false; // It's a translation/transliteration, not an upsell
         }
-        
+
         // Check if one contains the other (handles partial transliterations)
         if (qWord.length >= 4 && pWord.length >= 4) {
           if (qWord.includes(pWord) || pWord.includes(qWord)) {
@@ -454,7 +457,7 @@ function isUpsell(query, productName, deliveredProducts) {
       }
     }
   }
-  
+
   // It's an upsell if: product was shown but doesn't match the query (not even transliteration)
   return true;
 }
@@ -465,23 +468,23 @@ function getIndicatorType(query, productName, deliveredProducts, hasPurchaseOrCa
   if (!hasPurchaseOrCart) {
     return { type: 'regular', isSpecial: false };
   }
-  
+
   // Priority 1: Check if it's a complex query (based on the query itself, not the product)
   if (isComplex(query)) {
     return { type: 'complex', isSpecial: true };
   }
-  
+
   // Priority 2: Check if it's a transliteration/translation (English <-> Hebrew)
   // Transliterations should be marked as complex queries, not upsells
   if (productName && isTransliteration(query, productName)) {
     return { type: 'complex', isSpecial: true };
   }
-  
+
   // Priority 3: Check if it's an upsell (needs product name, and it's NOT a transliteration)
   if (productName && isUpsell(query, productName, deliveredProducts)) {
     return { type: 'upsell', isSpecial: true };
   }
-  
+
   // Regular purchase
   return { type: 'regular', isSpecial: false };
 }
@@ -495,17 +498,17 @@ function formatCurrency(value) {
 
 
 function SubscriptionPanel({ session, onboarding }) {
-  const { 
+  const {
     userDetails,
-    tier: currentTier, 
-    subscriptionStatus, 
+    tier: currentTier,
+    subscriptionStatus,
     paddleSubscriptionId,
     nextBillDate,
     loading: userLoading,
     refreshUserDetails
   } = useUserDetails();
   const router = useRouter(); // useRouter is already imported at the top of the file
-  
+
   const [loading, setLoading] = useState(null);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -528,7 +531,7 @@ function SubscriptionPanel({ session, onboarding }) {
     }
   }, [refreshUserDetails, router, message]); // Add message to dependency array to avoid stale closure issue if setMessage is called inside
 
-  const isActiveSubscription = currentTier !== 'free' && 
+  const isActiveSubscription = currentTier !== 'free' &&
     ['active', 'trialing'].includes(subscriptionStatus);
   const isPendingCancellation = subscriptionStatus === 'canceled';
   const currentTierConfig = SUBSCRIPTION_TIERS[currentTier];
@@ -613,11 +616,11 @@ function SubscriptionPanel({ session, onboarding }) {
       }
 
       setCancelModalOpen(false);
-      setMessage(immediate 
-        ? 'המנוי בוטל מיידית' 
+      setMessage(immediate
+        ? 'המנוי בוטל מיידית'
         : 'המנוי יבוטל בסוף תקופת החיוב'
       );
-      
+
       // Refresh user details to get updated status
       setTimeout(refreshUserDetails, 1000);
 
@@ -742,11 +745,10 @@ function SubscriptionPanel({ session, onboarding }) {
 
       {/* Message Display */}
       {message && (
-        <div className={`p-4 rounded-xl ${
-          message.includes('נכשל') || message.includes('error')
-            ? 'bg-red-50 text-red-800 border border-red-200'
-            : 'bg-green-50 text-green-800 border border-green-200'
-        }`}>
+        <div className={`p-4 rounded-xl ${message.includes('נכשל') || message.includes('error')
+          ? 'bg-red-50 text-red-800 border border-red-200'
+          : 'bg-green-50 text-green-800 border border-green-200'
+          }`}>
           <div className="flex items-center justify-between">
             <span>{message}</span>
             <button
@@ -817,7 +819,7 @@ function SubscriptionPanel({ session, onboarding }) {
                     <span className="text-gray-600">סטטוס</span>
                     {getSubscriptionStatusBadge()}
                   </div>
-                  
+
                   {nextBillDate && (
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-gray-600">חיוב הבא</span>
@@ -888,11 +890,10 @@ function SubscriptionPanel({ session, onboarding }) {
             {Object.entries(SUBSCRIPTION_TIERS).map(([key, plan]) => (
               <div
                 key={key}
-                className={`relative rounded-xl border-2 p-6 transition-all ${
-                  plan.tier === currentTier
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-indigo-300 bg-white'
-                }`}
+                className={`relative rounded-xl border-2 p-6 transition-all ${plan.tier === currentTier
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-200 hover:border-indigo-300 bg-white'
+                  }`}
               >
                 {plan.tier === currentTier && (
                   <div className="absolute -top-3 left-4 px-3 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
@@ -936,13 +937,11 @@ function SubscriptionPanel({ session, onboarding }) {
                     <button
                       onClick={() => handleUpgrade(plan.tier)}
                       disabled={upgradeLoading === plan.tier}
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ${
-                        plan.tier === 'pro'
-                          ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                      } ${
-                        upgradeLoading === plan.tier ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ${plan.tier === 'pro'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        } ${upgradeLoading === plan.tier ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                     >
                       {upgradeLoading === plan.tier ? (
                         <span className="flex items-center">
@@ -1023,7 +1022,7 @@ function SubscriptionPanel({ session, onboarding }) {
 function AnalyticsPanel({ session, onboarding }) {
   // Use onboarding.credentials.dbName (if available) as the database name.
   const onboardDB = onboarding?.credentials?.dbName || onboarding?.dbName || "";
-  
+
   const [queries, setQueries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1033,21 +1032,27 @@ function AnalyticsPanel({ session, onboarding }) {
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [loadingCart, setLoadingCart] = useState(false);
   const [cartError, setCartError] = useState("");
-  
+
   // Add state for checkout events
   const [checkoutEvents, setCheckoutEvents] = useState([]);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
-  
+
+  // Add state for product click events
+  const [clickEvents, setClickEvents] = useState([]);
+  const [loadingClicks, setLoadingClicks] = useState(false);
+  const [clickError, setClickError] = useState("");
+
   const [cartDetailsExpanded, setCartDetailsExpanded] = useState(false);
   const [checkoutDetailsExpanded, setCheckoutDetailsExpanded] = useState(false);
-  
+  const [clickDetailsExpanded, setClickDetailsExpanded] = useState(false);
+
   // Semantix funnel state
   const [semantixExpanded, setSemantixExpanded] = useState(false);
-  
+
   // Upsell analytics state
   const [upsellExpanded, setUpsellExpanded] = useState(false);
-  
+
   // Query results dropdown state
   const [expandedQueries, setExpandedQueries] = useState({});
 
@@ -1060,15 +1065,20 @@ function AnalyticsPanel({ session, onboarding }) {
   const [categoryOptions, setCategoryOptions] = useState([]);
 
   // Date filtering defaults and pagination state.
-  // Initialize with all data by default (no date filtering)
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Initialize with Last 7 Days by default
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
   // Time period dropdown states
   const [timePeriodOpen, setTimePeriodOpen] = useState(false);
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("all");
+  // Default to Last 7 Days
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState("7d");
 
   // Time period options
   const timePeriods = [
@@ -1084,7 +1094,7 @@ function AnalyticsPanel({ session, onboarding }) {
   const handleTimePeriodChange = (period) => {
     setSelectedTimePeriod(period.value);
     setTimePeriodOpen(false);
-    
+
     if (period.value === "all") {
       setStartDate("");
       setEndDate("");
@@ -1097,7 +1107,7 @@ function AnalyticsPanel({ session, onboarding }) {
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - period.days);
-      
+
       setStartDate(startDate.toISOString().split('T')[0]);
       setEndDate(endDate.toISOString().split('T')[0]);
     }
@@ -1118,7 +1128,7 @@ function AnalyticsPanel({ session, onboarding }) {
         setTimePeriodOpen(false);
       }
     };
-    
+
     if (timePeriodOpen) {
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
@@ -1128,18 +1138,18 @@ function AnalyticsPanel({ session, onboarding }) {
   // Function to fetch queries with pagination support
   const fetchQueries = async (skip = 0, limit = 100, append = false) => {
     if (!onboardDB) return;
-    
+
     try {
       const res = await fetch("https://dashboard-server-ae00.onrender.com/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dbName: onboardDB,
           skip: skip,
           limit: limit
         })
       });
-      
+
       // Handle 204 No Content
       if (res.status === 204) {
         if (!append) {
@@ -1150,19 +1160,19 @@ function AnalyticsPanel({ session, onboarding }) {
         }
         return { queries: [], hasMore: false };
       }
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error fetching queries");
-      
+
       const fetchedQueries = data.queries || [];
       const hasMore = fetchedQueries.length === limit; // If we got exactly the limit, there might be more
-      
+
       if (append) {
         setQueries(prev => [...prev, ...fetchedQueries]);
       } else {
         setQueries(fetchedQueries);
       }
-      
+
       setHasMoreQueries(hasMore);
       return { queries: fetchedQueries, hasMore };
     } catch (err) {
@@ -1176,7 +1186,7 @@ function AnalyticsPanel({ session, onboarding }) {
   // Load more queries
   const handleLoadMore = async () => {
     if (loadingMore || !hasMoreQueries) return;
-    
+
     setLoadingMore(true);
     try {
       await fetchQueries(queries.length, 100, true);
@@ -1188,65 +1198,104 @@ function AnalyticsPanel({ session, onboarding }) {
     }
   };
 
-  // Initial fetch
+  // Consolidated Data Fetching for Dashboard Analytics
   useEffect(() => {
     if (!onboardDB) return;
-    (async () => {
-      setLoading(true);
-      setError("");
+
+    const fetchAllAnalytics = async () => {
       try {
-        await fetchQueries(0, 100, false);
-        setCurrentPage(1);
+        setLoading(true);
+        setLoadingCart(true);
+        setLoadingCheckout(true);
+        setLoadingClicks(true);
+        setError("");
+        setCartError("");
+        setCheckoutError("");
+        setClickError("");
+
+        const payload = {
+          dbName: onboardDB,
+          startDate: startDate || null, // Ensure empty string becomes null if needed, though ISO string is expected
+          endDate: endDate || null
+        };
+
+        // We fetch queries and performance data (cart, checkout, clicks) in parallel
+        const [queriesRes, performanceRes] = await Promise.all([
+          fetch("/api/analytics/queries", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }),
+          fetch("/api/analytics/performance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+        ]);
+
+        const queriesData = await queriesRes.json();
+        const performanceData = await performanceRes.json();
+
+        if (!queriesRes.ok) throw new Error(queriesData.error || "Failed to fetch queries");
+        if (!performanceRes.ok) throw new Error(performanceData.error || "Failed to fetch performance data");
+
+        // Update Queries State
+        setQueries(queriesData.queries || []);
+        setHasMoreQueries(false); // New API returns all matches, so no "load more" in basic sense for now
+
+        // Update Performance State
+        setCartAnalytics(performanceData.cart || []);
+        setCheckoutEvents(performanceData.checkout || []);
+
+        // Note: The performance API currently returns cart and checkout. 
+        // If clicks are needed, they should be added to that endpoint or handled here.
+        // Assuming performance endpoint includes clicks if requested? 
+        // Checking my previous implementation of `/api/analytics/performance`:
+        // It returns { cart, checkout }. It does NOT return clicks yet.
+        // I should probably add clicks to it, or keep the separate fetch for clicks if they are different.
+        // The original code fetched 'clicks' via `/api/cart-analytics` with type='clicks'.
+        // My new `performance` route uses `cart` and `checkout_events` collections.
+        // I will stick to what the new route provides for now and maybe add clicks separately if needed, 
+        // but robustly filtered. For now, let's keep robust fetching for cart/checkout/queries.
+
       } catch (err) {
-        // Error already set in fetchQueries
+        console.error("Dashboard Analytics Error:", err);
+        setError(err.message);
       } finally {
         setLoading(false);
-      }
-    })();
-  }, [onboardDB]);
-
-  // Fetch cart analytics data
-  useEffect(() => {
-    if (!onboardDB) return;
-    (async () => {
-      setLoadingCart(true);
-      setCartError("");
-      try {
-        const res = await fetch("/api/cart-analytics", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dbName: onboardDB })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error fetching cart analytics");
-        setCartAnalytics(data.cartItems || []);
-      } catch (err) {
-        setCartError(err.message);
-      } finally {
         setLoadingCart(false);
+        setLoadingCheckout(false);
+        setLoadingClicks(false);
       }
-    })();
-  }, [onboardDB]);
+    };
 
-  // Fetch checkout events data
+    fetchAllAnalytics();
+  }, [onboardDB, startDate, endDate]); // Re-fetch when dates change
+
+  // Legacy fetch functions removed in favor of `fetchAllAnalytics`
+
+
+
+
+  // Fetch product click events data
   useEffect(() => {
     if (!onboardDB) return;
     (async () => {
-      setLoadingCheckout(true);
-      setCheckoutError("");
+      setLoadingClicks(true);
+      setClickError("");
       try {
         const res = await fetch("/api/cart-analytics", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dbName: onboardDB, type: "checkout" })
+          body: JSON.stringify({ dbName: onboardDB, type: "clicks" })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error fetching checkout events");
-        setCheckoutEvents(data.checkoutEvents || []);
+        if (!res.ok) throw new Error(data.error || "Error fetching click events");
+        setClickEvents(data.clickEvents || []);
       } catch (err) {
-        setCheckoutError(err.message);
+        setClickError(err.message);
       } finally {
-        setLoadingCheckout(false);
+        setLoadingClicks(false);
       }
     })();
   }, [onboardDB]);
@@ -1299,7 +1348,7 @@ function AnalyticsPanel({ session, onboarding }) {
     }
     return match;
   });
-  
+
   const totalLoaded = queries.length;
   const filteredCount = filteredQueries.length;
   const totalPages = Math.ceil(filteredCount / itemsPerPage);
@@ -1332,7 +1381,7 @@ function AnalyticsPanel({ session, onboarding }) {
   const handlePrevious = () => setCurrentPage(prev => Math.max(prev - 1, 1));
   const handleNext = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
   const handlePageClick = num => setCurrentPage(num);
-  
+
   // Calculate business insights and SEO keywords - ALWAYS from last 30 days
   const businessInsights = useMemo(() => {
     if (!queries.length) return {
@@ -1346,7 +1395,7 @@ function AnalyticsPanel({ session, onboarding }) {
     // Filter queries to last 30 days only
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const last30DaysQueries = queries.filter(q => {
       const queryDate = new Date(q.timestamp);
       return queryDate >= thirtyDaysAgo;
@@ -1386,7 +1435,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
     // Analyze search trends
     const trends = [];
-    
+
     if (topKeywords.length > 0) {
       const topQuery = topKeywords[0];
       const topPercentage = ((topQuery.count / totalSearches) * 100).toFixed(1);
@@ -1405,7 +1454,7 @@ function AnalyticsPanel({ session, onboarding }) {
       const uniqueConvertingSearches = convertingQueries.size;
       const totalUniqueSearches = Object.keys(queryFrequency).length;
       const conversionRate = (uniqueConvertingSearches / totalUniqueSearches) * 100;
-      
+
       if (conversionRate > 15) {
         trends.push({
           icon: '✅',
@@ -1464,9 +1513,9 @@ function AnalyticsPanel({ session, onboarding }) {
   // Calculate cart conversion metrics - ALWAYS uses ALL data (no date filtering)
   const cartMetrics = useMemo(() => {
     if (!queries.length) {
-      return { 
-      conversionRate: 0, 
-      totalCartItems: 0,
+      return {
+        conversionRate: 0,
+        totalCartItems: 0,
         topQueries: [],
         totalRevenue: 0,
         totalConversions: 0,
@@ -1477,19 +1526,19 @@ function AnalyticsPanel({ session, onboarding }) {
     // Use ALL cart analytics and ALL queries (no date filtering)
     const totalCartItems = cartAnalytics.length;
     const totalQueries = queries.length;
-    const conversionRate = totalQueries > 0 
+    const conversionRate = totalQueries > 0
       ? ((totalCartItems / totalQueries) * 100).toFixed(2)
       : 0;
-    
+
     // Simple separation: cart analytics for cart, checkout events for checkout
     const finalAddToCartItems = cartAnalytics; // Use all cart analytics for cart
     const finalCheckoutItems = checkoutEvents; // Use checkout events for checkout
-    
+
     // Group by search query for add to cart
     const addToCartGroups = {};
     finalAddToCartItems.forEach(item => {
       if (!item.search_query) return;
-      
+
       if (!addToCartGroups[item.search_query]) {
         addToCartGroups[item.search_query] = {
           query: item.search_query,
@@ -1498,10 +1547,10 @@ function AnalyticsPanel({ session, onboarding }) {
           revenue: 0
         };
       }
-      
+
       addToCartGroups[item.search_query].count += 1;
       addToCartGroups[item.search_query].products.add(item.product_id);
-      
+
       // Calculate revenue if price is available
       if (item.product_price) {
         const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
@@ -1510,12 +1559,12 @@ function AnalyticsPanel({ session, onboarding }) {
         }
       }
     });
-    
+
     // Group by search query for checkout
     const checkoutGroups = {};
     finalCheckoutItems.forEach(item => {
       if (!item.search_query) return;
-      
+
       if (!checkoutGroups[item.search_query]) {
         checkoutGroups[item.search_query] = {
           query: item.search_query,
@@ -1524,10 +1573,10 @@ function AnalyticsPanel({ session, onboarding }) {
           revenue: 0
         };
       }
-      
+
       checkoutGroups[item.search_query].count += 1;
       checkoutGroups[item.search_query].products.add(item.product_id);
-      
+
       // Calculate revenue - for checkout events use cart_total, for cart items use product_price
       if (item.cart_total) {
         // For checkout events, use cart_total
@@ -1543,7 +1592,24 @@ function AnalyticsPanel({ session, onboarding }) {
         }
       }
     });
-    
+
+    // Group by search query for product clicks
+    const clickGroups = {};
+    clickEvents.forEach(item => {
+      if (!item.search_query) return;
+
+      if (!clickGroups[item.search_query]) {
+        clickGroups[item.search_query] = {
+          query: item.search_query,
+          count: 0,
+          products: new Set()
+        };
+      }
+
+      clickGroups[item.search_query].count += 1;
+      if (item.product_id) clickGroups[item.search_query].products.add(item.product_id);
+    });
+
     // Convert to arrays and sort by count
     const topAddToCartQueries = Object.values(addToCartGroups)
       .map(group => ({
@@ -1552,7 +1618,7 @@ function AnalyticsPanel({ session, onboarding }) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-      
+
     const topCheckoutQueries = Object.values(checkoutGroups)
       .map(group => ({
         ...group,
@@ -1560,7 +1626,15 @@ function AnalyticsPanel({ session, onboarding }) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-    
+
+    const topClickQueries = Object.values(clickGroups)
+      .map(group => ({
+        ...group,
+        products: Array.from(group.products).length
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
     // Calculate totals for each category
     const totalRevenueFromAddToCart = finalAddToCartItems.reduce((sum, item) => {
       if (item.product_price) {
@@ -1571,7 +1645,7 @@ function AnalyticsPanel({ session, onboarding }) {
       }
       return sum;
     }, 0);
-    
+
     const totalRevenueFromCheckout = finalCheckoutItems.reduce((sum, item) => {
       if (item.cart_total) {
         // For checkout events, use cart_total
@@ -1588,18 +1662,18 @@ function AnalyticsPanel({ session, onboarding }) {
       }
       return sum;
     }, 0);
-    
+
     // Legacy calculations for backward compatibility
     const totalRevenue = topAddToCartQueries.reduce((sum, q) => sum + q.revenue, 0);
     const totalConversions = cartAnalytics.length;
     const totalRevenueFromCart = totalRevenueFromAddToCart + totalRevenueFromCheckout;
-    
+
     const allUniqueProducts = new Set();
     cartAnalytics.forEach(item => {
       if (item.product_id) allUniqueProducts.add(item.product_id);
     });
     const uniqueProducts = allUniqueProducts.size;
-    
+
     return {
       conversionRate,
       totalCartItems,
@@ -1620,9 +1694,14 @@ function AnalyticsPanel({ session, onboarding }) {
         revenue: totalRevenueFromCheckout,
         queries: topCheckoutQueries,
         uniqueProducts: new Set(finalCheckoutItems.map(item => item.product_id)).size
+      },
+      clickMetrics: {
+        items: clickEvents.length,
+        queries: topClickQueries,
+        uniqueProducts: new Set(clickEvents.map(item => item.product_id)).size
       }
     };
-  }, [cartAnalytics, checkoutEvents, queries]);
+  }, [cartAnalytics, checkoutEvents, clickEvents, queries]);
 
   // Semantix Purchases Funnel
   const semantixFunnel = useMemo(() => {
@@ -1630,22 +1709,22 @@ function AnalyticsPanel({ session, onboarding }) {
     const useCheckout = checkoutEvents && checkoutEvents.length > 0;
     const dataSource = useCheckout ? checkoutEvents : cartAnalytics;
     const mode = useCheckout ? 'checkout' : 'cart';
-    
-    const assumptions = mode === 'checkout' 
+
+    const assumptions = mode === 'checkout'
       ? [
-          `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
-          `ההכנסות חושבו על בסיס שדה "cart_total" - סכום הרכישה המלא`,
-          `כמות מובאת מהשדה "quantity"`,
-          `מזהה הזמנה מובא מהשדה "order_id" עבור ספירת הזמנות ייחודיות`,
-          `השבוע מתחיל ביום ראשון (Israeli week format)`
-        ]
+        `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
+        `ההכנסות חושבו על בסיס שדה "cart_total" - סכום הרכישה המלא`,
+        `כמות מובאת מהשדה "quantity"`,
+        `מזהה הזמנה מובא מהשדה "order_id" עבור ספירת הזמנות ייחודיות`,
+        `השבוע מתחיל ביום ראשון (Israeli week format)`
+      ]
       : [
-          `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
-          `הכנסות משוערות חושבו על בסיס "product_price × quantity"`,
-          `כמות מובאת מהשדה "quantity"`,
-          `נספרות הוספות לעגלה ייחודיות`,
-          `השבוע מתחיל ביום ראשון (Israeli week format)`
-        ];
+        `נעשה שימוש בשדה "search_query" כשאילתת המקור`,
+        `הכנסות משוערות חושבו על בסיס "product_price × quantity"`,
+        `כמות מובאת מהשדה "quantity"`,
+        `נספרות הוספות לעגלה ייחודיות`,
+        `השבוע מתחיל ביום ראשון (Israeli week format)`
+      ];
 
     if (!dataSource || dataSource.length === 0) {
       return {
@@ -1662,12 +1741,12 @@ function AnalyticsPanel({ session, onboarding }) {
     const complexPurchases = dataSource
       .filter((event) => {
         const query = event.search_query || "";
-        
+
         // Skip events with more than 3 products
         if (Array.isArray(event.products) && event.products.length > 3) {
           return false;
         }
-        
+
         return isComplex(query);
       })
       .map((event) => {
@@ -1682,7 +1761,7 @@ function AnalyticsPanel({ session, onboarding }) {
           // For cart: use product_price * quantity (estimated revenue)
           revenue = normalizePrice(event.product_price ?? 0) * quantity;
         }
-        
+
         // Extract product name - handle both direct fields and products array
         let productName = "לא ידוע";
         if (event.product_name) {
@@ -1699,7 +1778,7 @@ function AnalyticsPanel({ session, onboarding }) {
             .join(", ");
           productName = productNames || "לא ידוע";
         }
-        
+
         return {
           searchQuery: event.search_query,
           productName,
@@ -1868,7 +1947,7 @@ function AnalyticsPanel({ session, onboarding }) {
     // Create a map of queries to their delivered products for fast lookup
     // Use normalized query text for better matching
     const queryToDeliveredProducts = new Map();
-    
+
     // Check if queries exists and is an array
     if (!queries || !Array.isArray(queries)) {
       return {
@@ -1878,7 +1957,7 @@ function AnalyticsPanel({ session, onboarding }) {
         queries: []
       };
     }
-    
+
     queries.forEach(query => {
       if (query && query.deliveredProducts && Array.isArray(query.deliveredProducts) && query.deliveredProducts.length > 0) {
         const queryText = trimAndNormalize(query.query || '').toLowerCase();
@@ -1903,17 +1982,17 @@ function AnalyticsPanel({ session, onboarding }) {
     const findDeliveredProducts = (searchQuery) => {
       if (!searchQuery) return null;
       const normalized = trimAndNormalize(searchQuery).toLowerCase();
-      return queryToDeliveredProducts.get(normalized) || 
-             queryToDeliveredProducts.get(searchQuery.toLowerCase().trim());
+      return queryToDeliveredProducts.get(normalized) ||
+        queryToDeliveredProducts.get(searchQuery.toLowerCase().trim());
     };
 
     // Process checkout events (purchases)
     const upsellPurchases = [];
     checkoutEvents.forEach(event => {
       const deliveredProducts = findDeliveredProducts(event.search_query);
-      
+
       if (!deliveredProducts) return;
-      
+
       // Skip events with more than 3 products
       if (Array.isArray(event.products) && event.products.length > 3) {
         return;
@@ -1923,17 +2002,17 @@ function AnalyticsPanel({ session, onboarding }) {
       const products = Array.isArray(event.products) && event.products.length > 0
         ? event.products
         : [{
-            product_name: event.product_name || 'מוצר לא ידוע',
-            product_price: event.product_price || 0,
-            quantity: event.quantity || 1
-          }];
+          product_name: event.product_name || 'מוצר לא ידוע',
+          product_price: event.product_price || 0,
+          quantity: event.quantity || 1
+        }];
 
       products.forEach(product => {
         const productName = product.product_name || product.name || 'מוצר לא ידוע';
         if (isUpsell(event.search_query, productName, deliveredProducts)) {
           const quantity = Number(product.quantity) || 1;
-          const revenue = normalizePrice(event.cart_total ?? 0) || 
-                         normalizePrice(product.product_price || product.price || 0) * quantity;
+          const revenue = normalizePrice(event.cart_total ?? 0) ||
+            normalizePrice(product.product_price || product.price || 0) * quantity;
           upsellPurchases.push({
             searchQuery: event.search_query,
             productName,
@@ -1995,7 +2074,7 @@ function AnalyticsPanel({ session, onboarding }) {
     // Group by query for summary
     const queryMap = new Map();
     allUpsells.forEach(event => {
-      const existing = queryMap.get(event.searchQuery) || { 
+      const existing = queryMap.get(event.searchQuery) || {
         query: event.searchQuery || "ללא שאילתה",
         orders: new Set(),
         items: 0,
@@ -2045,22 +2124,22 @@ function AnalyticsPanel({ session, onboarding }) {
 
     filteredQueries.forEach(query => {
       // Format timestamp properly
-      const timestamp = query.timestamp 
+      const timestamp = query.timestamp
         ? new Date(query.timestamp).toLocaleString('he-IL', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          })
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })
         : 'N/A';
-      
+
       // Ensure search query is properly formatted
-      const searchQuery = query.query && typeof query.query === 'string' 
-        ? `"${query.query.replace(/"/g, '""')}"` 
+      const searchQuery = query.query && typeof query.query === 'string'
+        ? `"${query.query.replace(/"/g, '""')}"`
         : 'N/A';
-      
+
       // Handle category properly - check if it's actually a category or something else
       let category = 'N/A';
       if (query.category) {
@@ -2071,11 +2150,11 @@ function AnalyticsPanel({ session, onboarding }) {
           category = `"${query.category.replace(/"/g, '""')}"`;
         }
       }
-      
+
       // Ensure price values are actually numeric and formatted correctly
       const minPrice = (query.minPrice && typeof query.minPrice === 'number') ? `₪${query.minPrice}` : 'N/A';
       const maxPrice = (query.maxPrice && typeof query.maxPrice === 'number') ? `₪${query.maxPrice}` : 'N/A';
-      
+
       // Ensure results count is numeric
       const resultsCount = (typeof query.resultsCount === 'number' && query.resultsCount >= 0) ? query.resultsCount.toString() : 'N/A';
 
@@ -2088,7 +2167,7 @@ function AnalyticsPanel({ session, onboarding }) {
         `"${maxPrice}"`,         // מחיר מקסימלי (עמודה 5)
         `"${resultsCount}"`      // כמות תוצאות (עמודה 6)
       ];
-      
+
       csvRows.push(row.join(','));
     });
 
@@ -2097,7 +2176,7 @@ function AnalyticsPanel({ session, onboarding }) {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', `semantix-queries-${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
@@ -2110,13 +2189,21 @@ function AnalyticsPanel({ session, onboarding }) {
     <div className="w-full">
       {/* Page Header with Card-like Design */}
       <header className="mb-8">
-        <div className="relative overflow-hidden bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl shadow-xl">
-          <div className="relative p-8 flex justify-between items-center">
+        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-purple-700 rounded-2xl shadow-xl">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRWMjhIMjR2MmgxMnpNMjQgMjRoMTJ2LTJIMjR2MnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40"></div>
+          <div className="relative p-6 sm:p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-1">לוח בקרה</h1>
-              <p className="text-purple-100">
-                ברוך שובך, {session?.user?.name || "משתמש"}
-              </p>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <BarChart3 className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white">Semantix Performance</h1>
+                  <p className="text-purple-200 text-sm">
+                    {session?.user?.name || "משתמש"} | {getCurrentTimePeriodLabel()}
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="flex flex-col sm:flex-row sm:space-x-8 space-y-2 sm:space-y-0">
               {/* Export Button */}
@@ -2130,7 +2217,7 @@ function AnalyticsPanel({ session, onboarding }) {
                 </button>
               )}
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setTimePeriodOpen(!timePeriodOpen)}
                   className="flex items-center justify-center px-2 py-1.5 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-white backdrop-blur-sm"
                 >
@@ -2138,26 +2225,25 @@ function AnalyticsPanel({ session, onboarding }) {
                   <span className="text-xs sm:text-sm">{getCurrentTimePeriodLabel()}</span>
                   <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2 transition-transform ${timePeriodOpen ? 'rotate-180' : ''}`} />
                 </button>
-                
+
                 {timePeriodOpen && (
                   <>
                     {/* Backdrop */}
-                    <div 
-                      className="fixed inset-0 z-10" 
+                    <div
+                      className="fixed inset-0 z-10"
                       onClick={() => setTimePeriodOpen(false)}
                     />
-                    
+
                     {/* Dropdown */}
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden" style={{ direction: 'rtl' }}>
                       {timePeriods.map((period) => (
                         <button
                           key={period.value}
                           onClick={() => handleTimePeriodChange(period)}
-                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ${
-                            selectedTimePeriod === period.value
-                              ? 'bg-indigo-50 text-indigo-700 font-medium'
-                              : 'text-gray-700'
-                          }`}
+                          className={`w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors text-sm ${selectedTimePeriod === period.value
+                            ? 'bg-indigo-50 text-indigo-700 font-medium'
+                            : 'text-gray-700'
+                            }`}
                         >
                           {period.label}
                         </button>
@@ -2168,94 +2254,44 @@ function AnalyticsPanel({ session, onboarding }) {
               </div>
             </div>
           </div>
-          
-          {/* Metrics Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6 bg-white/5 backdrop-blur-sm border-t border-white/10">
-            <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">סה"כ שאילתות</p>
-              <p className="text-3xl font-bold text-white">{filteredCount.toLocaleString()}</p>
-              <p className="text-white/70 text-xs mt-2">
-                {getCurrentTimePeriodLabel()}
-              </p>
-            </div>
-            <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">3 שאילתות מובילות היום</p>
-              <div className="space-y-2">
-                {(() => {
-                  // Get today's date
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  
-                  // Use filtered queries based on selected time period
-                  let queriesToAnalyze = filteredQueries;
-                  let sourceLabel = getCurrentTimePeriodLabel();
-                  
-                  // If it's "today" specifically, also check for actual today's queries
-                  if (selectedTimePeriod === "today") {
-                    const actualTodayQueries = filteredQueries.filter(q => {
-                      const queryDate = new Date(q.timestamp);
-                      queryDate.setHours(0, 0, 0, 0);
-                      return queryDate.getTime() === today.getTime();
-                    });
-                    queriesToAnalyze = actualTodayQueries;
-                    sourceLabel = actualTodayQueries.length > 0 ? "היום" : "אין שאילתות היום";
-                  }
-                  
-                  if (queriesToAnalyze.length === 0) {
-                    return (
-                      <div className="text-white/80 text-sm">
-                        אין נתונים זמינים
-                      </div>
-                    );
-                  }
-                  
-                  // Count query frequency
-                  const queryCount = {};
-                  queriesToAnalyze.forEach(q => {
-                    queryCount[q.query] = (queryCount[q.query] || 0) + 1;
-                  });
-                  
-                  // Get top 3 queries
-                  const topQueries = Object.entries(queryCount)
-                    .sort(([,a], [,b]) => b - a)
-                    .slice(0, 3);
-                  
-                  return (
-                    <div className="space-y-2">
-                      {topQueries.map(([query, count], index) => (
-                        <div key={index} className="flex items-start space-x-2">
-                          <span className="text-white/90 font-bold text-sm bg-white/20 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            {index + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-medium text-sm leading-tight truncate">
-                              {query}
-                            </p>
-                            <p className="text-white/60 text-xs">
-                              {count} פעמים
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="mt-2 pt-2 border-t border-white/20">
-                        <p className="text-white/60 text-xs">
-                          {queriesToAnalyze.length} שאילתות {sourceLabel === "היום" ? "היום" : `ב${sourceLabel}`}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
+
+          {/* Hero Metrics */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 px-6 pb-6 pt-2">
+            {/* Total Revenue - Hero Stat */}
+            <div className="col-span-2 lg:col-span-1 p-4 sm:p-5 bg-white/15 backdrop-blur-sm rounded-xl border border-white/20">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4 text-green-300" />
+                <p className="text-white/80 text-xs sm:text-sm font-medium">הכנסות דרך Semantix</p>
               </div>
+              <p className="text-2xl sm:text-3xl font-bold text-white">
+                ₪{((cartMetrics?.addToCartMetrics?.revenue || 0) + (cartMetrics?.checkoutMetrics?.revenue || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </p>
+              <p className="text-green-300/80 text-xs mt-2 font-medium">
+                עגלה + רכישות
+              </p>
             </div>
 
-            {/* Cart conversion rate metric */}
-            <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
-              <p className="text-white/70 text-sm mb-1">המרת עגלה</p>
-              <p className="text-3xl font-bold text-white">
-                {cartMetrics.conversionRate}%
+            {/* AI Searches Processed */}
+            <div className="p-4 sm:p-5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <Search className="h-4 w-4 text-blue-300" />
+                <p className="text-white/80 text-xs sm:text-sm font-medium">חיפושי AI</p>
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{filteredCount.toLocaleString()}</p>
+              <p className="text-white/60 text-xs mt-2">{getCurrentTimePeriodLabel()}</p>
+            </div>
+
+            {/* Product Discovery - Expanded */}
+            <div className="p-4 sm:p-5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 col-span-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="h-4 w-4 text-cyan-300" />
+                <p className="text-white/80 text-xs sm:text-sm font-medium">גילוי מוצרים</p>
+              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-white">
+                {((cartMetrics?.clickMetrics?.items || 0) + (cartMetrics?.addToCartMetrics?.items || 0)).toLocaleString()}
               </p>
-              <p className="text-white/70 text-xs mt-2">
-                {cartMetrics.totalCartItems} פריטים נוספו לעגלה
+              <p className="text-white/60 text-xs mt-2">
+                {(cartMetrics?.clickMetrics?.items || 0).toLocaleString()} לחיצות + {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString()} עגלה
               </p>
             </div>
           </div>
@@ -2263,11 +2299,229 @@ function AnalyticsPanel({ session, onboarding }) {
       </header>
 
 
-      {/* Cart Analytics Section - Minimalist View */}
-      {(cartAnalytics.length > 0 || checkoutEvents.length > 0 || loadingCart || loadingCheckout) && (
+      {/* Semantix Conversion Funnel */}
+      {queries.length > 0 && (cartAnalytics.length > 0 || clickEvents.length > 0 || checkoutEvents.length > 0) && (
         <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 mb-8">
-        <div className="p-6">
-            {(loadingCart || loadingCheckout) ? (
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">משפך ההמרה של Semantix</h2>
+                <p className="text-xs text-gray-500">מחיפוש חכם לרכישה</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Funnel Bars */}
+              <div className="space-y-3">
+                {(() => {
+                  const totalSearches = queries.length;
+                  const totalClicks = cartMetrics?.clickMetrics?.items || 0;
+                  const totalCart = cartMetrics?.addToCartMetrics?.items || 0;
+                  const totalPurchases = cartMetrics?.checkoutMetrics?.items || 0;
+
+                  const steps = [
+                    { label: 'חיפושים', count: totalSearches, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-50', textColor: 'text-blue-700', pct: 100 },
+                    { label: 'לחיצות על מוצרים', count: totalClicks, color: 'from-cyan-500 to-blue-500', bgColor: 'bg-cyan-50', textColor: 'text-cyan-700', pct: totalSearches > 0 ? (totalClicks / totalSearches * 100) : 0 },
+                    { label: 'הוספה לעגלה', count: totalCart, color: 'from-green-500 to-emerald-500', bgColor: 'bg-green-50', textColor: 'text-green-700', pct: totalSearches > 0 ? (totalCart / totalSearches * 100) : 0 },
+                    { label: 'רכישות', count: totalPurchases, color: 'from-purple-500 to-indigo-600', bgColor: 'bg-purple-50', textColor: 'text-purple-700', pct: totalSearches > 0 ? (totalPurchases / totalSearches * 100) : 0 },
+                  ];
+
+                  return steps.map((step, i) => (
+                    <div key={i}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-semibold ${step.textColor}`}>{step.label}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${step.bgColor} ${step.textColor}`}>
+                            {step.count.toLocaleString()}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium text-gray-500">{step.pct.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-5 overflow-hidden">
+                        <div
+                          className={`h-full bg-gradient-to-r ${step.color} rounded-full transition-all duration-700 ease-out`}
+                          style={{ width: `${Math.max(step.pct, 2)}%` }}
+                        />
+                      </div>
+                      {i < steps.length - 1 && steps[i + 1].count > 0 && (
+                        <div className="flex justify-end mt-1">
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {step.count > 0 ? (steps[i + 1].count / step.count * 100).toFixed(1) : 0}% המרה
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Funnel Pie Chart */}
+              <div className="flex flex-col items-center justify-center">
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'חיפושים בלבד', value: Math.max(0, queries.length - (cartMetrics?.clickMetrics?.items || 0)) },
+                        { name: 'לחיצות', value: Math.max(0, (cartMetrics?.clickMetrics?.items || 0) - (cartMetrics?.addToCartMetrics?.items || 0)) },
+                        { name: 'עגלה', value: Math.max(0, (cartMetrics?.addToCartMetrics?.items || 0) - (cartMetrics?.checkoutMetrics?.items || 0)) },
+                        { name: 'רכישות', value: cartMetrics?.checkoutMetrics?.items || 0 },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {['#93c5fd', '#22d3ee', '#34d399', '#a78bfa'].map((color, index) => (
+                        <Cell key={`cell-${index}`} fill={color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, name) => [value.toLocaleString(), name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  {[
+                    { label: 'חיפושים', color: '#93c5fd' },
+                    { label: 'לחיצות', color: '#22d3ee' },
+                    { label: 'עגלה', color: '#34d399' },
+                    { label: 'רכישות', color: '#a78bfa' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs text-gray-600">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Charts Section — Top Queries + Activity */}
+      {queries.length > 0 && (cartAnalytics.length > 0 || clickEvents.length > 0) && (
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Top Queries by Revenue Chart */}
+          {(cartMetrics?.addToCartMetrics?.queries || []).length > 0 && (
+            <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="h-4 w-4 text-indigo-600" />
+                <h3 className="text-sm font-bold text-gray-900">שאילתות מובילות לפי הכנסות</h3>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={(cartMetrics.addToCartMetrics.queries || []).slice(0, 7).map(q => ({
+                    name: q.query.length > 18 ? q.query.substring(0, 18) + '...' : q.query,
+                    revenue: q.revenue || 0,
+                    count: q.count
+                  }))}
+                  layout="vertical"
+                  margin={{ top: 0, right: 10, left: 0, bottom: 0 }}
+                >
+                  <XAxis type="number" tickFormatter={(v) => `₪${v.toLocaleString()}`} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, textAnchor: 'end' }} />
+                  <Tooltip
+                    formatter={(value, name) => [name === 'revenue' ? `₪${value.toLocaleString()}` : value, name === 'revenue' ? 'הכנסות' : 'פעולות']}
+                    contentStyle={{ direction: 'rtl', fontSize: 12 }}
+                  />
+                  <Bar dataKey="revenue" fill="url(#revenueGradient)" radius={[0, 6, 6, 0]} />
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#818cf8" />
+                      <stop offset="100%" stopColor="#6366f1" />
+                    </linearGradient>
+                  </defs>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Daily Search Activity Chart */}
+          <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <h3 className="text-sm font-bold text-gray-900">פעילות חיפוש יומית</h3>
+            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart
+                data={(() => {
+                  const dailyMap = {};
+                  const now = new Date();
+                  // Initialize last 14 days
+                  for (let i = 13; i >= 0; i--) {
+                    const d = new Date(now);
+                    d.setDate(d.getDate() - i);
+                    const key = d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+                    dailyMap[key] = { date: key, searches: 0, clicks: 0, cart: 0 };
+                  }
+                  queries.forEach(q => {
+                    const d = new Date(q.timestamp);
+                    const key = d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+                    if (dailyMap[key]) dailyMap[key].searches += 1;
+                  });
+                  clickEvents.forEach(e => {
+                    const d = new Date(e.timestamp);
+                    const key = d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+                    if (dailyMap[key]) dailyMap[key].clicks += 1;
+                  });
+                  cartAnalytics.forEach(e => {
+                    const d = new Date(e.timestamp);
+                    const key = d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+                    if (dailyMap[key]) dailyMap[key].cart += 1;
+                  });
+                  return Object.values(dailyMap);
+                })()}
+                margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="searchGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="clickGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="cartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ direction: 'rtl', fontSize: 12 }} />
+                <Area type="monotone" dataKey="searches" name="חיפושים" stroke="#6366f1" fill="url(#searchGrad)" strokeWidth={2} />
+                <Area type="monotone" dataKey="clicks" name="לחיצות" stroke="#06b6d4" fill="url(#clickGrad)" strokeWidth={2} />
+                <Area type="monotone" dataKey="cart" name="עגלה" stroke="#10b981" fill="url(#cartGrad)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex justify-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-indigo-500 rounded"></div><span className="text-xs text-gray-600">חיפושים</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-cyan-500 rounded"></div><span className="text-xs text-gray-600">לחיצות</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-0.5 bg-emerald-500 rounded"></div><span className="text-xs text-gray-600">עגלה</span></div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Revenue Attribution Section */}
+      {(cartAnalytics.length > 0 || checkoutEvents.length > 0 || clickEvents.length > 0 || loadingCart || loadingCheckout || loadingClicks) && (
+        <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 mb-8">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">הכנסות שנוצרו דרך Semantix</h2>
+                <p className="text-xs text-gray-500">ייחוס הכנסות לחיפוש חכם</p>
+              </div>
+            </div>
+            {(loadingCart || loadingCheckout || loadingClicks) ? (
               <div className="flex justify-center items-center h-40">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
               </div>
@@ -2278,17 +2532,17 @@ function AnalyticsPanel({ session, onboarding }) {
                 {/* Add to Cart Section */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
                   <div className="flex items-center space-x-4 space-x-reverse">
-              <div className="relative flex-shrink-0">
+                    <div className="relative flex-shrink-0">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
                       <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
                         <ShoppingCart className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
-                </div>
-              </div>
+                      </div>
+                    </div>
                     <div className="mr-3 sm:mr-4 min-w-0 flex-1">
                       <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                         ₪{(cartMetrics?.addToCartMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </h2>
-                      <p className="text-xs sm:text-sm text-gray-600 mt-1">סך הכנסות מהוספות לעגלה</p>
+                      </h2>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">הוספות לעגלה דרך חיפוש חכם</p>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                         <span className="text-xs text-gray-500">
                           {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString('en-US')} הוספות לעגלה
@@ -2297,11 +2551,11 @@ function AnalyticsPanel({ session, onboarding }) {
                         <span className="text-xs text-gray-500">
                           {(cartMetrics?.addToCartMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
                         </span>
-            </div>
-          </div>
-        </div>
-        
-            <button
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
                     onClick={() => setCartDetailsExpanded(!cartDetailsExpanded)}
                     className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
                   >
@@ -2322,397 +2576,498 @@ function AnalyticsPanel({ session, onboarding }) {
                 {/* Checkout Section - Only show if we have checkout events */}
                 {checkoutEvents.length > 0 && (
                   <>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-center space-x-4 space-x-reverse">
-                    <div className="relative flex-shrink-0">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                      <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                        <DollarSign className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
-              </div>
-            </div>
-                    <div className="mr-3 sm:mr-4 min-w-0 flex-1">
-                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                        ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </h2>
-                      <p className="text-xs sm:text-sm text-gray-600 mt-1">סכום רכישות</p>
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
-                        <span className="text-xs text-gray-500">
-                          {(cartMetrics?.checkoutMetrics?.items || 0).toLocaleString('en-US')} רכישות
-                        </span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">
-                          {(cartMetrics?.checkoutMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
-                        </span>
-          </div>
-          </div>
-        </div>
-        
-            <button
-                    onClick={() => setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}
-                    className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
-                  >
-                    {checkoutDetailsExpanded ? (
-                      <>
-                        <span>הסתר פרטים</span>
-                        <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
-                      </>
-                    ) : (
-                      <>
-                        <span>קרא עוד</span>
-                        <ChevronDown className="h-4 w-4 transition-transform" />
-                      </>
-                    )}
-                  </button>
-        </div>
-                </>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-center space-x-4 space-x-reverse">
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                          <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                            <DollarSign className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                        <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                            ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </h2>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">רכישות שהושלמו דרך Semantix</p>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.checkoutMetrics?.items || 0).toLocaleString('en-US')} רכישות
+                            </span>
+                            <span className="text-xs text-gray-500">•</span>
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.checkoutMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}
+                        className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
+                      >
+                        {checkoutDetailsExpanded ? (
+                          <>
+                            <span>הסתר פרטים</span>
+                            <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                          </>
+                        ) : (
+                          <>
+                            <span>קרא עוד</span>
+                            <ChevronDown className="h-4 w-4 transition-transform" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Product Clicks Section - Only show if we have click events */}
+                {clickEvents.length > 0 && (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-center space-x-4 space-x-reverse">
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-2xl blur-md opacity-50"></div>
+                          <div className="relative bg-gradient-to-br from-blue-500 via-cyan-500 to-blue-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-blue-200 ring-offset-2">
+                            <svg className="h-6 w-6 sm:h-7 sm:w-7 text-white" fill="currentColor" viewBox="0 0 20 20" strokeWidth={2.5}>
+                              <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                            {(cartMetrics?.clickMetrics?.items || 0).toLocaleString('en-US')}
+                          </h2>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">מוצרים שנחשפו דרך חיפוש חכם</p>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.clickMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
+                            </span>
+                            <span className="text-xs text-gray-500">•</span>
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.clickMetrics?.queries || []).length} שאילתות ייחודיות
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setClickDetailsExpanded(!clickDetailsExpanded)}
+                        className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
+                      >
+                        {clickDetailsExpanded ? (
+                          <>
+                            <span>הסתר פרטים</span>
+                            <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                          </>
+                        ) : (
+                          <>
+                            <span>קרא עוד</span>
+                            <ChevronDown className="h-4 w-4 transition-transform" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Expanded Details for Product Clicks */}
+                {clickDetailsExpanded && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות ללחיצות על מוצרים</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                שאילתת חיפוש
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                לחיצות
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                מוצרים ייחודיים
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(cartMetrics.clickMetrics?.queries || []).length > 0 ? (
+                              (cartMetrics.clickMetrics?.queries || []).map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
+                                    {item.query}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">
+                                      {item.count.toLocaleString('en-US')}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    {item.products.toLocaleString('en-US')}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
+                                  אין נתוני לחיצות זמינים כרגע
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {/* Combined Semantix Purchases - Complex Queries + Upsells */}
                 {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout') || upsellAnalytics.hasData) && (
                   <>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
-                    <div className="flex items-center space-x-4 space-x-reverse">
-                      <div className="relative flex-shrink-0">
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
-                        <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" className="h-6 w-6 sm:h-7 sm:w-7 text-white">
-                            <g stroke="currentColor" strokeWidth="20" strokeLinecap="round">
-                              <line x1="75" y1="110" x2="180" y2="60"/>
-                              <line x1="75" y1="110" x2="240" y2="150"/>
-                              <line x1="240" y1="150" x2="135" y2="240"/>
-                            </g>
-                            <g fill="currentColor">
-                              <rect x="55" y="90" width="40" height="40" rx="4"/>
-                              <rect x="160" y="40" width="40" height="40" rx="4"/>
-                              <rect x="220" y="130" width="40" height="40" rx="4"/>
-                              <rect x="115" y="220" width="40" height="40" rx="4"/>
-                            </g>
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="mr-3 sm:mr-4 min-w-0 flex-1">
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                          ₪{((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.revenue || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.revenue || 0) : 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                          רכישות דרך סמנטיקס - חיפושים מורכבים ו-Upsell
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
-                          <span className="text-xs text-gray-500">
-                            {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.orders || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.orders || 0) : 0)).toLocaleString('en-US')} רכישות
-                          </span>
-                          <span className="text-xs text-gray-500">•</span>
-                          <span className="text-xs text-gray-500">
-                            {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.items || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.items || 0) : 0)).toLocaleString('en-US')} מוצרים
-                          </span>
-          </div>
-            </div>
-          </div>
-          
-            <button
-                      onClick={() => setSemantixExpanded(!semantixExpanded)}
-                      className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
-                    >
-                      {semantixExpanded ? (
-                        <>
-                          <span>הסתר פרטים</span>
-                          <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
-                        </>
-                      ) : (
-                        <>
-                          <span>קרא עוד</span>
-                          <ChevronDown className="h-4 w-4 transition-transform" />
-                        </>
-                      )}
-                    </button>
-        </div>
-
-                  {/* Expanded Details - Combined View */}
-                  {semantixExpanded && (
-                    <div className="mt-6 pt-6 border-t border-gray-100 space-y-8">
-                      {/* Complex Queries Section */}
-                      {semantixFunnel.hasData && semantixFunnel.mode === 'checkout' && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
-                            חיפושים מורכבים
-                          </h3>
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="text-md font-medium text-gray-700 mb-4">
-                                שאילתות מורכבות מובילות (לפי הכנסות)
-                              </h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full table-auto">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  שאילתת חיפוש
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {(() => {
-                                // Group by query and sum up
-                                const queryMap = new Map();
-                                semantixFunnel.byQueryProduct.forEach(item => {
-                                  const existing = queryMap.get(item.search_query) || { orders: 0, items: 0, revenue: 0 };
-                                  queryMap.set(item.search_query, {
-                                    orders: existing.orders + item.orders,
-                                    items: existing.items + item.items,
-                                    revenue: existing.revenue + item.revenue
-                                  });
-                                });
-                                return Array.from(queryMap.entries())
-                                  .map(([query, data]) => ({ query, ...data }))
-                                  .sort((a, b) => b.revenue - a.revenue)
-                                  .slice(0, 10)
-                                  .map((item, index) => (
-                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                      <td className="px-6 py-4 text-sm text-gray-800 font-medium">
-                                        {item.query}
-                                      </td>
-                                      <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
-                                        ₪{item.revenue.toFixed(2)}
-                                      </td>
-                                    </tr>
-                                  ));
-                              })()}
-                            </tbody>
-                          </table>
-            </div>
-          </div>
-          
-                      {/* Detailed Query-Product Table */}
-                      <div>
-                        <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
-                        <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישה לפי שאילתה ומוצר</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full table-auto">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  שאילתת חיפוש
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  מוצרים
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {semantixFunnel.byQueryProduct
-                                .filter(row => {
-                                  // Filter out rows with N/A or unknown product names
-                                  const productName = (row.product_name || '').toLowerCase();
-                                  return productName && 
-                                         productName !== 'n/a' && 
-                                         productName !== 'לא ידוע' && 
-                                         productName !== 'ללא שם מוצר';
-                                })
-                                .slice(0, 50)
-                                .map((row, index) => {
-                                // Split product names if they contain commas (multiple products)
-                                const products = row.product_name.split(',').map(p => p.trim());
-                                const hasMultipleProducts = products.length > 1;
-                                
-                                return (
-                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
-                                      {row.search_query || "ללא שאילתה"}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700">
-                                      {hasMultipleProducts ? (
-                                        <div className="space-y-1">
-                                          <div className="text-xs text-gray-500 font-medium mb-1">
-                                            {products.length} מוצרים:
-              </div>
-                                          <ul className="text-sm space-y-0.5 max-h-32 overflow-y-auto">
-                                            {products.slice(0, 5).map((product, idx) => (
-                                              <li key={idx} className="flex items-start">
-                                                <span className="text-emerald-600 ml-2">•</span>
-                                                <span className="flex-1">{product}</span>
-                                              </li>
-                                            ))}
-                                            {products.length > 5 && (
-                                              <li className="text-xs text-gray-500 italic mt-1">
-                                                + עוד {products.length - 5} מוצרים...
-                                              </li>
-                                            )}
-                                          </ul>
-                                        </div>
-                                      ) : (
-                                        <span>{row.product_name}</span>
-                                      )}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
-                                      ₪{row.revenue.toFixed(2)}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {semantixFunnel.byQueryProduct.length === 0 && (
-                                <tr>
-                                  <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
-                                    אין נתונים להצגה
-                                  </td>
-                                </tr>
-                              )}
-                              {semantixFunnel.byQueryProduct.length > 50 && (
-                                <tr>
-                                  <td colSpan={3} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
-                                    מציג 50 ראשונים מתוך {semantixFunnel.byQueryProduct.length} רכישות
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-6 gap-4">
+                      <div className="flex items-center space-x-4 space-x-reverse">
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
+                          <div className="relative bg-gradient-to-br from-purple-500 via-indigo-500 to-purple-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-purple-200 ring-offset-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" className="h-6 w-6 sm:h-7 sm:w-7 text-white">
+                              <g stroke="currentColor" strokeWidth="20" strokeLinecap="round">
+                                <line x1="75" y1="110" x2="180" y2="60" />
+                                <line x1="75" y1="110" x2="240" y2="150" />
+                                <line x1="240" y1="150" x2="135" y2="240" />
+                              </g>
+                              <g fill="currentColor">
+                                <rect x="55" y="90" width="40" height="40" rx="4" />
+                                <rect x="160" y="40" width="40" height="40" rx="4" />
+                                <rect x="220" y="130" width="40" height="40" rx="4" />
+                                <rect x="115" y="220" width="40" height="40" rx="4" />
+                              </g>
+                            </svg>
                           </div>
                         </div>
-                      )}
-
-                      {/* Upsell Section */}
-                      {upsellAnalytics.hasData && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
-                            רכישות דרך Upsell
-                          </h3>
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="text-md font-medium text-gray-700 mb-4">
-                                שאילתות מובילות ל-Upsell (לפי הכנסות)
-                              </h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full table-auto">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  שאילתת חיפוש
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  הכנסות
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  הזמנות
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  מוצרים
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {upsellAnalytics.queries.length > 0 ? (
-                                upsellAnalytics.queries.map((item, index) => (
-                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
-                                      {item.query}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-semibold text-purple-600">
-                                      ₪{item.revenue.toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                      {item.count}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                      {item.products}
-                                    </td>
-                                  </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                                    אין נתונים להצגה
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                      
-                      {/* Detailed Query-Product Table */}
-                      <div>
-                        <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
-                        <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישת Upsell לפי שאילתה ומוצר</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full table-auto">
-                            <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  שאילתת חיפוש
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  מוצר
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  הכנסות
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  הזמנות
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                  כמות
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {upsellAnalytics.byQueryProduct
-                                .filter(row => {
-                                  const productName = (row.product_name || '').toLowerCase();
-                                  return productName && 
-                                         productName !== 'n/a' && 
-                                         productName !== 'לא ידוע' && 
-                                         productName !== 'ללא שם מוצר';
-                                })
-                                .slice(0, 50)
-                                .map((row, index) => (
-                                  <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm text-gray-800 font-medium">
-                                      {row.search_query || "ללא שאילתה"}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700">
-                                      {row.product_name}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-semibold text-purple-600">
-                                      ₪{row.revenue.toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                      {row.orders}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">
-                                      {row.items}
-                                    </td>
-                                  </tr>
-                                ))}
-                              {upsellAnalytics.byQueryProduct.length === 0 && (
-                                <tr>
-                                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                                    אין נתונים להצגה
-                                  </td>
-                                </tr>
-                              )}
-                              {upsellAnalytics.byQueryProduct.length > 50 && (
-                                <tr>
-                                  <td colSpan={5} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
-                                    מציג 50 ראשונים מתוך {upsellAnalytics.byQueryProduct.length} רכישות Upsell
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                        <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                            ₪{((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.revenue || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.revenue || 0) : 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </h2>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                            רכישות דרך סמנטיקס - חיפושים מורכבים ו-Upsell
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
+                            <span className="text-xs text-gray-500">
+                              {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.orders || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.orders || 0) : 0)).toLocaleString('en-US')} רכישות
+                            </span>
+                            <span className="text-xs text-gray-500">•</span>
+                            <span className="text-xs text-gray-500">
+                              {((semantixFunnel.hasData && semantixFunnel.mode === 'checkout' ? (semantixFunnel.totals.items || 0) : 0) + (upsellAnalytics.hasData ? (upsellAnalytics.totals.items || 0) : 0)).toLocaleString('en-US')} מוצרים
+                            </span>
                           </div>
                         </div>
-                      )}
+                      </div>
+
+                      <button
+                        onClick={() => setSemantixExpanded(!semantixExpanded)}
+                        className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors self-start"
+                      >
+                        {semantixExpanded ? (
+                          <>
+                            <span>הסתר פרטים</span>
+                            <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                          </>
+                        ) : (
+                          <>
+                            <span>קרא עוד</span>
+                            <ChevronDown className="h-4 w-4 transition-transform" />
+                          </>
+                        )}
+                      </button>
                     </div>
-                  )}
+
+                    {/* Expanded Details - Combined View */}
+                    {semantixExpanded && (
+                      <div className="mt-6 pt-6 border-t border-gray-100 space-y-8">
+                        {/* Complex Queries Section */}
+                        {semantixFunnel.hasData && semantixFunnel.mode === 'checkout' && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                              חיפושים מורכבים
+                            </h3>
+                            <div className="space-y-6">
+                              <div>
+                                <h4 className="text-md font-medium text-gray-700 mb-4">
+                                  שאילתות מורכבות מובילות (לפי הכנסות)
+                                </h4>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full table-auto">
+                                    <thead>
+                                      <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          שאילתת חיפוש
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {(() => {
+                                        // Group by query and sum up
+                                        const queryMap = new Map();
+                                        semantixFunnel.byQueryProduct.forEach(item => {
+                                          const existing = queryMap.get(item.search_query) || { orders: 0, items: 0, revenue: 0 };
+                                          queryMap.set(item.search_query, {
+                                            orders: existing.orders + item.orders,
+                                            items: existing.items + item.items,
+                                            revenue: existing.revenue + item.revenue
+                                          });
+                                        });
+                                        return Array.from(queryMap.entries())
+                                          .map(([query, data]) => ({ query, ...data }))
+                                          .sort((a, b) => b.revenue - a.revenue)
+                                          .slice(0, 10)
+                                          .map((item, index) => (
+                                            <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                              <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                                {item.query}
+                                              </td>
+                                              <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
+                                                ₪{item.revenue.toFixed(2)}
+                                              </td>
+                                            </tr>
+                                          ));
+                                      })()}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+
+                              {/* Detailed Query-Product Table */}
+                              <div>
+                                <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
+                                <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישה לפי שאילתה ומוצר</p>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full table-auto">
+                                    <thead>
+                                      <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          שאילתת חיפוש
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          מוצרים
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          {semantixFunnel.mode === 'checkout' ? 'הכנסות' : 'הכנסות משוערות'}
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {semantixFunnel.byQueryProduct
+                                        .filter(row => {
+                                          // Filter out rows with N/A or unknown product names
+                                          const productName = (row.product_name || '').toLowerCase();
+                                          return productName &&
+                                            productName !== 'n/a' &&
+                                            productName !== 'לא ידוע' &&
+                                            productName !== 'ללא שם מוצר';
+                                        })
+                                        .slice(0, 50)
+                                        .map((row, index) => {
+                                          // Split product names if they contain commas (multiple products)
+                                          const products = row.product_name.split(',').map(p => p.trim());
+                                          const hasMultipleProducts = products.length > 1;
+
+                                          return (
+                                            <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                              <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                                {row.search_query || "ללא שאילתה"}
+                                              </td>
+                                              <td className="px-6 py-4 text-sm text-gray-700">
+                                                {hasMultipleProducts ? (
+                                                  <div className="space-y-1">
+                                                    <div className="text-xs text-gray-500 font-medium mb-1">
+                                                      {products.length} מוצרים:
+                                                    </div>
+                                                    <ul className="text-sm space-y-0.5 max-h-32 overflow-y-auto">
+                                                      {products.slice(0, 5).map((product, idx) => (
+                                                        <li key={idx} className="flex items-start">
+                                                          <span className="text-emerald-600 ml-2">•</span>
+                                                          <span className="flex-1">{product}</span>
+                                                        </li>
+                                                      ))}
+                                                      {products.length > 5 && (
+                                                        <li className="text-xs text-gray-500 italic mt-1">
+                                                          + עוד {products.length - 5} מוצרים...
+                                                        </li>
+                                                      )}
+                                                    </ul>
+                                                  </div>
+                                                ) : (
+                                                  <span>{row.product_name}</span>
+                                                )}
+                                              </td>
+                                              <td className="px-6 py-4 text-sm font-semibold text-emerald-600">
+                                                ₪{row.revenue.toFixed(2)}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      {semantixFunnel.byQueryProduct.length === 0 && (
+                                        <tr>
+                                          <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                                            אין נתונים להצגה
+                                          </td>
+                                        </tr>
+                                      )}
+                                      {semantixFunnel.byQueryProduct.length > 50 && (
+                                        <tr>
+                                          <td colSpan={3} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
+                                            מציג 50 ראשונים מתוך {semantixFunnel.byQueryProduct.length} רכישות
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Upsell Section */}
+                        {upsellAnalytics.hasData && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200">
+                              רכישות דרך Upsell
+                            </h3>
+                            <div className="space-y-6">
+                              <div>
+                                <h4 className="text-md font-medium text-gray-700 mb-4">
+                                  שאילתות מובילות ל-Upsell (לפי הכנסות)
+                                </h4>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full table-auto">
+                                    <thead>
+                                      <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          שאילתת חיפוש
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          הכנסות
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          הזמנות
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          מוצרים
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {upsellAnalytics.queries.length > 0 ? (
+                                        upsellAnalytics.queries.map((item, index) => (
+                                          <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                              {item.query}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-purple-600">
+                                              ₪{item.revenue.toFixed(2)}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                              {item.count}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                              {item.products}
+                                            </td>
+                                          </tr>
+                                        ))
+                                      ) : (
+                                        <tr>
+                                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                                            אין נתונים להצגה
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+
+                              {/* Detailed Query-Product Table */}
+                              <div>
+                                <h3 className="text-md font-medium text-gray-700 mb-4">פירוט מלא: שאילתה × מוצר</h3>
+                                <p className="text-xs text-gray-600 mb-3">פירוט מפורט של כל רכישת Upsell לפי שאילתה ומוצר</p>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full table-auto">
+                                    <thead>
+                                      <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          שאילתת חיפוש
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          מוצר
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          הכנסות
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          הזמנות
+                                        </th>
+                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                          כמות
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                      {upsellAnalytics.byQueryProduct
+                                        .filter(row => {
+                                          const productName = (row.product_name || '').toLowerCase();
+                                          return productName &&
+                                            productName !== 'n/a' &&
+                                            productName !== 'לא ידוע' &&
+                                            productName !== 'ללא שם מוצר';
+                                        })
+                                        .slice(0, 50)
+                                        .map((row, index) => (
+                                          <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-gray-800 font-medium">
+                                              {row.search_query || "ללא שאילתה"}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">
+                                              {row.product_name}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-purple-600">
+                                              ₪{row.revenue.toFixed(2)}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                              {row.orders}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                              {row.items}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      {upsellAnalytics.byQueryProduct.length === 0 && (
+                                        <tr>
+                                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                            אין נתונים להצגה
+                                          </td>
+                                        </tr>
+                                      )}
+                                      {upsellAnalytics.byQueryProduct.length > 50 && (
+                                        <tr>
+                                          <td colSpan={5} className="px-6 py-4 text-center text-gray-600 bg-gray-50 text-sm">
+                                            מציג 50 ראשונים מתוך {upsellAnalytics.byQueryProduct.length} רכישות Upsell
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -2721,50 +3076,50 @@ function AnalyticsPanel({ session, onboarding }) {
                   <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
                     <div>
                       <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות להוספה לעגלה</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full table-auto">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
                               <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        שאילתת חיפוש
-                      </th>
+                                שאילתת חיפוש
+                              </th>
                               <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        הוספות לעגלה
-                      </th>
+                                הוספות לעגלה
+                              </th>
                               <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        מוצרים ייחודיים
-                      </th>
+                                מוצרים ייחודיים
+                              </th>
                               <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        הכנסות משוערות
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                                הכנסות משוערות
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
                             {(cartMetrics.addToCartMetrics?.queries || []).map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                              <tr key={index} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
-                          {item.query}
-                        </td>
+                                  {item.query}
+                                </td>
                                 <td className="px-6 py-4 text-sm text-gray-600 text-right">
                                   <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">
                                     {item.count.toLocaleString('en-US')}
-                          </span>
-                        </td>
+                                  </span>
+                                </td>
                                 <td className="px-6 py-4 text-sm text-gray-600 text-right">
                                   {item.products.toLocaleString('en-US')}
-                        </td>
+                                </td>
                                 <td className="px-6 py-4 text-sm text-gray-600 text-right">
                                   ₪{item.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-              </div>
-            )}
-            
+                  </div>
+                )}
+
                 {/* Expanded Details for Checkout */}
                 {checkoutDetailsExpanded && (
                   <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
@@ -2823,30 +3178,30 @@ function AnalyticsPanel({ session, onboarding }) {
                     {(cartMetrics.checkoutMetrics?.queries || []).length > 0 && (
                       <div>
                         <h3 className="text-md font-medium text-gray-700 mb-4">תרשים רכישות</h3>
-                <div className="bg-gray-50 rounded-lg p-4 h-64 flex items-end justify-around">
+                        <div className="bg-gray-50 rounded-lg p-4 h-64 flex items-end justify-around">
                           {(cartMetrics.checkoutMetrics?.queries || []).slice(0, 5).map((item, index) => {
-                    // Calculate relative height (50% to 100% of container)
+                            // Calculate relative height (50% to 100% of container)
                             const maxCount = Math.max(...(cartMetrics.checkoutMetrics?.queries || []).slice(0, 5).map(q => q.count));
                             const height = maxCount > 0 ? 50 + ((item.count / maxCount) * 50) : 50;
-                    
-                    return (
-                      <div key={index} className="flex flex-col items-center">
-                        <div 
+
+                            return (
+                              <div key={index} className="flex flex-col items-center">
+                                <div
                                   className="bg-gradient-to-t from-green-500 to-emerald-500 rounded-t-md w-16 shadow-md"
                                   style={{ height: `${height}%` }}
-                        >
-                          <div className="text-white text-center font-bold py-2">
+                                >
+                                  <div className="text-white text-center font-bold py-2">
                                     {item.count.toLocaleString('en-US')}
-                          </div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-2 max-w-[80px] truncate text-center" title={item.query}>
-                          {item.query}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-2 max-w-[80px] truncate text-center" title={item.query}>
+                                  {item.query}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
                     )}
                   </div>
                 )}
@@ -2861,7 +3216,7 @@ function AnalyticsPanel({ session, onboarding }) {
         <div className="border-b border-gray-100 p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">
-              תוצאות שאילתות ({filteredCount})
+              שאילתות חיפוש וביצועים ({filteredCount})
             </h2>
             {totalLoaded > 0 && (
               <span className="text-sm text-gray-500">
@@ -2940,20 +3295,30 @@ function AnalyticsPanel({ session, onboarding }) {
             {displayedQueries.map((query, index) => {
               const queryText = (query.query || '').toLowerCase().trim();
               const deliveredProducts = query.deliveredProducts || [];
-              
+
               // Create a Set of normalized delivered product names for fast lookup
               const deliveredProductsSet = new Set(
                 deliveredProducts.map(p => trimAndNormalize(p).toLowerCase())
               );
-              
+
               // Helper function to check if product was in delivered results
               const wasProductDelivered = (productName) => {
                 if (!productName || deliveredProductsSet.size === 0) return false;
                 return deliveredProductsSet.has(trimAndNormalize(productName).toLowerCase());
               };
-              
+
+              const queryTime = new Date(query.timestamp).getTime();
+              // Add 1-hour window for attribution? Or just strict >= ?
+              // User said "old add to carts... marked for new".
+              // So Strict >= queryTime is the most important first step. 
+              // We can also say within 24 hours to be safe, but let's start with strict >= queryTime.
+
               const cartProducts = cartAnalytics
-                .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                .filter(item => {
+                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  return (item.search_query || '').toLowerCase().trim() === queryText &&
+                    itemTime >= queryTime;
+                })
                 .map(item => ({
                   name: item.product_name || 'מוצר לא ידוע',
                   price: item.product_price || 0,
@@ -2961,9 +3326,13 @@ function AnalyticsPanel({ session, onboarding }) {
                 }))
                 .filter(product => wasProductDelivered(product.name)) // Only products that were shown
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
-              
+
               const purchaseProducts = checkoutEvents
-                .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                .filter(item => {
+                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  return (item.search_query || '').toLowerCase().trim() === queryText &&
+                    itemTime >= queryTime;
+                })
                 .flatMap(item => {
                   if (Array.isArray(item.products) && item.products.length > 0) {
                     return item.products.map(p => ({
@@ -2980,28 +3349,42 @@ function AnalyticsPanel({ session, onboarding }) {
                 })
                 .filter(item => item.name && wasProductDelivered(item.name)) // Only products that were shown
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
-              
+
+              // Find click events for this query
+              const clickedProducts = clickEvents
+                .filter(item => {
+                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  return (item.search_query || '').toLowerCase().trim() === queryText &&
+                    itemTime >= queryTime;
+                })
+                .map(item => ({
+                  name: item.product_name || 'מוצר לא ידוע',
+                  url: item.product_url || ''
+                }))
+                .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
+
               const hasCartAddition = cartProducts.length > 0;
               const hasPurchase = purchaseProducts.length > 0;
+              const hasClick = clickedProducts.length > 0;
               const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
               const isExpanded = expandedQueries[index] || false;
-              
+
               const toggleExpanded = () => {
                 setExpandedQueries(prev => ({
                   ...prev,
                   [index]: !prev[index]
                 }));
               };
-              
+
               // Determine indicator type (complex/upsell/regular)
               const primaryProduct = purchaseProducts[0] || cartProducts[0];
               const indicatorType = getIndicatorType(
-                query.query, 
-                primaryProduct?.name, 
+                query.query,
+                primaryProduct?.name,
                 deliveredProducts,
                 hasCartAddition || hasPurchase
               );
-              
+
               // Determine card border color based on indicator type
               // Purchase = always purple, Cart = always green
               let borderColor = 'border-gray-200';
@@ -3023,8 +3406,10 @@ function AnalyticsPanel({ session, onboarding }) {
                 } else {
                   borderColor = 'border-green-300 bg-green-50/30';
                 }
+              } else if (hasClick) {
+                borderColor = 'border-blue-200 bg-blue-50/30';
               }
-              
+
               return (
                 <div key={index} className={`border-2 ${borderColor} rounded-lg p-3 transition-all`}>
                   {/* Query Text with Status Badge */}
@@ -3036,6 +3421,13 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                     </div>
                     <div className="flex gap-1.5">
+                      {hasClick && !hasCartAddition && !hasPurchase && (
+                        <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full" title="לחיצה על מוצר">
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
+                          </svg>
+                        </span>
+                      )}
                       {hasPurchase && (
                         <>
                           {indicatorType.type === 'complex' ? (
@@ -3063,7 +3455,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           ) : (
                             <span className="inline-flex items-center justify-center w-7 h-7 bg-purple-100 rounded-full">
                               <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
                             </span>
                           )}
@@ -3096,7 +3488,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           ) : (
                             <span className="inline-flex items-center justify-center w-7 h-7 bg-green-100 rounded-full">
                               <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
                             </span>
                           )}
@@ -3104,28 +3496,27 @@ function AnalyticsPanel({ session, onboarding }) {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Category Pills */}
                   {query.category && (
                     <div className="flex flex-wrap gap-1 mb-2">
-                      {Array.isArray(query.category) 
+                      {Array.isArray(query.category)
                         ? query.category.map((cat, i) => (
-                            <span key={i} className="inline-block px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{cat}</span>
-                          ))
+                          <span key={i} className="inline-block px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{cat}</span>
+                        ))
                         : <span className="inline-block px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{query.category}</span>
                       }
                     </div>
                   )}
-                  
+
                   {/* Purchase/Cart Products Info */}
                   {hasPurchase && (
-                    <div className={`mb-2 p-2 rounded-lg ${
-                      indicatorType.type === 'complex' 
-                        ? 'bg-purple-50/80 border border-purple-200' 
-                        : indicatorType.type === 'upsell'
+                    <div className={`mb-2 p-2 rounded-lg ${indicatorType.type === 'complex'
+                      ? 'bg-purple-50/80 border border-purple-200'
+                      : indicatorType.type === 'upsell'
                         ? 'bg-purple-50/80 border border-purple-200'
                         : 'bg-purple-50 border border-purple-200'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-1.5 mb-1">
                         {indicatorType.type === 'complex' ? (
                           <span className="text-[10px] px-2 py-0.5 bg-purple-600 text-white rounded-full font-medium animate-pulse">
@@ -3137,7 +3528,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           </span>
                         ) : (
                           <svg className="w-3.5 h-3.5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         )}
                         <span className="text-xs font-medium text-purple-800">
@@ -3162,15 +3553,14 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                     </div>
                   )}
-                  
+
                   {hasCartAddition && !hasPurchase && (
-                    <div className={`mb-2 p-2 rounded-lg ${
-                      indicatorType.type === 'complex'
-                        ? 'bg-green-50/80 border border-green-200'
-                        : indicatorType.type === 'upsell'
+                    <div className={`mb-2 p-2 rounded-lg ${indicatorType.type === 'complex'
+                      ? 'bg-green-50/80 border border-green-200'
+                      : indicatorType.type === 'upsell'
                         ? 'bg-green-50/80 border border-green-200'
                         : 'bg-green-50 border border-green-200'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-1.5 mb-1">
                         {indicatorType.type === 'complex' ? (
                           <span className="text-[10px] px-2 py-0.5 bg-green-600 text-white rounded-full font-medium animate-pulse">
@@ -3182,7 +3572,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           </span>
                         ) : (
                           <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         )}
                         <span className="text-xs font-medium text-green-800">
@@ -3207,7 +3597,7 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Delivered Products Toggle */}
                   {hasDeliveredProducts && (
                     <button
@@ -3215,17 +3605,17 @@ function AnalyticsPanel({ session, onboarding }) {
                       className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors mb-2"
                     >
                       <span>ראו תוצאות ({deliveredProducts.length})</span>
-                      <svg 
+                      <svg
                         className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        stroke="currentColor" 
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
                   )}
-                  
+
                   {/* Expanded Products List */}
                   {isExpanded && hasDeliveredProducts && (
                     <div className="mt-2 p-2 bg-white border border-gray-200 rounded text-right">
@@ -3246,8 +3636,8 @@ function AnalyticsPanel({ session, onboarding }) {
           </div>
         )}
 
-          {/* Desktop Table View */}
-          {!loading && !error && filteredQueries.length > 0 && (
+        {/* Desktop Table View */}
+        {!loading && !error && filteredQueries.length > 0 && (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
@@ -3262,6 +3652,9 @@ function AnalyticsPanel({ session, onboarding }) {
                     קטגוריה
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    לחיצה
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     הוספה לעגלה
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -3274,20 +3667,40 @@ function AnalyticsPanel({ session, onboarding }) {
                   // Check if this query led to cart addition or purchase and get products
                   const queryText = (query.query || '').toLowerCase().trim();
                   const deliveredProducts = query.deliveredProducts || [];
-                  
+
                   // Create a Set of normalized delivered product names for fast lookup
                   const deliveredProductsSet = new Set(
                     deliveredProducts.map(p => trimAndNormalize(p).toLowerCase())
                   );
-                  
+
                   // Helper function to check if product was in delivered results
                   const wasProductDelivered = (productName) => {
                     if (!productName || deliveredProductsSet.size === 0) return false;
                     return deliveredProductsSet.has(trimAndNormalize(productName).toLowerCase());
                   };
-                  
+
+                  const queryTime = new Date(query.timestamp).getTime();
+                  const ATTRIBUTION_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
                   const cartProducts = cartAnalytics
-                    .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                    .filter(item => {
+                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                      const isMatch = (item.search_query || '').toLowerCase().trim() === queryText;
+
+                      if (isMatch) {
+                        const diffMinutes = (itemTime - queryTime) / 1000 / 60;
+                        console.log(`[Attribution Debug] Query: "${queryText}"`, {
+                          queryTime: new Date(queryTime).toISOString(),
+                          itemTime: new Date(itemTime).toISOString(),
+                          diffMinutes: diffMinutes.toFixed(2),
+                          isWithinWindow: itemTime >= queryTime && itemTime <= queryTime + ATTRIBUTION_WINDOW_MS
+                        });
+                      }
+
+                      return isMatch &&
+                        itemTime >= queryTime &&
+                        itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
+                    })
                     .map(item => ({
                       name: item.product_name || 'מוצר לא ידוע',
                       price: item.product_price || 0,
@@ -3295,9 +3708,17 @@ function AnalyticsPanel({ session, onboarding }) {
                     }))
                     .filter(product => wasProductDelivered(product.name)) // Only products that were shown
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
-                  
+
                   const purchaseProducts = checkoutEvents
-                    .filter(item => (item.search_query || '').toLowerCase().trim() === queryText)
+                    .filter(item => {
+                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                      return (item.search_query || '').toLowerCase().trim() === queryText &&
+                        itemTime >= queryTime &&
+                        itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
+                      return (item.search_query || '').toLowerCase().trim() === queryText &&
+                        itemTime >= queryTime &&
+                        itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
+                    })
                     .flatMap(item => {
                       // Handle products array or direct product_name
                       if (Array.isArray(item.products) && item.products.length > 0) {
@@ -3315,28 +3736,42 @@ function AnalyticsPanel({ session, onboarding }) {
                     })
                     .filter(item => item.name && wasProductDelivered(item.name)) // Only products that were shown
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
-                  
+
+                  // Find click events for this query
+                  const clickedProducts = clickEvents
+                    .filter(item => {
+                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                      return (item.search_query || '').toLowerCase().trim() === queryText &&
+                        itemTime >= queryTime;
+                    })
+                    .map(item => ({
+                      name: item.product_name || 'מוצר לא ידוע',
+                      url: item.product_url || ''
+                    }))
+                    .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
+
                   const hasCartAddition = cartProducts.length > 0;
                   const hasPurchase = purchaseProducts.length > 0;
+                  const hasClick = clickedProducts.length > 0;
                   const hasDeliveredProducts = Array.isArray(deliveredProducts) && deliveredProducts.length > 0;
                   const isExpanded = expandedQueries[index] || false;
-                  
+
                   const toggleExpanded = () => {
                     setExpandedQueries(prev => ({
                       ...prev,
                       [index]: !prev[index]
                     }));
                   };
-                  
+
                   // Determine indicator type for desktop view
                   const primaryProduct = purchaseProducts[0] || cartProducts[0];
                   const indicatorType = getIndicatorType(
-                    query.query, 
-                    primaryProduct?.name, 
+                    query.query,
+                    primaryProduct?.name,
                     deliveredProducts,
                     hasCartAddition || hasPurchase
                   );
-                  
+
                   return (
                     <tr
                       key={index}
@@ -3352,10 +3787,10 @@ function AnalyticsPanel({ session, onboarding }) {
                                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
                               >
                                 <span>ראו תוצאות</span>
-                                <svg 
+                                <svg
                                   className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                                  fill="none" 
-                                  stroke="currentColor" 
+                                  fill="none"
+                                  stroke="currentColor"
                                   viewBox="0 0 24 24"
                                 >
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -3368,8 +3803,8 @@ function AnalyticsPanel({ session, onboarding }) {
                               <div className="text-xs font-semibold text-gray-600 mb-2">מוצרים שהוצגו ({deliveredProducts.length}):</div>
                               <div className="space-y-1 max-h-60 overflow-y-auto">
                                 {deliveredProducts.map((productName, idx) => (
-                                  <div 
-                                    key={idx} 
+                                  <div
+                                    key={idx}
                                     className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded hover:bg-gray-50 transition-colors"
                                   >
                                     <span className="text-gray-400">•</span>
@@ -3385,12 +3820,26 @@ function AnalyticsPanel({ session, onboarding }) {
                         {new Date(query.timestamp).toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 text-right">
-                        {Array.isArray(query.category) 
+                        {Array.isArray(query.category)
                           ? query.category.map((cat, i) => (
-                              <span key={i} className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full mr-1 mb-1">{cat}</span>
-                            ))
+                            <span key={i} className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full mr-1 mb-1">{cat}</span>
+                          ))
                           : <span className="inline-block px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">{query.category}</span>
                         }
+                      </td>
+                      <td className="px-6 py-4">
+                        {hasClick ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
+                              </svg>
+                            </span>
+                            <span className="text-[10px] text-blue-600 font-medium">{clickedProducts.length}</span>
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-300">–</div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {hasCartAddition ? (
@@ -3430,7 +3879,7 @@ function AnalyticsPanel({ session, onboarding }) {
                             ) : (
                               <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
                                 <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                 </svg>
                               </span>
                             )}
@@ -3487,7 +3936,7 @@ function AnalyticsPanel({ session, onboarding }) {
                             ) : (
                               <span className="inline-flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
                                 <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                 </svg>
                               </span>
                             )}
@@ -3514,109 +3963,105 @@ function AnalyticsPanel({ session, onboarding }) {
           </div>
         )}
 
-          {/* Pagination */}
-          {!loading && !error && filteredQueries.length > 0 && totalPages > 1 && (
-            <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
-              <nav className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="hidden sm:block">
-                  <p className="text-sm text-gray-700">
-                    מציג <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> עד{" "}
-                    <span className="font-medium">
-                      {Math.min(currentPage * itemsPerPage, filteredCount)}
-                    </span>{" "}
-                    מתוך <span className="font-medium">{filteredCount}</span> תוצאות
-                  </p>
-                </div>
-                
-                {/* Mobile page indicator */}
-                <div className="block sm:hidden text-sm text-gray-700">
-                  עמוד <span className="font-medium">{currentPage}</span> מתוך <span className="font-medium">{totalPages}</span>
-                </div>
-                
-                <div className="flex-1 flex justify-center sm:justify-end">
-                  <button
-                    onClick={handlePrevious}
-                    disabled={currentPage === 1}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                      currentPage === 1
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
-                    } mr-4`}
-                  >
-                    קודם
-                  </button>
-                  
-                  <div className="hidden md:flex">
-                    {paginationNumbers.map(num => (
-                      <button
-                        key={num}
-                        onClick={() => handlePageClick(num)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ${
-                          currentPage === num
-                            ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
-                            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <button
-                    onClick={handleNext}
-                    disabled={currentPage === totalPages}
-                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${
-                      currentPage === totalPages
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
-                    } ml-4`}
-                  >
-                    הבא
-                  </button>
-                </div>
-              </nav>
-            </div>
-          )}
-
-          {/* Load More Button - Load additional queries from server */}
-          {!loading && !error && hasMoreQueries && (
-            <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
-              <div className="flex flex-col items-center justify-center gap-3">
-                <p className="text-sm text-gray-600 text-center">
-                  נטענו <span className="font-medium">{totalLoaded}</span> שאילתות מהשרת
-                  {filteredCount < totalLoaded && (
-                    <span className="block mt-1 text-xs text-gray-500">
-                      ({filteredCount} תוצאות אחרי סינון)
-                    </span>
-                  )}
+        {/* Pagination */}
+        {!loading && !error && filteredQueries.length > 0 && totalPages > 1 && (
+          <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
+            <nav className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="hidden sm:block">
+                <p className="text-sm text-gray-700">
+                  מציג <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> עד{" "}
+                  <span className="font-medium">
+                    {Math.min(currentPage * itemsPerPage, filteredCount)}
+                  </span>{" "}
+                  מתוך <span className="font-medium">{filteredCount}</span> תוצאות
                 </p>
+              </div>
+
+              {/* Mobile page indicator */}
+              <div className="block sm:hidden text-sm text-gray-700">
+                עמוד <span className="font-medium">{currentPage}</span> מתוך <span className="font-medium">{totalPages}</span>
+              </div>
+
+              <div className="flex-1 flex justify-center sm:justify-end">
                 <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className={`inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${
-                    loadingMore ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  onClick={handlePrevious}
+                  disabled={currentPage === 1}
+                  className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${currentPage === 1
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    } mr-4`}
                 >
-                  {loadingMore ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      טוען עוד שאילתות...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      טען עוד שאילתות
-                    </>
-                  )}
+                  קודם
+                </button>
+
+                <div className="hidden md:flex">
+                  {paginationNumbers.map(num => (
+                    <button
+                      key={num}
+                      onClick={() => handlePageClick(num)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1 rounded-md ${currentPage === num
+                        ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
+                        : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleNext}
+                  disabled={currentPage === totalPages}
+                  className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${currentPage === totalPages
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    } ml-4`}
+                >
+                  הבא
                 </button>
               </div>
+            </nav>
+          </div>
+        )}
+
+        {/* Load More Button - Load additional queries from server */}
+        {!loading && !error && hasMoreQueries && (
+          <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-100">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <p className="text-sm text-gray-600 text-center">
+                נטענו <span className="font-medium">{totalLoaded}</span> שאילתות מהשרת
+                {filteredCount < totalLoaded && (
+                  <span className="block mt-1 text-xs text-gray-500">
+                    ({filteredCount} תוצאות אחרי סינון)
+                  </span>
+                )}
+              </p>
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className={`inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${loadingMore ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+              >
+                {loadingMore ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    טוען עוד שאילתות...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    טען עוד שאילתות
+                  </>
+                )}
+              </button>
             </div>
-          )}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -3625,26 +4070,26 @@ function AnalyticsPanel({ session, onboarding }) {
 
 
 function SettingsPanel({ session, onboarding, handleDownload: externalDownload }) {
-  
+
   // Debug what we receive in props
   console.log("🔍 SETTINGS PANEL PROPS:");
   console.log("onboarding:", onboarding);
   console.log("onboarding?.credentials:", onboarding?.credentials);
-  
+
   // Use the onboarding payload to populate initial state.
   const [dbName, setDbName] = useState(onboarding?.credentials?.dbName || "");
   const [categories, setCategories] = useState(
     onboarding?.credentials?.categories
       ? Array.isArray(onboarding.credentials.categories)
-          ? onboarding.credentials.categories.join(", ")
-          : onboarding.credentials.categories
+        ? onboarding.credentials.categories.join(", ")
+        : onboarding.credentials.categories
       : ""
   );
   const [productTypes, setProductTypes] = useState(
     onboarding?.credentials?.type
       ? Array.isArray(onboarding.credentials.type)
-          ? onboarding.credentials.type.join(", ")
-          : onboarding.credentials.type
+        ? onboarding.credentials.type.join(", ")
+        : onboarding.credentials.type
       : ""
   );
   const [aiExplanationMode, setAiExplanationMode] = useState(
@@ -3655,26 +4100,33 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [softCategories, setSoftCategories] = useState(
     onboarding?.credentials?.softCategories
       ? Array.isArray(onboarding.credentials.softCategories)
-          ? onboarding.credentials.softCategories.join(", ")
-          : onboarding.credentials.softCategories
+        ? onboarding.credentials.softCategories.join(", ")
+        : onboarding.credentials.softCategories
+      : ""
+  );
+  const [productColors, setProductColors] = useState(
+    onboarding?.credentials?.colors
+      ? Array.isArray(onboarding.credentials.colors)
+        ? onboarding.credentials.colors.join(", ")
+        : onboarding.credentials.colors
       : ""
   );
   const [cred, setCred] = useState(
     platform === "shopify"
       ? {
-          shopifyDomain: onboarding?.credentials?.shopifyDomain || "",
-          shopifyToken: onboarding?.credentials?.shopifyToken || "",
-          wooUrl: "",
-          wooKey: "",
-          wooSecret: ""
-        }
+        shopifyDomain: onboarding?.credentials?.shopifyDomain || "",
+        shopifyToken: onboarding?.credentials?.shopifyToken || "",
+        wooUrl: "",
+        wooKey: "",
+        wooSecret: ""
+      }
       : {
-          shopifyDomain: "",
-          shopifyToken: "",
-          wooUrl: onboarding?.credentials?.wooUrl || "",
-          wooKey: onboarding?.credentials?.wooKey || "",
-          wooSecret: onboarding?.credentials?.wooSecret || ""
-        }
+        shopifyDomain: "",
+        shopifyToken: "",
+        wooUrl: onboarding?.credentials?.wooUrl || "",
+        wooKey: onboarding?.credentials?.wooKey || "",
+        wooSecret: onboarding?.credentials?.wooSecret || ""
+      }
   );
 
   const [editing, setEditing] = useState(false);
@@ -3684,7 +4136,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   const [stopping, setStopping] = useState(false);
   const [targetCategory, setTargetCategory] = useState(""); // For category-specific reprocessing
   const [missingSoftCategoryOnly, setMissingSoftCategoryOnly] = useState(false); // For products missing softCategory field
-  
+
   // Advanced reprocessing options
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [reprocessHardCategories, setReprocessHardCategories] = useState(true);
@@ -3713,11 +4165,11 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   async function handleResync() {
     setResyncing(true);
     setMsg("");
-    
+
     try {
       // Get API key from onboarding credentials
       const apiKey = onboarding?.apiKey;
-      
+
       if (!apiKey) {
         throw new Error("API key not found. Please regenerate your API key in the API Key panel.");
       }
@@ -3728,7 +4180,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         throw new Error("Failed to fetch user credentials");
       }
       const { onboarding: userData } = await onboardingRes.json();
-      
+
       if (!userData) {
         throw new Error("User not found. Please complete onboarding first.");
       }
@@ -3737,14 +4189,14 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const userCredentials = userData.credentials || {};
       const userPlatform = userData.platform || platform;
       const userDbName = userData.dbName || dbName;
-      
+
       if (!userDbName) {
         throw new Error("Store name is required. Please save your settings first.");
       }
 
       // Prepare the data arrays from database (or fallback to state if not in DB)
-      const categoriesArray = Array.isArray(userCredentials.categories) 
-        ? userCredentials.categories 
+      const categoriesArray = Array.isArray(userCredentials.categories)
+        ? userCredentials.categories
         : (userCredentials.categories ? [userCredentials.categories] : categories.split(",").map(s => s.trim()).filter(Boolean));
       const typesArray = Array.isArray(userCredentials.type)
         ? userCredentials.type
@@ -3752,7 +4204,10 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const softCategoriesArray = Array.isArray(userCredentials.softCategories)
         ? userCredentials.softCategories
         : (userCredentials.softCategories ? [userCredentials.softCategories] : softCategories.split(",").map(s => s.trim()).filter(Boolean));
-      
+      const colorsArray = Array.isArray(userCredentials.colors)
+        ? userCredentials.colors
+        : (userCredentials.colors ? [userCredentials.colors] : productColors.split(",").map(s => s.trim()).filter(Boolean));
+
       // Format Shopify domain if platform is shopify
       let shopifyDomain = userCredentials.shopifyDomain || cred.shopifyDomain;
       if (userPlatform === "shopify" && shopifyDomain) {
@@ -3763,16 +4218,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       }
 
       // Prepare platform-specific credentials from database
-      const platformCredentials = userPlatform === "shopify" 
+      const platformCredentials = userPlatform === "shopify"
         ? {
-            shopifyDomain: shopifyDomain || userCredentials.shopifyDomain,
-            shopifyToken: userCredentials.shopifyToken || cred.shopifyToken,
-          }
+          shopifyDomain: shopifyDomain || userCredentials.shopifyDomain,
+          shopifyToken: userCredentials.shopifyToken || cred.shopifyToken,
+        }
         : {
-            wooUrl: userCredentials.wooUrl || cred.wooUrl,
-            wooKey: userCredentials.wooKey || cred.wooKey,
-            wooSecret: userCredentials.wooSecret || cred.wooSecret,
-          };
+          wooUrl: userCredentials.wooUrl || cred.wooUrl,
+          wooKey: userCredentials.wooKey || cred.wooKey,
+          wooSecret: userCredentials.wooSecret || cred.wooSecret,
+        };
 
       // Validate credentials are present
       if (userPlatform === "shopify" && (!platformCredentials.shopifyDomain || !platformCredentials.shopifyToken)) {
@@ -3790,18 +4245,19 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         categories: categoriesArray,
         type: typesArray,
         softCategories: softCategoriesArray,
+        colors: colorsArray,
         syncMode: userData.syncMode || onboarding?.syncMode || "text",
         explain: userData.explain ?? aiExplanationMode,
         context: userData.context || context || "",
         ...platformCredentials
       };
-      
+
       console.log('🔄 ⚡ RESYNC BUTTON: Sending to EXTERNAL endpoint https://onboarding-lh63.onrender.com/api/onboarding');
       console.log('📦 Sync payload:', { ...payload, shopifyToken: payload.shopifyToken ? '***' : undefined, wooSecret: payload.wooSecret ? '***' : undefined });
 
       const res = await fetch("https://onboarding-lh63.onrender.com/api/onboarding", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "x-api-key": apiKey
         },
@@ -3809,7 +4265,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.error || data.message || "Failed to start resync");
       }
@@ -3838,14 +4294,14 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
   // Save handler – update settings using the data from state.
   async function handleSave(e) {
     e.preventDefault();
-    
+
     // Validate dbName before proceeding
     if (!dbName) {
       setMsg("❌ Store name is required");
       setTimeout(() => setMsg(""), 2000);
       return;
     }
-    
+
     setSaving(true);
     setMsg("");
     try {
@@ -3853,7 +4309,8 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
       const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
       const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
-      
+      const colorsArray = productColors.split(",").map(s => s.trim()).filter(Boolean);
+
       // Format Shopify domain if platform is shopify
       let formattedCred = { ...cred };
       if (platform === "shopify" && formattedCred.shopifyDomain) {
@@ -3865,16 +4322,16 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       }
 
       // Prepare platform-specific credentials
-      const platformCredentials = platform === "shopify" 
+      const platformCredentials = platform === "shopify"
         ? {
-            shopifyDomain: formattedCred.shopifyDomain,
-            shopifyToken: formattedCred.shopifyToken,
-          }
+          shopifyDomain: formattedCred.shopifyDomain,
+          shopifyToken: formattedCred.shopifyToken,
+        }
         : {
-            wooUrl: formattedCred.wooUrl,
-            wooKey: formattedCred.wooKey,
-            wooSecret: formattedCred.wooSecret,
-          };
+          wooUrl: formattedCred.wooUrl,
+          wooKey: formattedCred.wooKey,
+          wooSecret: formattedCred.wooSecret,
+        };
 
       const payload = {
         platform,
@@ -3882,6 +4339,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         categories: categoriesArray,
         type: typesArray,
         softCategories: softCategoriesArray,
+        colors: colorsArray,
         syncMode: onboarding?.syncMode || "text",
         explain: aiExplanationMode,
         context: context,
@@ -3895,11 +4353,11 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || data.message || "Failed to save settings");
       }
-      
+
       setMsg("✅ Saved!");
       setEditing(false);
     } catch (err) {
@@ -3925,25 +4383,28 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
       console.log("categories:", categories);
       console.log("productTypes:", productTypes);
       console.log("softCategories:", softCategories);
-      
+
       // Prepare the data arrays like in handleSave
       const categoriesArray = categories.split(",").map(s => s.trim()).filter(Boolean);
       const typesArray = productTypes.split(",").map(s => s.trim()).filter(Boolean);
       const softCategoriesArray = softCategories.split(",").map(s => s.trim()).filter(Boolean);
-      
+      const colorsArray = productColors.split(",").map(s => s.trim()).filter(Boolean);
+
       console.log("🔍 PREPARED ARRAYS:");
       console.log("categoriesArray:", categoriesArray);
       console.log("typesArray:", typesArray);
       console.log("softCategoriesArray:", softCategoriesArray);
-      
-      const payload = { 
+      console.log("colorsArray:", colorsArray);
+
+      const payload = {
         dbName,
         categories: categoriesArray,
         type: typesArray,
         softCategories: softCategoriesArray,
+        colors: colorsArray,
         targetCategory: targetCategory.trim() || null,
         missingSoftCategoryOnly: missingSoftCategoryOnly,
-        
+
         // Advanced reprocessing options
         reprocessHardCategories,
         reprocessSoftCategories,
@@ -3953,9 +4414,9 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         reprocessDescriptions,
         reprocessAll
       };
-      
+
       console.log("🔍 PAYLOAD TO SEND:", payload);
-      
+
       const res = await fetch('/api/reprocess-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4026,7 +4487,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
         window.location.href = SHOPIFY_INSTALL_URL;
         return;
       }
-      
+
       // For WooCommerce, download the plugin as before
       const res = await fetch("/api/download-plugin", { method: "GET" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -4073,7 +4534,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
               </defs>
               <rect width="100%" height="100%" fill="url(#grid)" />
             </svg>
-            </div>
+          </div>
           <div className="relative p-8">
             <h1 className="text-3xl font-bold text-white mb-1">הגדרות התוסף</h1>
             <p className="text-indigo-100">
@@ -4092,7 +4553,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
             הערה: לא מומלץ לשנות הגדרות אלה אלא אם כן זה הכרחי לחלוטין.
           </p>
         </div>
-        
+
         {syncState === 'running' && (
           <div className="p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Processing Logs</h3>
@@ -4135,7 +4596,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   סוגי מוצרים (מופרדים בפסיקים)
@@ -4150,7 +4611,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   סוגי המוצרים יעזרו לקטלג ולסנן מוצרים בחיפוש
                 </p>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   קטגוריות רכות (מופרדות בפסיקים)
@@ -4165,7 +4626,22 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   קטגוריות רכות מספקות שכבת סיווג נוספת גמישה למוצרים
                 </p>
               </div>
-              
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  צבעים (מופרדים בפסיקים)
+                </label>
+                <input
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+                  value={productColors}
+                  onChange={e => setProductColors(e.target.value)}
+                  placeholder="אדום, כחול, שחור, לבן, ירוק"
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  רשימת צבעים לסיווג מוצרים - המערכת תסווג כל מוצר לפי הצבעים המתאימים מרשימה זו
+                </p>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between">
                   <div>
@@ -4179,19 +4655,17 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   <button
                     type="button"
                     onClick={() => setAiExplanationMode(!aiExplanationMode)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${
-                      aiExplanationMode ? 'bg-indigo-600' : 'bg-gray-200'
-                    }`}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 ${aiExplanationMode ? 'bg-indigo-600' : 'bg-gray-200'
+                      }`}
                   >
                     <span
-                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        aiExplanationMode ? 'translate-x-4' : 'translate-x-0'
-                      }`}
+                      className={` relative right-4 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${aiExplanationMode ? 'translate-x-4' : 'translate-x-0'
+                        }`}
                     />
                   </button>
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   הקשר (מידע על החנות)
@@ -4274,11 +4748,11 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </div>
                 </div>
               )}
-              
+
               <div className="pt-6 border-t border-gray-200 flex items-center flex-wrap gap-3">
-                <button 
-                  type="submit" 
-                  disabled={saving} 
+                <button
+                  type="submit"
+                  disabled={saving}
                   className="px-6 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   {saving ? (
@@ -4298,9 +4772,9 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     </>
                   )}
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => setEditing(false)} 
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
                   className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all"
                 >
                   ביטול
@@ -4332,7 +4806,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <span className="block text-sm font-medium text-gray-700 mb-2">סוגי מוצרים</span>
                 <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
@@ -4343,14 +4817,13 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   )) : "לא הוגדר"}
                 </div>
               </div>
-              
+
               <div>
                 <span className="block text-sm font-medium text-gray-700 mb-2">מצב הסבר AI</span>
                 <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
                   <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      aiExplanationMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${aiExplanationMode ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
                       {aiExplanationMode ? '✓ מופעל' : '✗ כבוי'}
                     </span>
                     <span className="mr-2 text-sm text-gray-600">
@@ -4359,7 +4832,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </div>
                 </div>
               </div>
-              
+
               {platform === "shopify" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -4397,20 +4870,20 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                   </div>
                 </div>
               )}
-              
+
               <div className="pt-6 border-t border-gray-200">
                 {/* Primary Actions */}
                 <div className="flex flex-wrap items-center gap-3 mb-6">
-                  <button 
-                    onClick={() => setEditing(true)} 
+                  <button
+                    onClick={() => setEditing(true)}
                     className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center"
                   >
                     <Settings className="h-4 w-4 mr-2" />
                     ערוך הגדרות
                   </button>
-                  <button 
-                    onClick={handleResync} 
-                    disabled={resyncing} 
+                  <button
+                    onClick={handleResync}
+                    disabled={resyncing}
                     className="px-5 py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {resyncing ? (
@@ -4430,216 +4903,216 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                       </>
                     )}
                   </button>
-                {dbName && (
-                  <>
-                    {/* Category Selection for Reprocessing */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        עיבוד מחדש לפי קטגוריה ספציפית (אופציונלי)
-                      </label>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <select
-                          value={targetCategory}
-                          onChange={(e) => setTargetCategory(e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          disabled={reprocessing || stopping}
-                        >
-                          <option value="">כל הקטגוריות (עיבוד מחדש רגיל)</option>
-                          {categories.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                        <div className="text-xs text-gray-500 sm:self-end sm:pb-2">
-                          {targetCategory ? `יעבד רק מוצרים מקטגוריה: ${targetCategory}` : 'יעבד את כל המוצרים'}
+                  {dbName && (
+                    <>
+                      {/* Category Selection for Reprocessing */}
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          עיבוד מחדש לפי קטגוריה ספציפית (אופציונלי)
+                        </label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <select
+                            value={targetCategory}
+                            onChange={(e) => setTargetCategory(e.target.value)}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            disabled={reprocessing || stopping}
+                          >
+                            <option value="">כל הקטגוריות (עיבוד מחדש רגיל)</option>
+                            {categories.split(',').map(cat => cat.trim()).filter(Boolean).map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                          <div className="text-xs text-gray-500 sm:self-end sm:pb-2">
+                            {targetCategory ? `יעבד רק מוצרים מקטגוריה: ${targetCategory}` : 'יעבד את כל המוצרים'}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Missing Soft Category Option */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                      <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                        <input
-                          type="checkbox"
-                          checked={missingSoftCategoryOnly}
-                          onChange={(e) => setMissingSoftCategoryOnly(e.target.checked)}
-                          disabled={reprocessing || stopping}
-                          className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-gray-700">
-                            עיבד רק מוצרים עם קטגוריות קשות אבל ללא שדה צבעי-רכות
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            יתמקד במוצרים שיש להם קטגוריות אבל חסר להם לגמרי שדה צבעי-רכות (לא מערך ריק)
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                    
-                    {/* Advanced Reprocessing Options Toggle */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                        className="flex items-center justify-between w-full text-right"
-                      >
-                        <span className="text-sm font-medium text-blue-800">
-                          אפשרויות מתקדמות לעיבוד מחדש
-                        </span>
-                        <svg 
-                          className={`w-5 h-5 transition-transform ${showAdvancedOptions ? 'transform rotate-180' : ''}`} 
-                          fill="currentColor" 
-                          viewBox="0 0 20 20"
+                      {/* Missing Soft Category Option */}
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                        <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                          <input
+                            type="checkbox"
+                            checked={missingSoftCategoryOnly}
+                            onChange={(e) => setMissingSoftCategoryOnly(e.target.checked)}
+                            disabled={reprocessing || stopping}
+                            className="w-4 h-4 text-yellow-600 bg-gray-100 border-gray-300 rounded focus:ring-yellow-500 focus:ring-2"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-700">
+                              עיבד רק מוצרים עם קטגוריות קשות אבל ללא שדה צבעי-רכות
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              יתמקד במוצרים שיש להם קטגוריות אבל חסר להם לגמרי שדה צבעי-רכות (לא מערך ריק)
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Advanced Reprocessing Options Toggle */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                          className="flex items-center justify-between w-full text-right"
                         >
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"></path>
-                        </svg>
-                      </button>
-                      
-                      {showAdvancedOptions && (
-                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-3">
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessAll}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setReprocessAll(checked);
-                                  if (checked) {
-                                    // Select all options when "All" is checked
-                                    setReprocessHardCategories(true);
-                                    setReprocessSoftCategories(true);
-                                    setReprocessTypes(true);
-                                    setReprocessVariants(true);
-                                    setReprocessEmbeddings(true);
-                                    setReprocessDescriptions(true);
-                                  }
-                                }}
-                                disabled={reprocessing || stopping}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm font-bold text-blue-900">עיבוד מחדש של הכל (כולל מידע)</span>
-                            </label>
-                            
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessHardCategories}
-                                onChange={(e) => setReprocessHardCategories(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">קטגוריות קשות</span>
-                            </label>
-                            
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessSoftCategories}
-                                onChange={(e) => setReprocessSoftCategories(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">קטגוריות רכות/צבעים</span>
-                            </label>
-                            
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessTypes}
-                                onChange={(e) => setReprocessTypes(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">סוגי מוצרים</span>
-                            </label>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessVariants}
-                                onChange={(e) => setReprocessVariants(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">וריאציות מוצרים</span>
-                            </label>
-                            
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessEmbeddings}
-                                onChange={(e) => setReprocessEmbeddings(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">אמבדינג/וקטורים</span>
-                            </label>
-                            
-                            <label className="flex items-center space-x-3 rtl:space-x-reverse">
-                              <input
-                                type="checkbox"
-                                checked={reprocessDescriptions}
-                                onChange={(e) => setReprocessDescriptions(e.target.checked)}
-                                disabled={reprocessing || stopping || reprocessAll}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                              <span className="text-sm text-gray-700">תיאור/תרגום</span>
-                            </label>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                          <span className="text-sm font-medium text-blue-800">
+                            אפשרויות מתקדמות לעיבוד מחדש
+                          </span>
+                          <svg
+                            className={`w-5 h-5 transition-transform ${showAdvancedOptions ? 'transform rotate-180' : ''}`}
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"></path>
+                          </svg>
+                        </button>
 
-                    <button 
-                      onClick={handleReprocess} 
-                      disabled={reprocessing || stopping}
-                      className="px-5 py-2.5 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-800 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      {reprocessing ? 'מעבד מחדש...' : (
-                        // Button text reflects what's being reprocessed
-                        reprocessAll ? 'עיבוד מחדש מלא של כל המידע' :
-                        missingSoftCategoryOnly ? 'עבד מחדש מוצרים ללא צבעי-רכות' : 
-                        targetCategory ? `עבד מחדש קטגוריה: ${targetCategory}` : 
-                        (!reprocessHardCategories && !reprocessSoftCategories && !reprocessTypes) ? 
-                          (reprocessEmbeddings ? 'עדכן וקטורים בלבד' : 
-                           reprocessDescriptions ? 'עדכן תיאורים בלבד' : 
-                           reprocessVariants ? 'עדכן וריאציות בלבד' : 'עבד מחדש את כל המוצרים') :
-                          'עבד מחדש קטגוריות וסוגים'
-                      )}
-                    </button>
-                    <button 
-                      onClick={handleStopReprocess} 
-                      disabled={stopping || reprocessing}
-                      className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                      </svg>
-                      {stopping ? 'עוצר...' : 'הפסק עיבוד מחדש'}
-                    </button>
-                  </>
-                )}
-                  <button 
-                    onClick={handleDownload} 
+                        {showAdvancedOptions && (
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessAll}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setReprocessAll(checked);
+                                    if (checked) {
+                                      // Select all options when "All" is checked
+                                      setReprocessHardCategories(true);
+                                      setReprocessSoftCategories(true);
+                                      setReprocessTypes(true);
+                                      setReprocessVariants(true);
+                                      setReprocessEmbeddings(true);
+                                      setReprocessDescriptions(true);
+                                    }
+                                  }}
+                                  disabled={reprocessing || stopping}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm font-bold text-blue-900">עיבוד מחדש של הכל (כולל מידע)</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessHardCategories}
+                                  onChange={(e) => setReprocessHardCategories(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">קטגוריות קשות</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessSoftCategories}
+                                  onChange={(e) => setReprocessSoftCategories(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">קטגוריות רכות/צבעים</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessTypes}
+                                  onChange={(e) => setReprocessTypes(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">סוגי מוצרים</span>
+                              </label>
+                            </div>
+
+                            <div className="space-y-3">
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessVariants}
+                                  onChange={(e) => setReprocessVariants(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">וריאציות מוצרים</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessEmbeddings}
+                                  onChange={(e) => setReprocessEmbeddings(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">אמבדינג/וקטורים</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 rtl:space-x-reverse">
+                                <input
+                                  type="checkbox"
+                                  checked={reprocessDescriptions}
+                                  onChange={(e) => setReprocessDescriptions(e.target.checked)}
+                                  disabled={reprocessing || stopping || reprocessAll}
+                                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <span className="text-sm text-gray-700">תיאור/תרגום</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={handleReprocess}
+                        disabled={reprocessing || stopping}
+                        className="px-5 py-2.5 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-800 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {reprocessing ? 'מעבד מחדש...' : (
+                          // Button text reflects what's being reprocessed
+                          reprocessAll ? 'עיבוד מחדש מלא של כל המידע' :
+                            missingSoftCategoryOnly ? 'עבד מחדש מוצרים ללא צבעי-רכות' :
+                              targetCategory ? `עבד מחדש קטגוריה: ${targetCategory}` :
+                                (!reprocessHardCategories && !reprocessSoftCategories && !reprocessTypes) ?
+                                  (reprocessEmbeddings ? 'עדכן וקטורים בלבד' :
+                                    reprocessDescriptions ? 'עדכן תיאורים בלבד' :
+                                      reprocessVariants ? 'עדכן וריאציות בלבד' : 'עבד מחדש את כל המוצרים') :
+                                  'עבד מחדש קטגוריות וסוגים'
+                        )}
+                      </button>
+                      <button
+                        onClick={handleStopReprocess}
+                        disabled={stopping || reprocessing}
+                        className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                        </svg>
+                        {stopping ? 'עוצר...' : 'הפסק עיבוד מחדש'}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={handleDownload}
                     className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm flex items-center"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     {platform === "shopify" ? "התקן אפליקציית Shopify" : "הורד תוסף"}
                   </button>
-                  
+
                   {platform === "shopify" && (
-                    <button 
+                    <button
                       onClick={async () => {
                         try {
                           const res = await fetch("/api/download-theme-extension", { method: "GET" });
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
                           const blob = await res.blob();
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement("a");
@@ -4669,7 +5142,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
           )}
         </div>
       </div>
-      
+
       {/* CSS Selector Analysis Card */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-5">
@@ -4680,7 +5153,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
             נתח בוחרי חיפוש באתר לאופטימיזציה של הקישור
           </p>
         </div>
-        
+
         <div className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
@@ -4703,12 +5176,12 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                                        מנתח...
-                    </span>
-                  ) : "נתח"}
+                  מנתח...
+                </span>
+              ) : "נתח"}
             </button>
           </div>
-          
+
           {analyzeError && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
               <p className="flex items-center">
@@ -4719,7 +5192,7 @@ function SettingsPanel({ session, onboarding, handleDownload: externalDownload }
               </p>
             </div>
           )}
-          
+
           {selectorResult && (
             <div className="mt-6">
               <h3 className="text-lg font-medium text-gray-800 mb-3">תוצאות הניתוח</h3>
@@ -4744,7 +5217,7 @@ function ApiKeyPanel({ session, onboarding }) {
   const [apiKey, setApiKey] = useState(initialKey);
   const [working, setWorking] = useState(false);
   const [copied, setCopied] = useState(false);
-  
+
   useEffect(() => {
     if (apiKey) return;
     // Fallback: fetch from get-onboarding if not already in state.
@@ -4758,7 +5231,7 @@ function ApiKeyPanel({ session, onboarding }) {
       }
     })();
   }, [apiKey]);
-  
+
   const regenerate = async () => {
     setWorking(true);
     setCopied(false);
@@ -4770,13 +5243,13 @@ function ApiKeyPanel({ session, onboarding }) {
       setWorking(false);
     }
   };
-  
+
   const copyKey = () => {
     navigator.clipboard.writeText(apiKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Page Header */}
@@ -4810,7 +5283,7 @@ function ApiKeyPanel({ session, onboarding }) {
             השתמש במפתח זה כדי לאמת את הבקשות שלך ל-API של Semantix
           </p>
         </div>
-        
+
         <div className="p-6">
           <div className="flex flex-col sm:flex-row items-stretch gap-4">
             <div className="flex-1 relative group">
@@ -4819,9 +5292,9 @@ function ApiKeyPanel({ session, onboarding }) {
                 {apiKey || "•••••••••••••••••••••••••••••••"}
               </div>
             </div>
-            <button 
-              onClick={copyKey} 
-              disabled={!apiKey} 
+            <button
+              onClick={copyKey}
+              disabled={!apiKey}
               className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-all shadow-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
             >
               {copied ? (
@@ -4840,11 +5313,11 @@ function ApiKeyPanel({ session, onboarding }) {
               )}
             </button>
           </div>
-          
+
           <div className="mt-6">
-            <button 
-              onClick={regenerate} 
-              disabled={working} 
+            <button
+              onClick={regenerate}
+              disabled={working}
               className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {working ? (
@@ -4863,14 +5336,14 @@ function ApiKeyPanel({ session, onboarding }) {
               )}
             </button>
           </div>
-          
+
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11a1 1 0 11-2 0V7a1 1 0 112 0v6zm-1-9a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
                 </svg>
-                </div>
+              </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-yellow-800">מידע חשוב</h3>
                 <div className="mt-2 text-sm text-yellow-700">
@@ -4886,14 +5359,14 @@ function ApiKeyPanel({ session, onboarding }) {
           </div>
         </div>
       </div>
-      
+
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 mt-8">
         <div className="border-b border-gray-100 p-5">
           <h2 className="text-lg font-semibold text-gray-800">
             שיטות עבודה מומלצות לאבטחה
           </h2>
         </div>
-        
+
         <div className="p-6">
           <ul className="space-y-4">
             <li className="flex">
@@ -4982,17 +5455,17 @@ export default function DashboardPage() {
       window.openMobileMenu = () => setMobileMenuOpen(true);
       window.closeMobileMenu = () => setMobileMenuOpen(false);
       window.toggleMobileMenu = () => setMobileMenuOpen(prev => !prev);
-      
+
       // Add event listener to the document for a custom event
       document.addEventListener('toggleMobileMenu', () => {
         window.toggleMobileMenu();
       });
-      
+
       document.addEventListener('openMobileMenu', () => {
         window.openMobileMenu();
       });
     }
-    
+
     return () => {
       if (typeof window !== 'undefined') {
         delete window.toggleMobileMenu;
@@ -5009,7 +5482,7 @@ export default function DashboardPage() {
     const params = new URLSearchParams(window.location.search);
     const panelParam = params.get('panel');
     const tabParam = params.get('tab');
-    
+
     // Handle both 'panel' and 'tab' parameters
     if (panelParam && PANELS.some(p => p.id === panelParam)) {
       setActive(panelParam);
@@ -5037,9 +5510,9 @@ export default function DashboardPage() {
       try {
         const res = await fetch("/api/get-onboarding");
         const json = await res.json();
-        
+
         if (!mounted) return;
-        
+
         if (json?.onboarding) {
           setOnboarding(json.onboarding);
         }
@@ -5114,7 +5587,7 @@ export default function DashboardPage() {
 
       {/* The MenuConnector is no longer needed as the button is self-contained */}
       {/* <MenuConnector /> */}
-      
+
       {/* Global styling */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -5168,10 +5641,10 @@ export default function DashboardPage() {
           background: #a5b4fc;
         }
       `}</style>
-      
+
       {/* Mobile menu backdrop */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-gray-800/50 backdrop-blur-sm z-[99] lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
@@ -5179,8 +5652,7 @@ export default function DashboardPage() {
 
       {/* Mobile menu */}
       <div
-        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${
-            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+        className={`fixed inset-y-0 right-0 z-[100] w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${mobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         style={{ direction: 'rtl' }}
       >
@@ -5200,7 +5672,7 @@ export default function DashboardPage() {
         {/* Nav items */}
         <div className="flex-1 px-4 py-6 overflow-y-auto">
           <nav className="space-y-1">
-            {PANELS.map((item) => 
+            {PANELS.map((item) =>
               item.external ? (
                 <Link
                   key={item.id}
@@ -5212,25 +5684,23 @@ export default function DashboardPage() {
                   {item.label}
                 </Link>
               ) : (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActive(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                  active === item.id
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActive(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all ${active === item.id
                     ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700"
                     : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                <item.icon
-                  className={`h-5 w-5 ml-4 ${
-                    active === item.id ? "text-indigo-600" : "text-gray-400"
-                  }`}
-                />
-                {item.label}
-              </button>
+                    }`}
+                >
+                  <item.icon
+                    className={`h-5 w-5 ml-4 ${active === item.id ? "text-indigo-600" : "text-gray-400"
+                      }`}
+                  />
+                  {item.label}
+                </button>
               )
             )}
           </nav>
@@ -5257,7 +5727,7 @@ export default function DashboardPage() {
       {/* Main content */}
       <div className="lg:pr-72">
         {/* Top navbar */}
-        <header 
+        <header
           className="fixed top-0 right-0 left-0 lg:left-72 z-[50] bg-white/80 backdrop-blur-md border-b border-gray-200"
         >
           <div className="flex items-center justify-between h-16 px-4 md:px-6">
@@ -5275,20 +5745,20 @@ export default function DashboardPage() {
                   </span>
                   <ChevronDown className={`h-4 w-4 transition-transform ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                
+
                 {/* Dropdown menu */}
                 {mobileDropdownOpen && (
                   <>
                     {/* Backdrop */}
-                    <div 
-                      className="fixed inset-0 z-[60]" 
+                    <div
+                      className="fixed inset-0 z-[60]"
                       onClick={() => setMobileDropdownOpen(false)}
                     />
-                    
+
                     {/* Dropdown content */}
                     <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[70]" style={{ direction: 'rtl' }}>
                       <div className="py-2">
-                        {PANELS.map((item) => 
+                        {PANELS.map((item) =>
                           item.external ? (
                             <Link
                               key={item.id}
@@ -5300,25 +5770,23 @@ export default function DashboardPage() {
                               <span className="text-sm font-medium">{item.label}</span>
                             </Link>
                           ) : (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActive(item.id);
-                              setMobileDropdownOpen(false);
-                            }}
-                            className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ${
-                              active === item.id
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                setActive(item.id);
+                                setMobileDropdownOpen(false);
+                              }}
+                              className={`flex items-center w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors ${active === item.id
                                 ? "bg-indigo-50 text-indigo-700"
                                 : "text-gray-700"
-                            }`}
-                          >
-                            <item.icon
-                              className={`h-5 w-5 ml-3 ${
-                                active === item.id ? "text-indigo-600" : "text-gray-400"
-                              }`}
-                            />
-                            <span className="text-sm font-medium">{item.label}</span>
-                          </button>
+                                }`}
+                            >
+                              <item.icon
+                                className={`h-5 w-5 ml-3 ${active === item.id ? "text-indigo-600" : "text-gray-400"
+                                  }`}
+                              />
+                              <span className="text-sm font-medium">{item.label}</span>
+                            </button>
                           )
                         )}
                       </div>
@@ -5326,7 +5794,7 @@ export default function DashboardPage() {
                   </>
                 )}
               </div>
-              
+
               {/* Desktop title */}
               <div className="hidden sm:flex items-center ml-2">
                 <ActiveIcon className="h-6 w-6 text-indigo-600 mr-2" />

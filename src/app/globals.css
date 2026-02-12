@@ -105,3 +105,41 @@ body {
 .animate-fade-in-up {
   animation: fade-in-up 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
+
+/* Search Saver ring animation */
+.search-saver-orbit {
+  width: 340px;
+  height: 340px;
+  display: grid;
+  place-items: center;
+  perspective: 900px;
+}
+
+.search-saver-ring-light,
+.search-saver-ring {
+  width: 320px;
+  height: 320px;
+  filter: drop-shadow(0 0 24px rgba(180, 160, 240, 0.30));
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+  backface-visibility: hidden;
+  animation: searchSaverSpin 12s linear infinite;
+}
+
+@keyframes searchSaverSpin {
+  0% { transform: rotateX(12deg) rotateZ(0deg); }
+  50% { transform: rotateX(12deg) rotateZ(180deg); }
+  100% { transform: rotateX(12deg) rotateZ(360deg); }
+}
+
+/* Product Boost pin bounce */
+@keyframes pinBounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.animate-pin-bounce {
+  animation: pinBounce 0.4s ease-in-out;
+}

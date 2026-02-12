@@ -16,6 +16,7 @@ export default function AdminPanel({ session }) {
   const [categories, setCategories] = useState('');
   const [productTypes, setProductTypes] = useState('');
   const [softCategories, setSoftCategories] = useState('');
+  const [colors, setColors] = useState('');
   
   // Site configuration state
   const [siteConfig, setSiteConfig] = useState({
@@ -149,6 +150,7 @@ export default function AdminPanel({ session }) {
     reprocessHardCategories: true,
     reprocessSoftCategories: true,
     reprocessTypes: true,
+    reprocessColors: true,
     reprocessVariants: true,
     reprocessEmbeddings: true,
     reprocessDescriptions: true,
@@ -161,9 +163,10 @@ export default function AdminPanel({ session }) {
   // Filter option: only reprocess fresh/unprocessed products
   const [onlyUnprocessed, setOnlyUnprocessed] = useState(false);
   
-  // Incremental mode: add new soft categories to existing products
+  // Incremental mode: add new categories to existing products
   const [incrementalMode, setIncrementalMode] = useState(false);
   const [incrementalSoftCategories, setIncrementalSoftCategories] = useState('');
+  const [incrementalHardCategories, setIncrementalHardCategories] = useState('');
   const [incrementalProcessingStatus, setIncrementalProcessingStatus] = useState('idle');
   
   // Auto-detect selectors state
@@ -201,6 +204,7 @@ export default function AdminPanel({ session }) {
         setCategories(Array.isArray(config.categories?.list) ? config.categories.list.join(', ') : '');
         setProductTypes(Array.isArray(config.types?.list) ? config.types.list.join(', ') : '');
         setSoftCategories(Array.isArray(config.softCategories?.list) ? config.softCategories.list.join(', ') : '');
+        setColors(Array.isArray(config.colors?.list) ? config.colors.list.join(', ') : '');
         
         // Extract platform
         const platform = config.platform || data.credentials?.platform || 'woocommerce';
@@ -457,6 +461,7 @@ export default function AdminPanel({ session }) {
           categories: categories.split(',').map(c => c.trim()).filter(Boolean),
           types: productTypes.split(',').map(t => t.trim()).filter(Boolean),
           softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
+          colors: colors.split(',').map(c => c.trim()).filter(Boolean),
           siteConfig: normalizedSiteConfig
         }),
       });
@@ -486,6 +491,7 @@ export default function AdminPanel({ session }) {
           categories: categories.split(',').map(c => c.trim()).filter(Boolean),
           type: productTypes.split(',').map(t => t.trim()).filter(Boolean),
           softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
+          colors: colors.split(',').map(c => c.trim()).filter(Boolean),
           onlyWithoutSoftCategories,
           onlyUnprocessed,
           incrementalMode: false, // Regular reprocessing - not incremental
@@ -510,28 +516,31 @@ export default function AdminPanel({ session }) {
 
   const handleIncrementalProcess = async () => {
     if (!isAdmin || !userData || !dbName) return;
-    
-    // Validate incremental mode
-    const newCategories = incrementalSoftCategories.split(',').map(s => s.trim()).filter(Boolean);
-    if (newCategories.length === 0) {
-      alert('אנא הזן לפחות קטגוריה רכה אחת במצב הוספה מצטברת');
+
+    // Validate incremental mode - at least one of soft or hard categories must be provided
+    const newSoftCats = incrementalSoftCategories.split(',').map(s => s.trim()).filter(Boolean);
+    const newHardCats = incrementalHardCategories.split(',').map(s => s.trim()).filter(Boolean);
+    if (newSoftCats.length === 0 && newHardCats.length === 0) {
+      alert('אנא הזן לפחות קטגוריה אחת (רכה או קשיחה) במצב הוספה מצטברת');
       return;
     }
-    
+
     setIncrementalProcessingStatus('loading');
     try {
       const response = await fetch('/api/reprocess-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dbName,
           categories: categories.split(',').map(c => c.trim()).filter(Boolean),
           type: productTypes.split(',').map(t => t.trim()).filter(Boolean),
           softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
+          colors: colors.split(',').map(c => c.trim()).filter(Boolean),
           onlyWithoutSoftCategories: false, // Not relevant for incremental
           onlyUnprocessed: false, // Not relevant for incremental
           incrementalMode: true, // INCREMENTAL MODE
-          incrementalSoftCategories: newCategories,
+          incrementalSoftCategories: newSoftCats,
+          incrementalHardCategories: newHardCats,
           // Reprocess options are ignored in incremental mode
           reprocessHardCategories: false,
           reprocessSoftCategories: false,
@@ -545,13 +554,22 @@ export default function AdminPanel({ session }) {
       });
       if (response.ok) {
         setIncrementalProcessingStatus('success');
-        
+
         // Update the UI with merged soft categories
-        const currentCategories = softCategories.split(',').map(s => s.trim()).filter(Boolean);
-        const mergedCategories = [...new Set([...currentCategories, ...newCategories])];
-        setSoftCategories(mergedCategories.join(', '));
-        
-        console.log('✅ Soft categories updated in UI:', mergedCategories.join(', '));
+        if (newSoftCats.length > 0) {
+          const currentSoft = softCategories.split(',').map(s => s.trim()).filter(Boolean);
+          const mergedSoft = [...new Set([...currentSoft, ...newSoftCats])];
+          setSoftCategories(mergedSoft.join(', '));
+          console.log('✅ Soft categories updated in UI:', mergedSoft.join(', '));
+        }
+
+        // Update the UI with merged hard categories
+        if (newHardCats.length > 0) {
+          const currentHard = categories.split(',').map(c => c.trim()).filter(Boolean);
+          const mergedHard = [...new Set([...currentHard, ...newHardCats])];
+          setCategories(mergedHard.join(', '));
+          console.log('✅ Hard categories updated in UI:', mergedHard.join(', '));
+        }
       } else {
         const errorData = await response.json();
         console.error('Failed to process products incrementally:', errorData);
@@ -565,9 +583,56 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  // Sync logs state for real-time progress
+  const [syncLogs, setSyncLogs] = useState([]);
+  const [syncPolling, setSyncPolling] = useState(false);
+
+  // Poll sync status for real-time logs
+  const pollSyncStatus = async (targetDbName) => {
+    setSyncPolling(true);
+    let pollCount = 0;
+    const maxPolls = 600; // 10 minutes max (every 1 second)
+    
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/sync-status?dbName=${encodeURIComponent(targetDbName)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSyncLogs(data.logs || []);
+          
+          if (data.state === 'done') {
+            setSyncStatus('success');
+            setSyncPolling(false);
+            setTimeout(() => setSyncStatus('idle'), 5000);
+            return; // Stop polling
+          }
+          if (data.state === 'error') {
+            setSyncStatus('error');
+            setSyncPolling(false);
+            setTimeout(() => setSyncStatus('idle'), 5000);
+            return; // Stop polling
+          }
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+      
+      pollCount++;
+      if (pollCount < maxPolls && syncPolling) {
+        setTimeout(poll, 1000); // Poll every 1 second
+      } else {
+        setSyncPolling(false);
+      }
+    };
+    
+    // Start polling after a short delay
+    setTimeout(poll, 1500);
+  };
+
   const handleSyncProducts = async () => {
     if (!isAdmin || !userData || !apiKey) return;
     setSyncStatus('loading');
+    setSyncLogs([]);
     try {
       const response = await fetch('/api/admin/sync-products', {
         method: 'POST',
@@ -579,17 +644,18 @@ export default function AdminPanel({ session }) {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Sync initiated:', data);
-        setSyncStatus('success');
+        console.log('Sync started:', data);
+        // Start polling for real-time progress
+        pollSyncStatus(data.dbName || dbName);
       } else {
         const errorData = await response.json();
         console.error('Failed to sync products:', errorData);
         setSyncStatus('error');
+        setTimeout(() => setSyncStatus('idle'), 3000);
       }
     } catch (error) {
       console.error('Failed to sync products:', error);
       setSyncStatus('error');
-    } finally {
       setTimeout(() => setSyncStatus('idle'), 3000);
     }
   };
@@ -1474,6 +1540,18 @@ export default function AdminPanel({ session }) {
                 value={softCategories}
                 onChange={(e) => setSoftCategories(e.target.value)}
                 placeholder="e.g., מתנות, אירועים"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Colors (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={colors}
+                onChange={(e) => setColors(e.target.value)}
+                placeholder="e.g., אדום, כחול, שחור, לבן"
                 className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
               />
             </div>
@@ -3673,10 +3751,42 @@ export default function AdminPanel({ session }) {
               {syncStatus === 'loading' ? 'Syncing Products...' : 'Sync Products from Store'}
             </button>
             {syncStatus === 'success' && (
-              <p className="text-green-600 text-sm text-center">✓ Product sync initiated successfully! Check the sync status in the user's dashboard.</p>
+              <p className="text-green-600 text-sm text-center">✓ Product sync completed successfully!</p>
             )}
             {syncStatus === 'error' && (
-              <p className="text-red-600 text-sm text-center">✗ Error initiating product sync. Please check the console for details.</p>
+              <p className="text-red-600 text-sm text-center">✗ Error during product sync. Check logs below.</p>
+            )}
+
+            {/* Real-time sync logs */}
+            {(syncStatus === 'loading' || syncLogs.length > 0) && (
+              <div className="mt-4 bg-gray-900 rounded-lg p-4 max-h-80 overflow-y-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sync Logs</h4>
+                  {syncStatus === 'loading' && (
+                    <span className="flex items-center text-xs text-yellow-400">
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      Processing...
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-0.5 font-mono text-xs">
+                  {syncLogs.length === 0 && syncStatus === 'loading' && (
+                    <p className="text-gray-500">Waiting for first logs...</p>
+                  )}
+                  {syncLogs.map((log, i) => (
+                    <p key={i} className={`${
+                      log.includes('❌') ? 'text-red-400' : 
+                      log.includes('✅') ? 'text-green-400' : 
+                      log.includes('⚠️') ? 'text-yellow-400' :
+                      log.includes('🚀') ? 'text-blue-400' :
+                      log.includes('📊') ? 'text-purple-400' :
+                      'text-gray-300'
+                    }`}>
+                      {log}
+                    </p>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -3751,6 +3861,7 @@ export default function AdminPanel({ session }) {
               { key: 'reprocessHardCategories', label: 'Hard Categories', description: 'Reprocess main product categories' },
               { key: 'reprocessSoftCategories', label: 'Soft Categories', description: 'Reprocess flexible categorization' },
               { key: 'reprocessTypes', label: 'Product Types', description: 'Reprocess product type classifications' },
+              { key: 'reprocessColors', label: 'Colors', description: 'Reprocess product color classifications' },
               { key: 'reprocessVariants', label: 'Variants', description: 'Reprocess product variants (sizes, colors)' },
               { key: 'reprocessEmbeddings', label: 'Embeddings', description: 'Regenerate vector embeddings' },
               { key: 'reprocessDescriptions', label: 'Descriptions', description: 'Retranslate and enrich descriptions' },
@@ -3792,7 +3903,7 @@ export default function AdminPanel({ session }) {
                       מצב הוספה מצטברת (Incremental Mode) - אפשרות נוספת
                     </label>
                     <p className="text-xs text-green-800 mt-1">
-                      הוסף קטגוריות רכות חדשות למוצרים מעובדים ללא עיבוד מחדש מלא. זה חוסך זמן ועלויות API.
+                      הוסף קטגוריות חדשות (רכות ו/או קשיחות) למוצרים מעובדים ללא עיבוד מחדש מלא. זה חוסך זמן ועלויות API.
                       <br />
                       <strong>שים לב:</strong> זה מצב נפרד שעובד במקביל לאפשרויות למעלה.
                     </p>
@@ -3800,24 +3911,40 @@ export default function AdminPanel({ session }) {
                 </div>
 
                 {incrementalMode && (
-                  <div className="border-t border-green-200 pt-4">
-                    <label htmlFor="incrementalSoftCategories" className="block text-sm font-medium text-green-900 mb-2">
-                      קטגוריות רכות חדשות להוספה (מופרדות בפסיקים)
-                    </label>
-                    <input
-                      type="text"
-                      id="incrementalSoftCategories"
-                      value={incrementalSoftCategories}
-                      onChange={(e) => setIncrementalSoftCategories(e.target.value)}
-                      placeholder="לדוגמה: כחול, אדום, ירוק"
-                      className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                      dir="rtl"
-                    />
-                    <p className="text-xs text-green-700 mt-2">
-                      💡 טיפ: המערכת תוסיף רק את הקטגוריות החדשות האלה למוצרים, מבלי לגעת בקטגוריות הקיימות.
-                      האפשרויות למעלה (Hard Categories, Types וכו') לא ישפיעו על מצב זה.
+                  <div className="border-t border-green-200 pt-4 space-y-4">
+                    <div>
+                      <label htmlFor="incrementalSoftCategories" className="block text-sm font-medium text-green-900 mb-2">
+                        קטגוריות רכות חדשות להוספה (מופרדות בפסיקים)
+                      </label>
+                      <input
+                        type="text"
+                        id="incrementalSoftCategories"
+                        value={incrementalSoftCategories}
+                        onChange={(e) => setIncrementalSoftCategories(e.target.value)}
+                        placeholder="לדוגמה: מתנה, קיצי, עמיד למים"
+                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                        dir="rtl"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="incrementalHardCategories" className="block text-sm font-medium text-green-900 mb-2">
+                        קטגוריות קשיחות חדשות להוספה (מופרדות בפסיקים)
+                      </label>
+                      <input
+                        type="text"
+                        id="incrementalHardCategories"
+                        value={incrementalHardCategories}
+                        onChange={(e) => setIncrementalHardCategories(e.target.value)}
+                        placeholder="לדוגמה: ביגוד, אלקטרוניקה, ספורט"
+                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                        dir="rtl"
+                      />
+                    </div>
+                    <p className="text-xs text-green-700">
+                      💡 טיפ: המערכת תוסיף רק את הקטגוריות החדשות למוצרים, מבלי לגעת בקטגוריות הקיימות.
+                      ניתן להזין קטגוריות רכות, קשיחות, או שניהם בו-זמנית.
                     </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                       <div className="flex items-start">
                         <div className="flex-shrink-0">
                           <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

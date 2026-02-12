@@ -65,6 +65,7 @@ export async function GET(request) {
       categories = [],
       type: userTypes = [],
       softCategories = [],
+      colors: userColors = [],
       shopifyDomain,
       wooUrl,
       siteConfig
@@ -111,6 +112,10 @@ export async function GET(request) {
         softCategories: {
           count: softCategories.length,
           list: softCategories
+        },
+        colors: {
+          count: userColors.length,
+          list: userColors
         },
         productCount
       }

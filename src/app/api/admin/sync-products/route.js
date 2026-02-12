@@ -52,25 +52,28 @@ export async function POST(request) {
     // dbName can be in credentials, configuration, or passed as parameter
     const userDbName = credentials.dbName || configuration.dbName || user.onboarding?.dbName || dbName;
     
-    // Categories, types, softCategories can be in configuration (as objects with list) or credentials (as arrays)
+    // Categories, types, softCategories, colors can be in configuration (as objects with list) or credentials (as arrays)
     const categories = configuration.categories?.list || credentials.categories || [];
     const userTypes = configuration.types?.list || credentials.type || [];
     const softCategories = configuration.softCategories?.list || credentials.softCategories || [];
+    const colors = configuration.colors?.list || credentials.colors || [];
     
     // Sync mode and context
     const syncMode = user.syncMode || credentials.syncMode || configuration.syncMode || 'text';
     const context = user.context || user.onboarding?.context || configuration.context || '';
 
-    // Debug logging
-    console.log('🔍 [Admin Sync] User data structure:', {
-      hasPlatform: !!platform,
-      platform: platform,
-      hasDbName: !!userDbName,
-      dbName: userDbName,
-      credentialsKeys: Object.keys(credentials),
-      configurationKeys: Object.keys(configuration),
-      userTopLevelKeys: Object.keys(user).filter(k => !['password', '_id'].includes(k))
-    });
+    // Detailed debug logging
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 [Admin Sync] Starting sync...');
+    console.log(`   📋 Platform: ${platform}`);
+    console.log(`   📁 DB Name: ${userDbName}`);
+    console.log(`   🖼️  Sync Mode: ${syncMode}`);
+    console.log(`   📝 Context: ${context || '(none)'}`);
+    console.log(`   📂 Categories: ${categories.length} items`);
+    console.log(`   🏷️  Types: ${userTypes.length} items`);
+    console.log(`   🏷️  Soft Categories: ${softCategories.length} items`);
+    console.log(`   🎨 Colors: ${colors.length} items`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     if (!platform || !userDbName) {
       return NextResponse.json({ 
@@ -79,51 +82,41 @@ export async function POST(request) {
         debug: {
           platform: platform || 'missing',
           dbName: userDbName || 'missing',
-          availableFields: {
-            userPlatform: user.platform,
-            credentialsPlatform: credentials.platform,
-            configPlatform: configuration.platform,
-            credentialsDbName: credentials.dbName,
-            configDbName: configuration.dbName,
-            onboardingDbName: user.onboarding?.dbName
-          }
         }
       }, { status: 400 });
     }
 
     // Set initial sync state
+    console.log(`⏳ [Admin Sync] Setting job state to "running" for ${userDbName}...`);
     await setJobState(userDbName, "running");
+    console.log(`✅ [Admin Sync] Job state set. Calling processing function...`);
 
+    const startTime = Date.now();
     let logs = [];
 
     try {
-      // Trigger sync based on platform
+      // BLOCKING: await the full processing before returning
       if (platform === "woocommerce") {
         const { wooUrl, wooKey, wooSecret } = credentials;
         if (!wooUrl || !wooKey || !wooSecret) {
           throw new Error('WooCommerce credentials are missing');
         }
 
+        console.log(`🛒 [Admin Sync] Calling WooCommerce ${syncMode} processor...`);
+
         if (syncMode === "image") {
           logs = await processWooImages({ 
-            wooUrl, 
-            wooKey, 
-            wooSecret, 
+            wooUrl, wooKey, wooSecret, 
             userEmail: user.email, 
-            categories, 
-            userTypes, 
-            softCategories, 
-            dbName: userDbName 
+            categories, type: userTypes, softCategories, colors,
+            dbName: userDbName,
+            context
           });
         } else {
           logs = await processWooProducts({ 
-            wooUrl, 
-            wooKey, 
-            wooSecret, 
+            wooUrl, wooKey, wooSecret, 
             userEmail: user.email, 
-            categories, 
-            userTypes, 
-            softCategories, 
+            categories, userTypes, softCategories, colors,
             dbName: userDbName 
           });
         }
@@ -133,41 +126,48 @@ export async function POST(request) {
           throw new Error('Shopify credentials are missing');
         }
 
+        console.log(`🛍️ [Admin Sync] Calling Shopify ${syncMode} processor...`);
+
         if (syncMode === "image") {
           logs = await processShopifyImages({ 
-            shopifyDomain, 
-            shopifyToken, 
+            shopifyDomain, shopifyToken, 
             dbName: userDbName, 
-            categories, 
-            userTypes, 
-            softCategories, 
-            context 
+            categories, userTypes, softCategories, colors, context 
           });
         } else {
           logs = await processShopify({ 
-            shopifyDomain, 
-            shopifyToken, 
+            shopifyDomain, shopifyToken, 
             dbName: userDbName, 
-            categories, 
-            userTypes, 
-            softCategories 
+            categories, type: userTypes, softCategories, colors
           });
         }
       } else {
         throw new Error(`Unsupported platform: ${platform}`);
       }
 
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`✅ [Admin Sync] ${userDbName} completed in ${elapsed}s`);
+      console.log(`   📊 Logs: ${logs?.length || 0} entries`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       await setJobState(userDbName, "done");
 
       return NextResponse.json({ 
         success: true, 
         state: "done",
-        message: "Product sync initiated successfully",
+        message: `Sync completed for ${userDbName} in ${elapsed}s`,
         logs: logs
       }, { status: 200 });
 
     } catch (err) {
-      console.error("Sync error:", err);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error(`❌ [Admin Sync] ${userDbName} FAILED after ${elapsed}s`);
+      console.error(`   Error: ${err.message}`);
+      console.error(`   Stack: ${err.stack}`);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       await setJobState(userDbName, "error");
       
       return NextResponse.json({ 
@@ -179,10 +179,9 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("[admin sync-products error]", err);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong: " + err.message }, { status: 500 });
   }
 }
 
-// Increase function timeout for Vercel
-export const maxDuration = 60;
-
+// Long timeout for processing - up to 5 minutes on Vercel
+export const maxDuration = 300;

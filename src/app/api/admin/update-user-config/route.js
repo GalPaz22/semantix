@@ -44,7 +44,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, softCategoryBoosts, siteConfig } = body;
+    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
@@ -82,6 +82,7 @@ export async function POST(request) {
       "credentials.categories": categories,
       "credentials.type": types,
       "credentials.softCategories": softCategories,
+      "credentials.colors": Array.isArray(colors) ? colors : [],
       "credentials.softCategoryBoosts": boosts,
       updatedAt: new Date()
     };
@@ -104,7 +105,7 @@ export async function POST(request) {
     }
 
     console.log(`✅ Admin updated configuration for user: ${user.email}`);
-    console.log(`   Categories: ${categories.length}, Types: ${types.length}, Soft Categories: ${softCategories.length}`);
+    console.log(`   Categories: ${categories.length}, Types: ${types.length}, Soft Categories: ${softCategories.length}, Colors: ${(colors || []).length}`);
     if (siteConfig) {
       console.log(`   Site Config: Updated with ${siteConfig.domains?.length || 0} domains`);
       console.log(`   🔍 nativeCard.cardTemplate length: ${siteConfig.nativeCard?.cardTemplate?.length || 0}`);
@@ -127,6 +128,7 @@ export async function POST(request) {
         categoriesCount: categories.length,
         typesCount: types.length,
         softCategoriesCount: softCategories.length,
+        colorsCount: (colors || []).length,
         siteConfigUpdated: !!siteConfig
       }
     });

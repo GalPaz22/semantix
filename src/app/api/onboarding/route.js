@@ -208,7 +208,19 @@ async function createEmbeddingIndex(client, dbName) {
           type: "filter"
         },
         {
+          path: "stockStatus",
+          type: "filter"
+        },
+        {
           path: "softCategory",
+          type: "filter"
+        },
+        {
+          path: "_id",
+          type: "filter"
+        },
+        {
+          path: "colors",
           type: "filter"
         }
       ]
@@ -286,6 +298,42 @@ async function createAutocompleteIndex(client, dbName) {
               analyzer: "lucene.standard",
               type: "string"
             }
+          ],
+          category: [
+            {
+              maxGrams: 15,
+              minGrams: 2,
+              tokenization: "edgeGram",
+              type: "autocomplete"
+            },
+            {
+              analyzer: "lucene.standard",
+              type: "string"
+            }
+          ],
+          softCategory: [
+            {
+              maxGrams: 15,
+              minGrams: 2,
+              tokenization: "edgeGram",
+              type: "autocomplete"
+            },
+            {
+              analyzer: "lucene.standard",
+              type: "string"
+            }
+          ],
+          colors: [
+            {
+              maxGrams: 15,
+              minGrams: 2,
+              tokenization: "edgeGram",
+              type: "autocomplete"
+            },
+            {
+              analyzer: "lucene.standard",
+              type: "string"
+            }
           ]
         }
       }
@@ -335,7 +383,8 @@ export async function POST(req) {
       type, 
       context,
       explain,
-      softCategories
+      softCategories,
+      colors
       // "text" | "image"
     } = await req.json();
 
@@ -354,6 +403,7 @@ export async function POST(req) {
     console.log("🔍 [Onboarding API] type length:", Array.isArray(type) ? type.length : 'not array');
     console.log("🔍 [Onboarding API] syncMode:", syncMode);
     console.log("🔍 [Onboarding API] softCategories:", softCategories);
+    console.log("🔍 [Onboarding API] colors:", colors);
 
     /* 3) Validate platform credentials before proceeding */
     let isValidCredentials = false;
@@ -407,10 +457,12 @@ export async function POST(req) {
       });
     }
 
+    const safeColors = Array.isArray(colors) ? colors : [];
+
     const credentials =
       platform === "shopify"
-        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories, softCategoryBoosts }
-        : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories, softCategoryBoosts };
+        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories, softCategoryBoosts, colors: safeColors }
+        : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories, softCategoryBoosts, colors: safeColors };
 
     // Update the user record with credentials and trial information
     const updateData = {
@@ -454,20 +506,20 @@ export async function POST(req) {
       if (platform === "woocommerce") {
         console.log("🔍 [Onboarding API] Calling WooCommerce processing...");
         if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-          logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
+          console.log("🔍 [Onboarding API] processWooImages parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, colors: safeColors, dbName });
+          logs = await processWooImages({ wooUrl, wooKey, wooSecret, userEmail, categories, type: type, softCategories, colors: safeColors, dbName, context });
         } else {
-          console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, dbName });
-          logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, dbName });
+          console.log("🔍 [Onboarding API] processWooProducts parameters:", { wooUrl: !!wooUrl, wooKey: !!wooKey, wooSecret: !!wooSecret, userEmail, categories, type, softCategories, colors: safeColors, dbName });
+          logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, colors: safeColors, dbName });
         }
       } else if (platform === "shopify") {
         console.log("🔍 [Onboarding API] Calling Shopify processing...");
         if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, context });
-          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, context });
+          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, colors: safeColors, context });
+          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, colors: safeColors, context });
         } else {
-          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories });
-          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories });
+          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, colors: safeColors });
+          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, type: type, softCategories, colors: safeColors });
         }
       }
       await setJobState(dbName, "done");

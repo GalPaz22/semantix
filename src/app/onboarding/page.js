@@ -116,9 +116,11 @@ export default function OnboardingPage() {
     wooKey: sCreds.wooKey ?? "",
     wooSecret: sCreds.wooSecret ?? "",
   });
+  const sColors = (sCreds.colors && Array.isArray(sCreds.colors)) ? sCreds.colors.join(", ") : "";
   const [categories, setCategories] = useState(sCats);
   const [typeFilter, setTypeFilter] = useState(sType);
   const [softCategories, setSoftCategories] = useState(sSoftCats);
+  const [colorFilter, setColorFilter] = useState(sColors);
   const [dbName, setDbName] = useState(sDB);
   const [context, setContext] = useState(sContext);
 
@@ -146,6 +148,8 @@ export default function OnboardingPage() {
         setCategories((c.categories ?? []).join(", "));
         const fetchedType = c.type ?? "";
         setTypeFilter(Array.isArray(fetchedType) ? fetchedType.join(', ') : fetchedType);
+        setSoftCategories((c.softCategories ?? []).join(", "));
+        setColorFilter((c.colors ?? []).join(", "));
         setDbName(j.dbName ?? "");
         setContext(j.onboarding.context ?? "");
       } catch (e) {
@@ -361,6 +365,7 @@ export default function OnboardingPage() {
           categories: categories.split(",").map(s => s.trim()).filter(Boolean),
           type: typeFilter.split(",").map(s => s.trim()).filter(Boolean),
           softCategories: softCategories.split(",").map(s => s.trim()).filter(Boolean),
+          colors: colorFilter.split(",").map(s => s.trim()).filter(Boolean),
           context,
           ...form
         })
@@ -968,6 +973,33 @@ export default function OnboardingPage() {
                     }
                     colors={colors}
                     hint={softCategories ? `${softCategories.split(',').filter(s => s.trim()).length} קטגוריות רכות הוגדרו` : "אופציונלי - קטגוריות רכות מאפשרות סיווג גמיש יותר"}
+                  />
+                </div>
+
+                <div className="relative">
+                  <StylishInput
+                    label={
+                      <div className="flex items-center">
+                        <span>צבעים (Colors)</span>
+                        <div className="relative ml-2 group">
+                          <div className="cursor-help w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300">?</div>
+                          <div className="hidden group-hover:block absolute left-0 bottom-full mb-2 w-64 p-3 bg-white rounded-lg shadow-lg border border-gray-200 text-sm text-gray-600 z-10">
+                            רשימת הצבעים שהמערכת תשתמש בהם כדי לסווג מוצרים לפי צבע. הזן את הצבעים הרלוונטיים לחנות שלך (למשל, "אדום", "כחול", "שחור", "לבן"). מוצרים יכולים להשתייך למספר צבעים.
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    value={colorFilter}
+                    disabled={processing}
+                    onChange={setColorFilter}
+                    placeholder="הזן צבעים, מופרדים בפסיקים (למשל: אדום, כחול, שחור)"
+                    icon={
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                      </svg>
+                    }
+                    colors={colors}
+                    hint={colorFilter ? `${colorFilter.split(',').filter(s => s.trim()).length} צבעים הוגדרו` : "אופציונלי - צבעים מאפשרים סינון מוצרים לפי צבע"}
                   />
                 </div>
                 
