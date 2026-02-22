@@ -3,15 +3,15 @@ import clientPromise from "../../../../lib/mongodb.js";
 
 export async function POST(request) {
   console.log("🚀 REPROCESS API: Starting...");
-  
+
   try {
-    const { 
-      dbName: dbNameFromRequest, 
-      categories, 
-      type: userTypes, 
-      softCategories, 
+    const {
+      dbName: dbNameFromRequest,
+      categories,
+      type: userTypes,
+      softCategories,
       colors,
-      targetCategory, 
+      targetCategory,
       missingSoftCategoryOnly,
       onlyWithoutSoftCategories, // New parameter from AdminPanel
       onlyUnprocessed, // New parameter for fresh products
@@ -28,13 +28,14 @@ export async function POST(request) {
       // Incremental mode
       incrementalMode,
       incrementalSoftCategories,
-      incrementalHardCategories
+      incrementalHardCategories,
+      incrementalColors
     } = await request.json();
-    
+
     // Map the new parameter to the existing one
     const filterMissingSoftCategories = onlyWithoutSoftCategories || missingSoftCategoryOnly || false;
     const filterOnlyUnprocessed = onlyUnprocessed || false;
-    
+
     console.log(`📝 DB Name from request: ${dbNameFromRequest}`);
     console.log("📝 Categories from request:", categories);
     console.log("📝 Types from request:", userTypes);
@@ -45,7 +46,8 @@ export async function POST(request) {
     console.log("📝 Incremental Mode from request:", incrementalMode);
     console.log("📝 Incremental Soft Categories from request:", incrementalSoftCategories);
     console.log("📝 Incremental Hard Categories from request:", incrementalHardCategories);
-    
+    console.log("📝 Incremental Colors from request:", incrementalColors);
+
     // Log reprocessing options
     console.log("📝 Reprocess Options:");
     console.log("- Hard Categories:", reprocessHardCategories !== undefined ? reprocessHardCategories : "default (true)");
@@ -56,14 +58,14 @@ export async function POST(request) {
     console.log("- Descriptions:", reprocessDescriptions !== undefined ? reprocessDescriptions : "default (false)");
     console.log("- Translation:", translateBeforeEmbedding !== undefined ? translateBeforeEmbedding : "default (false)");
     console.log("- All:", reprocessAll !== undefined ? reprocessAll : "default (false)");
-    
+
     const client = await clientPromise;
     const usersDb = client.db("users");
     const usersCollection = usersDb.collection("users");
-    
+
     console.log("🔍 Searching for user in MongoDB...");
     const userDoc = await usersCollection.findOne({ dbName: dbNameFromRequest });
-    
+
     if (!userDoc) {
       console.error("❌ User not found!");
       throw new Error(`User not found for dbName: ${dbNameFromRequest}`);
@@ -75,7 +77,7 @@ export async function POST(request) {
 
     // Use data from request body instead of database
     const userDbName = dbNameFromRequest;
-    
+
     console.log("🎯 USING DATA FROM REQUEST:");
     console.log("userDbName:", userDbName);
     console.log("categories:", categories ? `Array(${categories.length})` : "UNDEFINED");
@@ -134,6 +136,23 @@ export async function POST(request) {
         console.error("⚠️ Failed to update user categories:", updateErr);
       }
     }
+    if (incrementalMode && incrementalColors && incrementalColors.length > 0) {
+      // Merge and remove duplicates
+      const mergedColors = [...new Set([...finalColors, ...incrementalColors])];
+      finalColors = mergedColors;
+
+      // Update user document with merged colors under credentials
+      try {
+        await usersCollection.updateOne(
+          { dbName: dbNameFromRequest },
+          { $set: { "credentials.colors": mergedColors } }
+        );
+        console.log(`✅ Updated user credentials.colors: added ${incrementalColors.length} new colors`);
+        console.log(`📝 New total colors: ${mergedColors.length}`);
+      } catch (updateErr) {
+        console.error("⚠️ Failed to update user colors:", updateErr);
+      }
+    }
 
     // Create the payload - handle undefined values
     const payload = {
@@ -148,7 +167,8 @@ export async function POST(request) {
       incrementalMode: incrementalMode || false, // Incremental mode for adding new categories
       incrementalSoftCategories: incrementalSoftCategories || [], // New soft categories to add
       incrementalHardCategories: incrementalHardCategories || [], // New hard categories to add
-      
+      incrementalColors: incrementalColors || [], // New colors to add
+
       // Add reprocessing options if provided
       options: {
         reprocessHardCategories: reprocessHardCategories !== undefined ? reprocessHardCategories : true,
@@ -184,7 +204,7 @@ export async function POST(request) {
       }
     })();
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       state: "running",
       debug: {
         foundUserTypes: userTypes !== undefined,

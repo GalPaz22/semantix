@@ -9,7 +9,7 @@ export default function AdminPanel({ session }) {
   const [fetchStatus, setFetchStatus] = useState('idle');
   const [saveCredentialsStatus, setSaveCredentialsStatus] = useState('idle');
   const [syncStatus, setSyncStatus] = useState('idle');
-  
+
   // User data fetched from API key
   const [userData, setUserData] = useState(null);
   const [dbName, setDbName] = useState('');
@@ -17,7 +17,7 @@ export default function AdminPanel({ session }) {
   const [productTypes, setProductTypes] = useState('');
   const [softCategories, setSoftCategories] = useState('');
   const [colors, setColors] = useState('');
-  
+
   // Site configuration state
   const [siteConfig, setSiteConfig] = useState({
     siteId: '',
@@ -32,6 +32,9 @@ export default function AdminPanel({ session }) {
       pageTitle: [],
       resultsRoot: [],
       searchInput: [],
+      productPage: '',
+      productId: '',
+      productName: '',
       zero: {
         enabled: true,
         host: [],
@@ -89,6 +92,7 @@ export default function AdminPanel({ session }) {
     clickTracking: {
       enabled: true,
       trackNativeClicks: true,
+      addToCartSelector: '',
       universalMode: false,
       universalLinkSelector: '',
       forceNavDelay: true,
@@ -108,7 +112,8 @@ export default function AdminPanel({ session }) {
     features: {
       rerankBoost: true,
       injectIntoGrid: true,
-      zeroReplace: true
+      zeroReplace: true,
+      disabled: false
     },
     texts: {
       loader: ''
@@ -144,7 +149,7 @@ export default function AdminPanel({ session }) {
       enabled: false
     }
   });
-  
+
   // Reprocessing options
   const [reprocessOptions, setReprocessOptions] = useState({
     reprocessHardCategories: true,
@@ -156,30 +161,31 @@ export default function AdminPanel({ session }) {
     reprocessDescriptions: true,
     translateBeforeEmbedding: true
   });
-  
+
   // Filter option: only reprocess products without soft categories
   const [onlyWithoutSoftCategories, setOnlyWithoutSoftCategories] = useState(false);
-  
+
   // Filter option: only reprocess fresh/unprocessed products
   const [onlyUnprocessed, setOnlyUnprocessed] = useState(false);
-  
+
   // Incremental mode: add new categories to existing products
   const [incrementalMode, setIncrementalMode] = useState(false);
   const [incrementalSoftCategories, setIncrementalSoftCategories] = useState('');
   const [incrementalHardCategories, setIncrementalHardCategories] = useState('');
+  const [incrementalColors, setIncrementalColors] = useState('');
   const [incrementalProcessingStatus, setIncrementalProcessingStatus] = useState('idle');
-  
+
   // Auto-detect selectors state
   const [analyzeUrl, setAnalyzeUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeStatus, setAnalyzeStatus] = useState('idle');
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [userPlatform, setUserPlatform] = useState('');
-  
+
   // JSON Import state
   const [showJsonImport, setShowJsonImport] = useState(false);
   const [jsonImportText, setJsonImportText] = useState('');
-  
+
   // Card Template Converter state
   const [showTemplateConverter, setShowTemplateConverter] = useState(false);
   const [rawCardHtml, setRawCardHtml] = useState('');
@@ -197,7 +203,7 @@ export default function AdminPanel({ session }) {
         const data = await response.json();
         console.log('Fetched user data:', data);
         setUserData(data);
-        
+
         // Extract from nested configuration structure
         const config = data.configuration || {};
         setDbName(config.dbName || '');
@@ -205,17 +211,17 @@ export default function AdminPanel({ session }) {
         setProductTypes(Array.isArray(config.types?.list) ? config.types.list.join(', ') : '');
         setSoftCategories(Array.isArray(config.softCategories?.list) ? config.softCategories.list.join(', ') : '');
         setColors(Array.isArray(config.colors?.list) ? config.colors.list.join(', ') : '');
-        
+
         // Extract platform
         const platform = config.platform || data.credentials?.platform || 'woocommerce';
         setUserPlatform(platform);
         console.log('🔧 User platform:', platform);
-        
+
         // Load siteConfig if it exists
         if (data.credentials?.siteConfig) {
           const savedConfig = data.credentials.siteConfig;
           console.log('📋 Loading saved siteConfig from DB:', savedConfig);
-          
+
           // Helper function to safely get nested values
           const safeGet = (obj, path, defaultValue) => {
             const keys = path.split('.');
@@ -226,7 +232,7 @@ export default function AdminPanel({ session }) {
             }
             return result !== undefined ? result : defaultValue;
           };
-          
+
           setSiteConfig({
             siteId: savedConfig.siteId !== undefined ? savedConfig.siteId : '',
             platform: savedConfig.platform !== undefined ? savedConfig.platform : (platform || 'woocommerce'),
@@ -240,6 +246,9 @@ export default function AdminPanel({ session }) {
               pageTitle: safeGet(savedConfig, 'selectors.pageTitle', []),
               resultsRoot: safeGet(savedConfig, 'selectors.resultsRoot', []),
               searchInput: safeGet(savedConfig, 'selectors.searchInput', []),
+              productPage: safeGet(savedConfig, 'selectors.productPage', ''),
+              productId: safeGet(savedConfig, 'selectors.productId', ''),
+              productName: safeGet(savedConfig, 'selectors.productName', ''),
               zero: {
                 enabled: safeGet(savedConfig, 'selectors.zero.enabled', true),
                 host: safeGet(savedConfig, 'selectors.zero.host', []),
@@ -286,6 +295,7 @@ export default function AdminPanel({ session }) {
             clickTracking: {
               enabled: safeGet(savedConfig, 'clickTracking.enabled', true),
               trackNativeClicks: safeGet(savedConfig, 'clickTracking.trackNativeClicks', true),
+              addToCartSelector: safeGet(savedConfig, 'clickTracking.addToCartSelector', ''),
               universalMode: safeGet(savedConfig, 'clickTracking.universalMode', false),
               universalLinkSelector: safeGet(savedConfig, 'clickTracking.universalLinkSelector', ''),
               forceNavDelay: safeGet(savedConfig, 'clickTracking.forceNavDelay', true),
@@ -305,7 +315,8 @@ export default function AdminPanel({ session }) {
             features: {
               rerankBoost: safeGet(savedConfig, 'features.rerankBoost', true),
               injectIntoGrid: safeGet(savedConfig, 'features.injectIntoGrid', true),
-              zeroReplace: safeGet(savedConfig, 'features.zeroReplace', true)
+              zeroReplace: safeGet(savedConfig, 'features.zeroReplace', true),
+              disabled: safeGet(savedConfig, 'features.disabled', false)
             },
             texts: {
               loader: safeGet(savedConfig, 'texts.loader', '')
@@ -341,10 +352,10 @@ export default function AdminPanel({ session }) {
               enabled: safeGet(savedConfig, 'debug.enabled', false)
             }
           });
-          
+
           console.log('✅ siteConfig loaded from DB');
         }
-        
+
         setFetchStatus('success');
       } else {
         const errorData = await response.json();
@@ -368,25 +379,25 @@ export default function AdminPanel({ session }) {
         ...siteConfig,
         platform: siteConfig.platform || 'woocommerce',
         enabled: siteConfig.enabled !== undefined ? siteConfig.enabled : true,
-        domains: Array.isArray(siteConfig.domains) 
-          ? siteConfig.domains 
+        domains: Array.isArray(siteConfig.domains)
+          ? siteConfig.domains
           : siteConfig.domains.split(',').map(d => d.trim()).filter(Boolean),
-        queryParams: Array.isArray(siteConfig.queryParams) 
-          ? siteConfig.queryParams 
+        queryParams: Array.isArray(siteConfig.queryParams)
+          ? siteConfig.queryParams
           : siteConfig.queryParams.split(',').map(p => p.trim()).filter(Boolean),
         selectors: {
           ...siteConfig.selectors,
-          resultsGrid: Array.isArray(siteConfig.selectors.resultsGrid) 
-            ? siteConfig.selectors.resultsGrid 
+          resultsGrid: Array.isArray(siteConfig.selectors.resultsGrid)
+            ? siteConfig.selectors.resultsGrid
             : siteConfig.selectors.resultsGrid.split(',').map(s => s.trim()).filter(Boolean),
-          productCard: Array.isArray(siteConfig.selectors.productCard) 
-            ? siteConfig.selectors.productCard 
+          productCard: Array.isArray(siteConfig.selectors.productCard)
+            ? siteConfig.selectors.productCard
             : siteConfig.selectors.productCard.split(',').map(s => s.trim()).filter(Boolean),
-          noResults: Array.isArray(siteConfig.selectors.noResults) 
-            ? siteConfig.selectors.noResults 
+          noResults: Array.isArray(siteConfig.selectors.noResults)
+            ? siteConfig.selectors.noResults
             : siteConfig.selectors.noResults.split(',').map(s => s.trim()).filter(Boolean),
-          pageTitle: Array.isArray(siteConfig.selectors.pageTitle) 
-            ? siteConfig.selectors.pageTitle 
+          pageTitle: Array.isArray(siteConfig.selectors.pageTitle)
+            ? siteConfig.selectors.pageTitle
             : siteConfig.selectors.pageTitle.split(',').map(s => s.trim()).filter(Boolean),
           resultsRoot: Array.isArray(siteConfig.selectors?.resultsRoot)
             ? siteConfig.selectors.resultsRoot
@@ -398,6 +409,9 @@ export default function AdminPanel({ session }) {
             : (typeof siteConfig.selectors?.searchInput === 'string' && siteConfig.selectors.searchInput
               ? siteConfig.selectors.searchInput.split(',').map(s => s.trim()).filter(Boolean)
               : []),
+          productPage: siteConfig.selectors?.productPage || '',
+          productId: siteConfig.selectors?.productId || '',
+          productName: siteConfig.selectors?.productName || '',
           zero: {
             enabled: siteConfig.selectors?.zero?.enabled ?? true,
             host: Array.isArray(siteConfig.selectors?.zero?.host)
@@ -429,8 +443,8 @@ export default function AdminPanel({ session }) {
         },
         nativeCard: {
           ...siteConfig.nativeCard,
-          cleanupSelectors: Array.isArray(siteConfig.nativeCard.cleanupSelectors) 
-            ? siteConfig.nativeCard.cleanupSelectors 
+          cleanupSelectors: Array.isArray(siteConfig.nativeCard.cleanupSelectors)
+            ? siteConfig.nativeCard.cleanupSelectors
             : siteConfig.nativeCard.cleanupSelectors.split(',').map(s => s.trim()).filter(Boolean)
         },
         placeholderRotate: {
@@ -452,7 +466,7 @@ export default function AdminPanel({ session }) {
         columns: normalizedSiteConfig.selectors?.zero?.columns,
         style: normalizedSiteConfig.selectors?.zero?.style
       });
-      
+
       const response = await fetch('/api/admin/update-user-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -467,6 +481,10 @@ export default function AdminPanel({ session }) {
       });
       if (response.ok) {
         setSaveCredentialsStatus('success');
+        // Add a notification about the disabled status if it was changed
+        if (normalizedSiteConfig.features.disabled) {
+          console.log('⚠️ Features marked as DISABLED for this site.');
+        }
       } else {
         setSaveCredentialsStatus('error');
       }
@@ -480,13 +498,13 @@ export default function AdminPanel({ session }) {
 
   const handleProcessProducts = async () => {
     if (!isAdmin || !userData || !dbName) return;
-    
+
     setProcessingStatus('loading');
     try {
       const response = await fetch('/api/reprocess-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dbName,
           categories: categories.split(',').map(c => c.trim()).filter(Boolean),
           type: productTypes.split(',').map(t => t.trim()).filter(Boolean),
@@ -517,11 +535,12 @@ export default function AdminPanel({ session }) {
   const handleIncrementalProcess = async () => {
     if (!isAdmin || !userData || !dbName) return;
 
-    // Validate incremental mode - at least one of soft or hard categories must be provided
+    // Validate incremental mode - at least one of soft or hard categories or colors must be provided
     const newSoftCats = incrementalSoftCategories.split(',').map(s => s.trim()).filter(Boolean);
     const newHardCats = incrementalHardCategories.split(',').map(s => s.trim()).filter(Boolean);
-    if (newSoftCats.length === 0 && newHardCats.length === 0) {
-      alert('אנא הזן לפחות קטגוריה אחת (רכה או קשיחה) במצב הוספה מצטברת');
+    const newColors = incrementalColors.split(',').map(s => s.trim()).filter(Boolean);
+    if (newSoftCats.length === 0 && newHardCats.length === 0 && newColors.length === 0) {
+      alert('אנא הזן לפחות אחד (קטגוריה רכה, קשיחה או צבעים) במצב הוספה מצטברת');
       return;
     }
 
@@ -541,6 +560,7 @@ export default function AdminPanel({ session }) {
           incrementalMode: true, // INCREMENTAL MODE
           incrementalSoftCategories: newSoftCats,
           incrementalHardCategories: newHardCats,
+          incrementalColors: newColors,
           // Reprocess options are ignored in incremental mode
           reprocessHardCategories: false,
           reprocessSoftCategories: false,
@@ -570,6 +590,14 @@ export default function AdminPanel({ session }) {
           setCategories(mergedHard.join(', '));
           console.log('✅ Hard categories updated in UI:', mergedHard.join(', '));
         }
+
+        // Update the UI with merged colors
+        if (newColors.length > 0) {
+          const currentColors = colors.split(',').map(c => c.trim()).filter(Boolean);
+          const mergedColors = [...new Set([...currentColors, ...newColors])];
+          setColors(mergedColors.join(', '));
+          console.log('✅ Colors updated in UI:', mergedColors.join(', '));
+        }
       } else {
         const errorData = await response.json();
         console.error('Failed to process products incrementally:', errorData);
@@ -592,14 +620,14 @@ export default function AdminPanel({ session }) {
     setSyncPolling(true);
     let pollCount = 0;
     const maxPolls = 600; // 10 minutes max (every 1 second)
-    
+
     const poll = async () => {
       try {
         const res = await fetch(`/api/admin/sync-status?dbName=${encodeURIComponent(targetDbName)}`);
         if (res.ok) {
           const data = await res.json();
           setSyncLogs(data.logs || []);
-          
+
           if (data.state === 'done') {
             setSyncStatus('success');
             setSyncPolling(false);
@@ -616,7 +644,7 @@ export default function AdminPanel({ session }) {
       } catch (err) {
         console.error('Polling error:', err);
       }
-      
+
       pollCount++;
       if (pollCount < maxPolls && syncPolling) {
         setTimeout(poll, 1000); // Poll every 1 second
@@ -624,7 +652,7 @@ export default function AdminPanel({ session }) {
         setSyncPolling(false);
       }
     };
-    
+
     // Start polling after a short delay
     setTimeout(poll, 1500);
   };
@@ -637,7 +665,7 @@ export default function AdminPanel({ session }) {
       const response = await fetch('/api/admin/sync-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           apiKey: apiKey,
           dbName: dbName
         }),
@@ -695,6 +723,9 @@ export default function AdminPanel({ session }) {
         pageTitle: [".woocommerce-products-header__title", "h1.page-title"],
         resultsRoot: ["main", "[role='main']", ".main-content", "#main"],
         searchInput: ["input[type='search']", "input[name='s']", "input[name='q']", "form[action*='search'] input"],
+        productPage: ".product-type-simple, .product-type-variable",
+        productId: ".post",
+        productName: ".product_title",
         zero: {
           enabled: true,
           host: ["main", "#main", ".main-content", "body"],
@@ -739,6 +770,7 @@ export default function AdminPanel({ session }) {
       clickTracking: {
         enabled: true,
         trackNativeClicks: true,
+        addToCartSelector: ".single_add_to_cart_button",
         universalMode: false,
         universalLinkSelector: '',
         forceNavDelay: true,
@@ -764,7 +796,8 @@ export default function AdminPanel({ session }) {
       features: {
         rerankBoost: false,
         injectIntoGrid: true,
-        zeroReplace: true
+        zeroReplace: true,
+        disabled: false
       },
       texts: {
         loader: "טוען תוצאות חכמות"
@@ -787,6 +820,9 @@ export default function AdminPanel({ session }) {
         pageTitle: [".collection-header__title", "h1.title"],
         resultsRoot: ["main", "[role='main']", ".main-content", "#MainContent", "body"],
         searchInput: ["input[type='search']", "form[action*='search'] input[type='search']", "form[action*='search'] input[type='text']", "header input[type='search']", "header input[name='q']", "input[name='q']", "input[name='s']"],
+        productPage: ".product-single, .product-template",
+        productId: "#ProductSection",
+        productName: ".product-single__title",
         zero: {
           enabled: true,
           host: ["main", "#MainContent", "[role='main']", ".main-content"],
@@ -831,6 +867,7 @@ export default function AdminPanel({ session }) {
       clickTracking: {
         enabled: true,
         trackNativeClicks: true,
+        addToCartSelector: "button[name='add']",
         universalMode: false,
         universalLinkSelector: '',
         forceNavDelay: true,
@@ -856,7 +893,8 @@ export default function AdminPanel({ session }) {
       features: {
         rerankBoost: false,
         injectIntoGrid: true,
-        zeroReplace: true
+        zeroReplace: true,
+        disabled: false
       },
       texts: {
         loader: "Loading smart results..."
@@ -981,7 +1019,10 @@ export default function AdminPanel({ session }) {
           "header input[name='q']",
           "input[name='q']",
           "input[name='s']"
-        ]
+        ],
+        productPage: ".product-single, .product-template",
+        productId: "#ProductSection",
+        productName: ".product-single__title"
       },
       nativeCard: {
         cloneFromSelector: '',
@@ -999,6 +1040,7 @@ export default function AdminPanel({ session }) {
       clickTracking: {
         enabled: true,
         trackNativeClicks: true,
+        addToCartSelector: "button[name='add']",
         universalMode: false,
         universalLinkSelector: '',
         forceNavDelay: true,
@@ -1055,14 +1097,14 @@ export default function AdminPanel({ session }) {
       const temp = document.createElement('div');
       temp.innerHTML = cardHtml.trim();
       const card = temp.firstElementChild;
-      
+
       if (!card) {
         console.error('[Semantix] Invalid HTML provided');
         return null;
       }
-      
+
       console.log('[Semantix] Converting card to universal template...');
-      
+
       // === STEP 1: Replace all images ===
       const images = card.querySelectorAll('img');
       images.forEach(img => {
@@ -1073,7 +1115,7 @@ export default function AdminPanel({ session }) {
         img.removeAttribute('data-srcset');
         console.log('[Semantix] ✓ Replaced image');
       });
-      
+
       // === STEP 2: Replace all links ===
       const links = card.querySelectorAll('a[href]');
       links.forEach(link => {
@@ -1084,7 +1126,7 @@ export default function AdminPanel({ session }) {
           console.log('[Semantix] ✓ Replaced link');
         }
       });
-      
+
       // === STEP 3: Find and replace product name ===
       const titleSelectors = [
         'h1', 'h2', 'h3', 'h4',
@@ -1092,7 +1134,7 @@ export default function AdminPanel({ session }) {
         '[class*="title"]', '[class*="name"]',
         '[itemprop="name"]'
       ];
-      
+
       let titleReplaced = false;
       for (const sel of titleSelectors) {
         const titleEl = card.querySelector(sel);
@@ -1103,14 +1145,14 @@ export default function AdminPanel({ session }) {
           break;
         }
       }
-      
+
       // === STEP 4: Find and replace price ===
       const priceSelectors = [
         '.price', '.priceNum', '.amount',
         '[class*="price"]', '[class*="amount"]',
         '[itemprop="price"]'
       ];
-      
+
       let priceReplaced = false;
       for (const sel of priceSelectors) {
         const priceEls = card.querySelectorAll(sel);
@@ -1121,11 +1163,11 @@ export default function AdminPanel({ session }) {
             // Preserve currency position and format
             const currencyMatch = text.match(/([₪$€£¥])/);
             const currency = currencyMatch?.[0] || '';
-            
+
             // Check if currency is before or after the number
             const currencyIndex = text.indexOf(currency);
             const hasNumberBefore = /\d/.test(text.substring(0, currencyIndex));
-            
+
             if (hasNumberBefore) {
               // Currency after number (e.g., "99₪")
               priceEl.textContent = '{{price}}' + currency;
@@ -1133,14 +1175,14 @@ export default function AdminPanel({ session }) {
               // Currency before number (e.g., "$99")
               priceEl.textContent = currency + '{{price}}';
             }
-            
+
             console.log(`[Semantix] ✓ Replaced price: ${sel} (currency: ${currency})`);
             priceReplaced = true;
           }
         });
         if (priceReplaced) break;
       }
-      
+
       // === STEP 5: Remove "Add to Cart" buttons ===
       const cartSelectors = [
         'button[name="add"]',
@@ -1149,21 +1191,21 @@ export default function AdminPanel({ session }) {
         'form[action*="cart"]',
         '.itemToCart', '.cartButton'
       ];
-      
+
       cartSelectors.forEach(sel => {
         card.querySelectorAll(sel).forEach(el => {
           el.remove();
           console.log(`[Semantix] ✓ Removed cart button: ${sel}`);
         });
       });
-      
+
       // === STEP 6: Clean up badges/labels ===
       const badgeSelectors = [
         '.badge', '.label', '.tag',
         '[class*="badge"]', '[class*="label"]',
         '[class*="sale"]', '[class*="new"]'
       ];
-      
+
       badgeSelectors.forEach(sel => {
         card.querySelectorAll(sel).forEach(el => {
           // Only remove if it's a visual badge, not price container
@@ -1173,17 +1215,17 @@ export default function AdminPanel({ session }) {
           }
         });
       });
-      
+
       // === STEP 7: Add Semantix data attributes to root ===
       card.setAttribute('data-semantix-ai', '1');
       card.setAttribute('data-semantix-injected', '1');
       card.setAttribute('data-semantix-pid', '{{id}}');
       card.setAttribute('data-semantix-name', '{{name}}');
       card.setAttribute('data-semantix-url', '{{url}}');
-      
+
       // === STEP 8: Return the template HTML ===
       const template = card.outerHTML;
-      
+
       console.log('[Semantix] ✅ Template conversion complete!');
       console.log('[Semantix] Summary:', {
         titleReplaced,
@@ -1191,7 +1233,7 @@ export default function AdminPanel({ session }) {
         imagesReplaced: images.length,
         linksReplaced: links.length
       });
-      
+
       return template;
     } catch (error) {
       console.error('[Semantix] Conversion error:', error);
@@ -1204,9 +1246,9 @@ export default function AdminPanel({ session }) {
       alert('❌ Please paste some HTML first');
       return;
     }
-    
+
     const converted = convertToUniversalTemplate(rawCardHtml);
-    
+
     if (converted) {
       setConvertedTemplate(converted);
       alert('✅ Template converted successfully! You can now copy it or use it directly.');
@@ -1220,7 +1262,7 @@ export default function AdminPanel({ session }) {
       alert('❌ No converted template available');
       return;
     }
-    
+
     setSiteConfig({
       ...siteConfig,
       nativeCard: {
@@ -1229,7 +1271,7 @@ export default function AdminPanel({ session }) {
         useCustomTemplate: true
       }
     });
-    
+
     setShowTemplateConverter(false);
     setRawCardHtml('');
     setConvertedTemplate('');
@@ -1239,7 +1281,7 @@ export default function AdminPanel({ session }) {
   const handleImportJson = () => {
     try {
       const parsed = JSON.parse(jsonImportText);
-      
+
       // Deep merge with default structure to prevent undefined errors
       const mergedConfig = {
         siteId: parsed.siteId || '',
@@ -1254,6 +1296,9 @@ export default function AdminPanel({ session }) {
           pageTitle: parsed.selectors?.pageTitle || [],
           resultsRoot: parsed.selectors?.resultsRoot || [],
           searchInput: parsed.selectors?.searchInput || [],
+          productPage: parsed.selectors?.productPage || '',
+          productId: parsed.selectors?.productId || '',
+          productName: parsed.selectors?.productName || '',
           zero: {
             enabled: parsed.selectors?.zero?.enabled !== undefined ? parsed.selectors.zero.enabled : true,
             host: parsed.selectors?.zero?.host || [],
@@ -1311,6 +1356,7 @@ export default function AdminPanel({ session }) {
         clickTracking: {
           enabled: parsed.clickTracking?.enabled !== undefined ? parsed.clickTracking.enabled : true,
           trackNativeClicks: parsed.clickTracking?.trackNativeClicks !== undefined ? parsed.clickTracking.trackNativeClicks : true,
+          addToCartSelector: parsed.clickTracking?.addToCartSelector || '',
           universalMode: parsed.clickTracking?.universalMode || false,
           universalLinkSelector: parsed.clickTracking?.universalLinkSelector || '',
           forceNavDelay: parsed.clickTracking?.forceNavDelay !== undefined ? parsed.clickTracking.forceNavDelay : true,
@@ -1366,7 +1412,7 @@ export default function AdminPanel({ session }) {
           enabled: parsed.debug?.enabled || false
         }
       };
-      
+
       setSiteConfig(mergedConfig);
       setShowJsonImport(false);
       setJsonImportText('');
@@ -1390,7 +1436,7 @@ export default function AdminPanel({ session }) {
       const response = await fetch('/api/admin/analyze-selectors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           url: analyzeUrl,
           platform: userPlatform || 'woocommerce'
         })
@@ -1402,13 +1448,13 @@ export default function AdminPanel({ session }) {
         console.log('✅ Auto-detection successful:', data);
         setAnalyzeResult(data);
         setAnalyzeStatus('success');
-        
+
         // Auto-fill the siteConfig with detected values
         if (data.siteConfig) {
           // Extract domain from URL
           const urlObj = new URL(analyzeUrl);
           const detectedDomain = urlObj.hostname;
-          
+
           setSiteConfig({
             ...data.siteConfig,
             domains: [detectedDomain, `www.${detectedDomain}`]
@@ -1455,8 +1501,8 @@ export default function AdminPanel({ session }) {
               placeholder="Enter API key"
               className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
             />
-            <button 
-              onClick={handleFetchUserData} 
+            <button
+              onClick={handleFetchUserData}
               disabled={fetchStatus === 'loading' || !apiKey}
               className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
             >
@@ -1487,11 +1533,10 @@ export default function AdminPanel({ session }) {
               <p><span className="font-medium">Database:</span> {dbName}</p>
               <p>
                 <span className="font-medium">Platform:</span>{' '}
-                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                  userPlatform === 'shopify' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-purple-100 text-purple-800'
-                }`}>
+                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${userPlatform === 'shopify'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-purple-100 text-purple-800'
+                  }`}>
                   {userPlatform === 'shopify' ? '🛍️ Shopify' : '🛒 WooCommerce'}
                 </span>
               </p>
@@ -1555,7 +1600,7 @@ export default function AdminPanel({ session }) {
                 className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
               />
             </div>
-            
+
             {/* Auto-Detect Selectors Section */}
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-6">
@@ -1651,7 +1696,7 @@ export default function AdminPanel({ session }) {
                   {userData?.credentials?.siteConfig && (
                     <div className="bg-blue-100 border border-blue-300 rounded-lg p-3 mb-3">
                       <p className="text-xs text-blue-800">
-                        <strong>ℹ️ Existing Config Found:</strong> This user already has selectors configured. 
+                        <strong>ℹ️ Existing Config Found:</strong> This user already has selectors configured.
                         You can analyze a new URL to update them or use the buttons above to load defaults.
                       </p>
                     </div>
@@ -1659,7 +1704,7 @@ export default function AdminPanel({ session }) {
 
                   <div className="bg-purple-100 border border-purple-300 rounded-lg p-3">
                     <p className="text-xs text-purple-800">
-                      <strong>💡 Tip:</strong> Use a search results page URL (e.g., <code>?s=test</code>) with visible products for best results. 
+                      <strong>💡 Tip:</strong> Use a search results page URL (e.g., <code>?s=test</code>) with visible products for best results.
                       The AI will analyze the page structure and auto-fill all selectors below.
                     </p>
                   </div>
@@ -1744,7 +1789,7 @@ export default function AdminPanel({ session }) {
                 </div>
               )}
 
-              
+
               {/* Site ID */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1849,7 +1894,7 @@ export default function AdminPanel({ session }) {
               {/* Selectors */}
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">CSS Selectors</h4>
-                
+
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Results Grid (comma-separated)</label>
@@ -1877,7 +1922,7 @@ export default function AdminPanel({ session }) {
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Product Card (comma-separated)</label>
                     <input
@@ -1904,7 +1949,7 @@ export default function AdminPanel({ session }) {
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">No Results (comma-separated)</label>
                     <input
@@ -1931,7 +1976,7 @@ export default function AdminPanel({ session }) {
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Page Title (comma-separated)</label>
                     <input
@@ -1958,7 +2003,7 @@ export default function AdminPanel({ session }) {
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Search Input (comma-separated) 🔍
@@ -1983,26 +2028,137 @@ export default function AdminPanel({ session }) {
                           }
                         });
                       }}
-                      placeholder="e.g., #my-input, .search-box input, input[type='search']"
+                      placeholder="e.g., input[type='search'], input[name='s']"
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      סלקטורים לשדות החיפוש באתר (לשימוש ב-placeholder rotation)
-                    </p>
                   </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Results Root (comma-separated) 📍
-                    </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Product Page Selector</label>
+                      <input
+                        type="text"
+                        value={siteConfig.selectors?.productPage || ''}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            productPage: e.target.value
+                          }
+                        })}
+                        placeholder="e.g., .product-template"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Product ID Selector</label>
+                      <input
+                        type="text"
+                        value={siteConfig.selectors?.productId || ''}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            productId: e.target.value
+                          }
+                        })}
+                        placeholder="e.g., #product-id"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Product Name Selector</label>
+                      <input
+                        type="text"
+                        value={siteConfig.selectors?.productName || ''}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            productName: e.target.value
+                          }
+                        })}
+                        placeholder="e.g., .product_title"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Results Root (comma-separated) 📍
+                  </label>
+                  <input
+                    type="text"
+                    value={Array.isArray(siteConfig.selectors?.resultsRoot) ? siteConfig.selectors.resultsRoot.join(', ') : (siteConfig.selectors?.resultsRoot || '')}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      selectors: {
+                        ...siteConfig.selectors,
+                        resultsRoot: e.target.value
+                      }
+                    })}
+                    onBlur={(e) => {
+                      const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setSiteConfig({
+                        ...siteConfig,
+                        selectors: {
+                          ...siteConfig.selectors,
+                          resultsRoot: arr
+                        }
+                      });
+                    }}
+                    placeholder="e.g., main, [role='main'], #MainContent"
+                    className="w-full p-2 border border-gray-200 rounded text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Root container for search results
+                  </p>
+                </div>
+              </div>
+
+              {/* Zero Results Grid Configuration */}
+              <div className="mt-4 p-4 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-sm font-semibold text-orange-900">🎯 Zero Results Grid</h5>
+                  <div className="flex items-center">
                     <input
-                      type="text"
-                      value={Array.isArray(siteConfig.selectors?.resultsRoot) ? siteConfig.selectors.resultsRoot.join(', ') : (siteConfig.selectors?.resultsRoot || '')}
+                      type="checkbox"
+                      id="zeroEnabled"
+                      checked={siteConfig.selectors?.zero?.enabled ?? true}
                       onChange={(e) => setSiteConfig({
                         ...siteConfig,
                         selectors: {
                           ...siteConfig.selectors,
-                          resultsRoot: e.target.value
+                          zero: {
+                            ...siteConfig.selectors.zero,
+                            enabled: e.target.checked
+                          }
+                        }
+                      })}
+                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="zeroEnabled" className="mr-2 text-xs text-orange-700 font-medium">
+                      Enable
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-orange-800 mb-1">Host Selectors</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(siteConfig.selectors?.zero?.host) ? siteConfig.selectors.zero.host.join(', ') : ''}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        selectors: {
+                          ...siteConfig.selectors,
+                          zero: {
+                            ...siteConfig.selectors.zero,
+                            host: e.target.value
+                          }
                         }
                       })}
                       onBlur={(e) => {
@@ -2011,128 +2167,81 @@ export default function AdminPanel({ session }) {
                           ...siteConfig,
                           selectors: {
                             ...siteConfig.selectors,
-                            resultsRoot: arr
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              host: arr
+                            }
                           }
                         });
                       }}
-                      placeholder="e.g., main, [role='main'], #MainContent"
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
+                      placeholder="main, #MainContent"
+                      className="w-full p-2 border border-orange-200 rounded text-sm"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Root container for search results
-                    </p>
                   </div>
-                </div>
-                
-                {/* Zero Results Grid Configuration */}
-                <div className="mt-4 p-4 bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="text-sm font-semibold text-orange-900">🎯 Zero Results Grid</h5>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="zeroEnabled"
-                        checked={siteConfig.selectors?.zero?.enabled ?? true}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          selectors: {
-                            ...siteConfig.selectors,
-                            zero: {
-                              ...siteConfig.selectors.zero,
-                              enabled: e.target.checked
-                            }
-                          }
-                        })}
-                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="zeroEnabled" className="mr-2 text-xs text-orange-700 font-medium">
-                        Enable
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-orange-800 mb-1">Host Selectors</label>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Grid Tag</label>
                       <input
                         type="text"
-                        value={Array.isArray(siteConfig.selectors?.zero?.host) ? siteConfig.selectors.zero.host.join(', ') : ''}
+                        value={siteConfig.selectors?.zero?.gridTag || 'ul'}
                         onChange={(e) => setSiteConfig({
                           ...siteConfig,
                           selectors: {
                             ...siteConfig.selectors,
                             zero: {
                               ...siteConfig.selectors.zero,
-                              host: e.target.value
+                              gridTag: e.target.value
                             }
                           }
                         })}
-                        onBlur={(e) => {
-                          const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                          setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                host: arr
-                              }
-                            }
-                          });
-                        }}
-                        placeholder="main, #MainContent"
+                        placeholder="ul"
                         className="w-full p-2 border border-orange-200 rounded text-sm"
                       />
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Grid Tag</label>
-                        <input
-                          type="text"
-                          value={siteConfig.selectors?.zero?.gridTag || 'ul'}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                gridTag: e.target.value
-                              }
-                            }
-                          })}
-                          placeholder="ul"
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Grid Class</label>
-                        <input
-                          type="text"
-                          value={siteConfig.selectors?.zero?.gridClass || ''}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                gridClass: e.target.value
-                              }
-                            }
-                          })}
-                          placeholder="product-grid semantix-zero-grid"
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                    
+
                     <div>
-                      <label className="block text-xs font-medium text-orange-800 mb-1">Insert Target</label>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Grid Class</label>
                       <input
                         type="text"
-                        value={Array.isArray(siteConfig.selectors?.zero?.insert?.target) ? siteConfig.selectors.zero.insert.target.join(', ') : ''}
+                        value={siteConfig.selectors?.zero?.gridClass || ''}
                         onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              gridClass: e.target.value
+                            }
+                          }
+                        })}
+                        placeholder="product-grid semantix-zero-grid"
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-orange-800 mb-1">Insert Target</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(siteConfig.selectors?.zero?.insert?.target) ? siteConfig.selectors.zero.insert.target.join(', ') : ''}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        selectors: {
+                          ...siteConfig.selectors,
+                          zero: {
+                            ...siteConfig.selectors.zero,
+                            insert: {
+                              ...siteConfig.selectors.zero.insert,
+                              target: e.target.value
+                            }
+                          }
+                        }
+                      })}
+                      onBlur={(e) => {
+                        const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                        setSiteConfig({
                           ...siteConfig,
                           selectors: {
                             ...siteConfig.selectors,
@@ -2140,265 +2249,250 @@ export default function AdminPanel({ session }) {
                               ...siteConfig.selectors.zero,
                               insert: {
                                 ...siteConfig.selectors.zero.insert,
-                                target: e.target.value
+                                target: arr
                               }
                             }
                           }
-                        })}
-                        onBlur={(e) => {
-                          const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                          setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                insert: {
-                                  ...siteConfig.selectors.zero.insert,
-                                  target: arr
-                                }
-                              }
+                        });
+                      }}
+                      placeholder=".no-results, main"
+                      className="w-full p-2 border border-orange-200 rounded text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-orange-700 mb-1">Insert Mode</label>
+                    <select
+                      value={siteConfig.selectors?.zero?.insert?.mode || 'after'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        selectors: {
+                          ...siteConfig.selectors,
+                          zero: {
+                            ...siteConfig.selectors.zero,
+                            insert: {
+                              ...siteConfig.selectors.zero.insert,
+                              mode: e.target.value
                             }
-                          });
-                        }}
-                        placeholder=".no-results, main"
-                        className="w-full p-2 border border-orange-200 rounded text-sm"
-                      />
-                    </div>
-                    
+                          }
+                        }
+                      })}
+                      className="w-full p-2 border border-orange-200 rounded text-sm"
+                    >
+                      <option value="after">After</option>
+                      <option value="before">Before</option>
+                      <option value="append">Append</option>
+                      <option value="prepend">Prepend</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-xs font-medium text-orange-700 mb-1">Insert Mode</label>
-                      <select
-                        value={siteConfig.selectors?.zero?.insert?.mode || 'after'}
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Desktop Cols</label>
+                      <input
+                        type="number"
+                        value={siteConfig.selectors?.zero?.columns?.desktop || 4}
                         onChange={(e) => setSiteConfig({
                           ...siteConfig,
                           selectors: {
                             ...siteConfig.selectors,
                             zero: {
                               ...siteConfig.selectors.zero,
-                              insert: {
-                                ...siteConfig.selectors.zero.insert,
-                                mode: e.target.value
+                              columns: {
+                                ...siteConfig.selectors.zero.columns,
+                                desktop: parseInt(e.target.value) || 4
                               }
                             }
                           }
                         })}
                         className="w-full p-2 border border-orange-200 rounded text-sm"
-                      >
-                        <option value="after">After</option>
-                        <option value="before">Before</option>
-                        <option value="append">Append</option>
-                        <option value="prepend">Prepend</option>
-                      </select>
+                      />
                     </div>
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Desktop Cols</label>
-                        <input
-                          type="number"
-                          value={siteConfig.selectors?.zero?.columns?.desktop || 4}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                columns: {
-                                  ...siteConfig.selectors.zero.columns,
-                                  desktop: parseInt(e.target.value) || 4
-                                }
+
+                    <div>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Tablet Cols</label>
+                      <input
+                        type="number"
+                        value={siteConfig.selectors?.zero?.columns?.tablet || 2}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              columns: {
+                                ...siteConfig.selectors.zero.columns,
+                                tablet: parseInt(e.target.value) || 2
                               }
                             }
-                          })}
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Tablet Cols</label>
-                        <input
-                          type="number"
-                          value={siteConfig.selectors?.zero?.columns?.tablet || 2}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                columns: {
-                                  ...siteConfig.selectors.zero.columns,
-                                  tablet: parseInt(e.target.value) || 2
-                                }
-                              }
-                            }
-                          })}
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Mobile Cols</label>
-                        <input
-                          type="number"
-                          value={siteConfig.selectors?.zero?.columns?.mobile || 2}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                columns: {
-                                  ...siteConfig.selectors.zero.columns,
-                                  mobile: parseInt(e.target.value) || 2
-                                }
-                              }
-                            }
-                          })}
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
+                          }
+                        })}
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
                     </div>
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Gap (px)</label>
-                        <input
-                          type="number"
-                          value={siteConfig.selectors?.zero?.style?.gapPx || 16}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                style: {
-                                  ...siteConfig.selectors.zero.style,
-                                  gapPx: parseInt(e.target.value) || 16
-                                }
+
+                    <div>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Mobile Cols</label>
+                      <input
+                        type="number"
+                        value={siteConfig.selectors?.zero?.columns?.mobile || 2}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              columns: {
+                                ...siteConfig.selectors.zero.columns,
+                                mobile: parseInt(e.target.value) || 2
                               }
                             }
-                          })}
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Margin Top (px)</label>
-                        <input
-                          type="number"
-                          value={siteConfig.selectors?.zero?.style?.marginTopPx || 16}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                style: {
-                                  ...siteConfig.selectors.zero.style,
-                                  marginTopPx: parseInt(e.target.value) || 16
-                                }
+                          }
+                        })}
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Gap (px)</label>
+                      <input
+                        type="number"
+                        value={siteConfig.selectors?.zero?.style?.gapPx || 16}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              style: {
+                                ...siteConfig.selectors.zero.style,
+                                gapPx: parseInt(e.target.value) || 16
                               }
                             }
-                          })}
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs font-medium text-orange-700 mb-1">Card Width</label>
-                        <input
-                          type="text"
-                          value={siteConfig.selectors?.zero?.style?.cardWidth || "100%"}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            selectors: {
-                              ...siteConfig.selectors,
-                              zero: {
-                                ...siteConfig.selectors.zero,
-                                style: {
-                                  ...siteConfig.selectors.zero.style,
-                                  cardWidth: e.target.value || "100%"
-                                }
+                          }
+                        })}
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Margin Top (px)</label>
+                      <input
+                        type="number"
+                        value={siteConfig.selectors?.zero?.style?.marginTopPx || 16}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              style: {
+                                ...siteConfig.selectors.zero.style,
+                                marginTopPx: parseInt(e.target.value) || 16
                               }
                             }
-                          })}
-                          placeholder="100%, 250px, etc"
-                          className="w-full p-2 border border-orange-200 rounded text-sm"
-                        />
-                      </div>
+                          }
+                        })}
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-orange-700 mb-1">Card Width</label>
+                      <input
+                        type="text"
+                        value={siteConfig.selectors?.zero?.style?.cardWidth || "100%"}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          selectors: {
+                            ...siteConfig.selectors,
+                            zero: {
+                              ...siteConfig.selectors.zero,
+                              style: {
+                                ...siteConfig.selectors.zero.style,
+                                cardWidth: e.target.value || "100%"
+                              }
+                            }
+                          }
+                        })}
+                        placeholder="100%, 250px, etc"
+                        className="w-full p-2 border border-orange-200 rounded text-sm"
+                      />
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Native Card Configuration */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-700 mb-1">Native Card Configuration</h4>
-                <p className="text-xs text-gray-500 mb-3">
-                  Choose one method: Use <strong>Clone Selector</strong> to copy from DOM, OR paste <strong>Card Template HTML</strong> below
-                </p>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      🎯 Clone From Selector (Method 1)
-                    </label>
-                    <input
-                      type="text"
-                      value={siteConfig.nativeCard.cloneFromSelector}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        nativeCard: {
-                          ...siteConfig.nativeCard,
-                          cloneFromSelector: e.target.value
-                        }
-                      })}
-                      placeholder="e.g., ul.products li.product"
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      CSS selector to clone existing product card from the page
-                    </p>
-                  </div>
-                  
-                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <label className="block text-sm font-bold text-blue-900">
-                          📋 cardTemplate - Card HTML (Method 2)
+            {/* Native Card Configuration */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-1">Native Card Configuration</h4>
+              <p className="text-xs text-gray-500 mb-3">
+                Choose one method: Use <strong>Clone Selector</strong> to copy from DOM, OR paste <strong>Card Template HTML</strong> below
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    🎯 Clone From Selector (Method 1)
+                  </label>
+                  <input
+                    type="text"
+                    value={siteConfig.nativeCard.cloneFromSelector}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      nativeCard: {
+                        ...siteConfig.nativeCard,
+                        cloneFromSelector: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., ul.products li.product"
+                    className="w-full p-2 border border-gray-200 rounded text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    CSS selector to clone existing product card from the page
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <label className="block text-sm font-bold text-blue-900">
+                        📋 cardTemplate - Card HTML (Method 2)
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="useCustomTemplate"
+                          checked={siteConfig.nativeCard?.useCustomTemplate || false}
+                          onChange={(e) => setSiteConfig({
+                            ...siteConfig,
+                            nativeCard: {
+                              ...siteConfig.nativeCard,
+                              useCustomTemplate: e.target.checked
+                            }
+                          })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="useCustomTemplate" className="mr-2 text-xs text-blue-800 font-semibold">
+                          🎯 Use Custom Template
                         </label>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="useCustomTemplate"
-                            checked={siteConfig.nativeCard?.useCustomTemplate || false}
-                            onChange={(e) => setSiteConfig({
-                              ...siteConfig,
-                              nativeCard: {
-                                ...siteConfig.nativeCard,
-                                useCustomTemplate: e.target.checked
-                              }
-                            })}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          />
-                          <label htmlFor="useCustomTemplate" className="mr-2 text-xs text-blue-800 font-semibold">
-                            🎯 Use Custom Template
-                          </label>
-                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowTemplateConverter(!showTemplateConverter)}
-                          className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition-colors shadow-sm"
-                        >
-                          🔄 Convert HTML
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const exampleTemplate = `<li class="grid__item">
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateConverter(!showTemplateConverter)}
+                        className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition-colors shadow-sm"
+                      >
+                        🔄 Convert HTML
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const exampleTemplate = `<li class="grid__item">
   <div class="card-wrapper">
     <a href="" class="card__link">
       <img src="" alt="" class="card__image">
@@ -2407,1627 +2501,1679 @@ export default function AdminPanel({ session }) {
     </a>
   </div>
 </li>`;
-                            setSiteConfig({
-                              ...siteConfig,
-                              nativeCard: {
-                                ...siteConfig.nativeCard,
-                                cardTemplate: exampleTemplate
-                              }
-                            });
-                          }}
-                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors shadow-sm"
-                        >
-                          📝 Load Example
-                        </button>
-                      </div>
+                          setSiteConfig({
+                            ...siteConfig,
+                            nativeCard: {
+                              ...siteConfig.nativeCard,
+                              cardTemplate: exampleTemplate
+                            }
+                          });
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700 transition-colors shadow-sm"
+                      >
+                        📝 Load Example
+                      </button>
                     </div>
-                    
-                    {/* Template Converter */}
-                    {showTemplateConverter && (
-                      <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                        <h5 className="text-sm font-bold text-purple-900 mb-2">🔄 HTML to Template Converter</h5>
-                        <p className="text-xs text-purple-700 mb-3">
-                          הדבק HTML של כרטיס מוצר אמיתי (עם תמונות, מחירים, קישורים) והמערכת תמיר אותו אוטומטית ל-template עם {`{{placeholders}}`}
-                        </p>
-                        
-                        <div className="space-y-3">
+                  </div>
+
+                  {/* Template Converter */}
+                  {showTemplateConverter && (
+                    <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                      <h5 className="text-sm font-bold text-purple-900 mb-2">🔄 HTML to Template Converter</h5>
+                      <p className="text-xs text-purple-700 mb-3">
+                        הדבק HTML של כרטיס מוצר אמיתי (עם תמונות, מחירים, קישורים) והמערכת תמיר אותו אוטומטית ל-template עם {`{{placeholders}}`}
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-purple-800 mb-1">
+                            📥 Raw Card HTML (paste from your site)
+                          </label>
+                          <textarea
+                            value={rawCardHtml}
+                            onChange={(e) => setRawCardHtml(e.target.value)}
+                            placeholder='<li class="product"><img src="https://example.com/product.jpg"><h3>Product Name</h3><span class="price">₪99</span></li>'
+                            rows={6}
+                            className="w-full p-3 border-2 border-purple-300 rounded-lg text-xs font-mono bg-white focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleConvertTemplate}
+                          className="w-full px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition-colors shadow-md"
+                        >
+                          🪄 Convert to Template
+                        </button>
+
+                        {convertedTemplate && (
                           <div>
-                            <label className="block text-xs font-semibold text-purple-800 mb-1">
-                              📥 Raw Card HTML (paste from your site)
+                            <label className="block text-xs font-semibold text-green-800 mb-1">
+                              ✅ Converted Template (ready to use!)
                             </label>
                             <textarea
-                              value={rawCardHtml}
-                              onChange={(e) => setRawCardHtml(e.target.value)}
-                              placeholder='<li class="product"><img src="https://example.com/product.jpg"><h3>Product Name</h3><span class="price">₪99</span></li>'
-                              rows={6}
-                              className="w-full p-3 border-2 border-purple-300 rounded-lg text-xs font-mono bg-white focus:ring-2 focus:ring-purple-500"
+                              value={convertedTemplate}
+                              readOnly
+                              rows={8}
+                              className="w-full p-3 border-2 border-green-400 rounded-lg text-xs font-mono bg-green-50"
                             />
-                          </div>
-                          
-                          <button
-                            type="button"
-                            onClick={handleConvertTemplate}
-                            className="w-full px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition-colors shadow-md"
-                          >
-                            🪄 Convert to Template
-                          </button>
-                          
-                          {convertedTemplate && (
-                            <div>
-                              <label className="block text-xs font-semibold text-green-800 mb-1">
-                                ✅ Converted Template (ready to use!)
-                              </label>
-                              <textarea
-                                value={convertedTemplate}
-                                readOnly
-                                rows={8}
-                                className="w-full p-3 border-2 border-green-400 rounded-lg text-xs font-mono bg-green-50"
-                              />
-                              <div className="flex gap-2 mt-2">
-                                <button
-                                  type="button"
-                                  onClick={handleUseConvertedTemplate}
-                                  className="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                  ✅ Use This Template
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(convertedTemplate);
-                                    alert('📋 Copied to clipboard!');
-                                  }}
-                                  className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors"
-                                >
-                                  📋 Copy
-                                </button>
-                              </div>
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                type="button"
+                                onClick={handleUseConvertedTemplate}
+                                className="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                              >
+                                ✅ Use This Template
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(convertedTemplate);
+                                  alert('📋 Copied to clipboard!');
+                                }}
+                                className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+                              >
+                                📋 Copy
+                              </button>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    
-                    <p className="text-xs text-blue-700 mb-3 font-medium">
-                      💡 Paste your product card HTML here. Leave empty attributes (href="", src="") - they'll be filled automatically.
-                    </p>
-                    <textarea
-                      value={siteConfig.nativeCard.cardTemplate || ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        nativeCard: {
-                          ...siteConfig.nativeCard,
-                          cardTemplate: e.target.value
-                        }
-                      })}
-                      placeholder='<li class="product"><a href=""><img src="" alt=""><h3></h3><span class="price"></span></a></li>'
-                      rows="8"
-                      className="w-full p-3 border-2 border-blue-400 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-inner"
-                    />
-                    <div className="mt-2 p-2 bg-white rounded border border-blue-200">
-                      <p className="text-xs text-gray-700">
-                        ⚙️ <strong>Priority Order:</strong>
-                      </p>
-                      <ol className="text-xs text-gray-600 mt-1 mr-4 space-y-0.5">
-                        <li>1️⃣ <strong>cardTemplate</strong> (this field) - if provided</li>
-                        <li>2️⃣ localStorage template - from previous search</li>
-                        <li>3️⃣ DOM cloning - using cloneFromSelector above</li>
-                      </ol>
-                    </div>
-                  </div>
-                  
-                  <div className="pl-4 border-l-2 border-indigo-200">
-                    <h5 className="text-xs font-semibold text-gray-600 mb-2">Element Mapping</h5>
-                    
-                    <div className="space-y-2">
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Title Selector</label>
-                        <input
-                          type="text"
-                          value={siteConfig.nativeCard.map.titleSelector}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            nativeCard: {
-                              ...siteConfig.nativeCard,
-                              map: {
-                                ...siteConfig.nativeCard.map,
-                                titleSelector: e.target.value
-                              }
-                            }
-                          })}
-                          placeholder=".woocommerce-loop-product__title"
-                          className="w-full p-2 border border-gray-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Price Selector</label>
-                        <input
-                          type="text"
-                          value={siteConfig.nativeCard.map.priceSelector}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            nativeCard: {
-                              ...siteConfig.nativeCard,
-                              map: {
-                                ...siteConfig.nativeCard.map,
-                                priceSelector: e.target.value
-                              }
-                            }
-                          })}
-                          placeholder=".price"
-                          className="w-full p-2 border border-gray-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Image Selector</label>
-                        <input
-                          type="text"
-                          value={siteConfig.nativeCard.map.imageSelector}
-                          onChange={(e) => setSiteConfig({
-                            ...siteConfig,
-                            nativeCard: {
-                              ...siteConfig.nativeCard,
-                              map: {
-                                ...siteConfig.nativeCard.map,
-                                imageSelector: e.target.value
-                              }
-                            }
-                          })}
-                          placeholder="img"
-                          className="w-full p-2 border border-gray-200 rounded text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Link Selector</label>
-                        <input
-                          type="text"
-                          value={siteConfig.nativeCard.map.linkSelector}
-                          onChange={(e) => {
-                            console.log('Link selector value:', e.target.value);
-                            setSiteConfig({
-                              ...siteConfig,
-                              nativeCard: {
-                                ...siteConfig.nativeCard,
-                                map: {
-                                  ...siteConfig.nativeCard.map,
-                                  linkSelector: e.target.value
-                                }
-                              }
-                            });
-                          }}
-                          placeholder="a"
-                          className="w-full p-2 border border-gray-200 rounded text-sm font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      🧹 Cleanup Selectors (comma-separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={Array.isArray(siteConfig.nativeCard.cleanupSelectors) ? siteConfig.nativeCard.cleanupSelectors.join(', ') : siteConfig.nativeCard.cleanupSelectors}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        nativeCard: {
-                          ...siteConfig.nativeCard,
-                          cleanupSelectors: e.target.value
-                        }
-                      })}
-                      onBlur={(e) => {
-                        const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                        setSiteConfig({
-                          ...siteConfig,
-                          nativeCard: {
-                            ...siteConfig.nativeCard,
-                            cleanupSelectors: arr
-                          }
-                        });
-                      }}
-                      placeholder="e.g., .card__badge, .sale-badge, .quick-add-button, [data-quick-add]"
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Elements to remove from cloned/template cards (badges, buttons, etc.)
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="disableAddToCart"
-                        checked={siteConfig.nativeCard.disableAddToCart}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          nativeCard: {
-                            ...siteConfig.nativeCard,
-                            disableAddToCart: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="disableAddToCart" className="mr-2 text-xs text-gray-700">
-                        Disable Add to Cart
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="disablePostFix"
-                        checked={siteConfig.nativeCard.disablePostFix || false}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          nativeCard: {
-                            ...siteConfig.nativeCard,
-                            disablePostFix: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="disablePostFix" className="mr-2 text-xs text-gray-700">
-                        🚫 Disable PostFix
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Behavior Configuration */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Behavior Settings</h4>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Inject Position</label>
-                    <select
-                      value={siteConfig.behavior.injectPosition}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        behavior: {
-                          ...siteConfig.behavior,
-                          injectPosition: e.target.value
-                        }
-                      })}
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
-                    >
-                      <option value="prepend">Prepend</option>
-                      <option value="append">Append</option>
-                      <option value="afterNth">After Nth</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Inject Count</label>
-                    <input
-                      type="number"
-                      value={siteConfig.behavior.injectCount}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        behavior: {
-                          ...siteConfig.behavior,
-                          injectCount: parseInt(e.target.value) || 6
-                        }
-                      })}
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Fade Duration (ms)</label>
-                    <input
-                      type="number"
-                      value={siteConfig.behavior.fadeMs}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        behavior: {
-                          ...siteConfig.behavior,
-                          fadeMs: parseInt(e.target.value) || 260
-                        }
-                      })}
-                      className="w-full p-2 border border-gray-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="showLoader"
-                      checked={siteConfig.behavior.loader}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        behavior: {
-                          ...siteConfig.behavior,
-                          loader: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="showLoader" className="mr-2 text-xs text-gray-700">
-                      Show Loader
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Features Configuration */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Features</h4>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="rerankBoost"
-                      checked={siteConfig.features.rerankBoost}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        features: {
-                          ...siteConfig.features,
-                          rerankBoost: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="rerankBoost" className="mr-2 text-xs text-gray-700">
-                      Rerank Boost
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="injectIntoGrid"
-                      checked={siteConfig.features.injectIntoGrid}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        features: {
-                          ...siteConfig.features,
-                          injectIntoGrid: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="injectIntoGrid" className="mr-2 text-xs text-gray-700">
-                      Inject Into Grid
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="zeroReplace"
-                      checked={siteConfig.features.zeroReplace}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        features: {
-                          ...siteConfig.features,
-                          zeroReplace: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="zeroReplace" className="mr-2 text-xs text-gray-700">
-                      Zero Results Replace
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Placeholder Rotation Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-purple-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-purple-900">🔄 Placeholder Rotation</h4>
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="placeholderEnabled"
-                      checked={siteConfig.placeholderRotate?.enabled ?? true}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        placeholderRotate: {
-                          ...siteConfig.placeholderRotate,
-                          enabled: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="placeholderEnabled" className="mr-2 text-xs text-purple-700 font-medium">
-                      Enable
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-purple-800 mb-1">
-                      Placeholders (אחד בכל שורה)
-                    </label>
-                    <textarea
-                      value={Array.isArray(siteConfig.placeholderRotate?.placeholders) 
-                        ? siteConfig.placeholderRotate.placeholders.join('\n') 
-                        : (typeof siteConfig.placeholderRotate?.placeholders === 'string' 
-                          ? siteConfig.placeholderRotate.placeholders 
-                          : '')}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        placeholderRotate: {
-                          ...siteConfig.placeholderRotate,
-                          placeholders: e.target.value  // Keep as string while typing
-                        }
-                      })}
-                      onBlur={(e) => {
-                        // Convert to array only on blur
-                        const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean);
-                        setSiteConfig({
-                          ...siteConfig,
-                          placeholderRotate: {
-                            ...siteConfig.placeholderRotate,
-                            placeholders: arr
-                          }
-                        });
-                      }}
-                      placeholder="חפש מוצרים…&#10;נסו: טבעת כסף&#10;נסו: שרשרת עדינה"
-                      rows="5"
-                      className="w-full p-2 border border-purple-200 rounded text-sm font-mono"
-                    />
-                    <p className="text-xs text-purple-600 mt-1">
-                      לחץ <kbd className="px-1 py-0.5 bg-purple-100 rounded">Enter</kbd> לשורה חדשה • כל שורה = placeholder אחד
-                    </p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-purple-700 mb-1">Interval (ms)</label>
-                      <input
-                        type="number"
-                        value={siteConfig.placeholderRotate?.intervalMs ?? 2400}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          placeholderRotate: {
-                            ...siteConfig.placeholderRotate,
-                            intervalMs: parseInt(e.target.value) || 2400
-                          }
-                        })}
-                        className="w-full p-2 border border-purple-200 rounded text-sm"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-purple-700 mb-1">Fade Duration (ms)</label>
-                      <input
-                        type="number"
-                        value={siteConfig.placeholderRotate?.fadeMs ?? 220}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          placeholderRotate: {
-                            ...siteConfig.placeholderRotate,
-                            fadeMs: parseInt(e.target.value) || 220
-                          }
-                        })}
-                        className="w-full p-2 border border-purple-200 rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 space-x-reverse">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="pauseOnFocus"
-                        checked={siteConfig.placeholderRotate?.pauseOnFocus ?? true}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          placeholderRotate: {
-                            ...siteConfig.placeholderRotate,
-                            pauseOnFocus: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="pauseOnFocus" className="mr-2 text-xs text-purple-700">
-                        Pause on Focus
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="onlyIfEmpty"
-                        checked={siteConfig.placeholderRotate?.onlyIfEmpty ?? true}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          placeholderRotate: {
-                            ...siteConfig.placeholderRotate,
-                            onlyIfEmpty: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="onlyIfEmpty" className="mr-2 text-xs text-purple-700">
-                        Only if Empty
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Consent Popup Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-blue-900">🍪 Consent Popup</h4>
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="consentEnabled"
-                      checked={siteConfig.consent?.enabled ?? true}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        consent: {
-                          ...siteConfig.consent,
-                          enabled: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="consentEnabled" className="mr-2 text-xs text-blue-700 font-medium">
-                      Enable
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs font-medium text-blue-700 mb-1">Title</label>
-                    <input
-                      type="text"
-                      value={siteConfig.consent?.title ?? ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        consent: {
-                          ...siteConfig.consent,
-                          title: e.target.value
-                        }
-                      })}
-                      placeholder="🍪 חיפוש מותאם אישית"
-                      className="w-full p-2 border border-blue-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-blue-700 mb-1">Text</label>
-                    <textarea
-                      value={siteConfig.consent?.text ?? ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        consent: {
-                          ...siteConfig.consent,
-                          text: e.target.value
-                        }
-                      })}
-                      placeholder="מאשרים ל־Semantix לשמור סשן לשיפור התוצאות?"
-                      rows="2"
-                      className="w-full p-2 border border-blue-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Accept Button</label>
-                      <input
-                        type="text"
-                        value={siteConfig.consent?.acceptText ?? ''}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          consent: {
-                            ...siteConfig.consent,
-                            acceptText: e.target.value
-                          }
-                        })}
-                        placeholder="כן, אשר"
-                        className="w-full p-2 border border-blue-200 rounded text-sm"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-blue-700 mb-1">Decline Button</label>
-                      <input
-                        type="text"
-                        value={siteConfig.consent?.declineText ?? ''}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          consent: {
-                            ...siteConfig.consent,
-                            declineText: e.target.value
-                          }
-                        })}
-                        placeholder="לא, תודה"
-                        className="w-full p-2 border border-blue-200 rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Click Tracking Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-green-900">📊 Click Tracking</h4>
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="trackingEnabled"
-                      checked={siteConfig.clickTracking?.enabled ?? true}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        clickTracking: {
-                          ...siteConfig.clickTracking,
-                          enabled: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="trackingEnabled" className="mr-2 text-xs text-green-700 font-medium">
-                      Enable
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-4 space-x-reverse">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="trackNativeClicks"
-                        checked={siteConfig.clickTracking?.trackNativeClicks ?? true}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            trackNativeClicks: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="trackNativeClicks" className="mr-2 text-xs text-green-700">
-                        Track Native Clicks
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="universalMode"
-                        checked={siteConfig.clickTracking?.universalMode ?? false}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            universalMode: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="universalMode" className="mr-2 text-xs text-green-700">
-                        Universal Mode
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="forceNavDelay"
-                        checked={siteConfig.clickTracking?.forceNavDelay ?? true}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            forceNavDelay: e.target.checked
-                          }
-                        })}
-                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="forceNavDelay" className="mr-2 text-xs text-green-700">
-                        Force Nav Delay
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* Universal Link Selector - shown when universalMode is enabled */}
-                  {siteConfig.clickTracking?.universalMode && (
-                    <div>
-                      <label className="block text-xs font-medium text-green-700 mb-1">
-                        Universal Link Selector
-                        <span className="text-green-600 font-normal mr-1">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={siteConfig.clickTracking?.universalLinkSelector ?? ''}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            universalLinkSelector: e.target.value
-                          }
-                        })}
-                        placeholder='a.my-product-link, .product a[href*="/products/"]'
-                        className="w-full p-2 border border-green-200 rounded text-sm font-mono"
-                      />
-                      <p className="text-xs text-green-600 mt-1">
-                        CSS selector לזיהוי כל הקישורים למוצרים באתר (למשל: <code className="bg-green-100 px-1 rounded">a.product-link</code>)
-                      </p>
                     </div>
                   )}
-                  
-                  <div className="grid grid-cols-2 gap-2">
+
+                  <p className="text-xs text-blue-700 mb-3 font-medium">
+                    💡 Paste your product card HTML here. Leave empty attributes (href="", src="") - they'll be filled automatically.
+                  </p>
+                  <textarea
+                    value={siteConfig.nativeCard.cardTemplate || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      nativeCard: {
+                        ...siteConfig.nativeCard,
+                        cardTemplate: e.target.value
+                      }
+                    })}
+                    placeholder='<li class="product"><a href=""><img src="" alt=""><h3></h3><span class="price"></span></a></li>'
+                    rows="8"
+                    className="w-full p-3 border-2 border-blue-400 rounded-lg text-sm font-mono bg-white focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-inner"
+                  />
+                  <div className="mt-2 p-2 bg-white rounded border border-blue-200">
+                    <p className="text-xs text-gray-700">
+                      ⚙️ <strong>Priority Order:</strong>
+                    </p>
+                    <ol className="text-xs text-gray-600 mt-1 mr-4 space-y-0.5">
+                      <li>1️⃣ <strong>cardTemplate</strong> (this field) - if provided</li>
+                      <li>2️⃣ localStorage template - from previous search</li>
+                      <li>3️⃣ DOM cloning - using cloneFromSelector above</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="pl-4 border-l-2 border-indigo-200">
+                  <h5 className="text-xs font-semibold text-gray-600 mb-2">Element Mapping</h5>
+
+                  <div className="space-y-2">
                     <div>
-                      <label className="block text-xs font-medium text-green-700 mb-1">Delay (ms)</label>
+                      <label className="block text-xs text-gray-600 mb-1">Title Selector</label>
                       <input
-                        type="number"
-                        value={siteConfig.clickTracking?.forceNavDelayMs ?? 80}
+                        type="text"
+                        value={siteConfig.nativeCard.map.titleSelector}
                         onChange={(e) => setSiteConfig({
                           ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            forceNavDelayMs: parseInt(e.target.value) || 80
+                          nativeCard: {
+                            ...siteConfig.nativeCard,
+                            map: {
+                              ...siteConfig.nativeCard.map,
+                              titleSelector: e.target.value
+                            }
                           }
                         })}
-                        className="w-full p-2 border border-green-200 rounded text-sm"
+                        placeholder=".woocommerce-loop-product__title"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
                       />
                     </div>
-                    
+
                     <div>
-                      <label className="block text-xs font-medium text-green-700 mb-1">Queue Max</label>
+                      <label className="block text-xs text-gray-600 mb-1">Price Selector</label>
                       <input
-                        type="number"
-                        value={siteConfig.clickTracking?.queueMax ?? 25}
+                        type="text"
+                        value={siteConfig.nativeCard.map.priceSelector}
                         onChange={(e) => setSiteConfig({
                           ...siteConfig,
-                          clickTracking: {
-                            ...siteConfig.clickTracking,
-                            queueMax: parseInt(e.target.value) || 25
+                          nativeCard: {
+                            ...siteConfig.nativeCard,
+                            map: {
+                              ...siteConfig.nativeCard.map,
+                              priceSelector: e.target.value
+                            }
                           }
                         })}
-                        className="w-full p-2 border border-green-200 rounded text-sm"
+                        placeholder=".price"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Image Selector</label>
+                      <input
+                        type="text"
+                        value={siteConfig.nativeCard.map.imageSelector}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          nativeCard: {
+                            ...siteConfig.nativeCard,
+                            map: {
+                              ...siteConfig.nativeCard.map,
+                              imageSelector: e.target.value
+                            }
+                          }
+                        })}
+                        placeholder="img"
+                        className="w-full p-2 border border-gray-200 rounded text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Link Selector</label>
+                      <input
+                        type="text"
+                        value={siteConfig.nativeCard.map.linkSelector}
+                        onChange={(e) => {
+                          console.log('Link selector value:', e.target.value);
+                          setSiteConfig({
+                            ...siteConfig,
+                            nativeCard: {
+                              ...siteConfig.nativeCard,
+                              map: {
+                                ...siteConfig.nativeCard.map,
+                                linkSelector: e.target.value
+                              }
+                            }
+                          });
+                        }}
+                        placeholder="a"
+                        className="w-full p-2 border border-gray-200 rounded text-sm font-mono"
                       />
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Texts Configuration */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Text Labels</h4>
-                
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Loader Text</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    🧹 Cleanup Selectors (comma-separated)
+                  </label>
                   <input
                     type="text"
-                    value={siteConfig.texts.loader}
+                    value={Array.isArray(siteConfig.nativeCard.cleanupSelectors) ? siteConfig.nativeCard.cleanupSelectors.join(', ') : siteConfig.nativeCard.cleanupSelectors}
                     onChange={(e) => setSiteConfig({
                       ...siteConfig,
-                      texts: {
-                        ...siteConfig.texts,
-                        loader: e.target.value
+                      nativeCard: {
+                        ...siteConfig.nativeCard,
+                        cleanupSelectors: e.target.value
                       }
                     })}
-                    placeholder="טוען תוצאות חכמות…"
+                    onBlur={(e) => {
+                      const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setSiteConfig({
+                        ...siteConfig,
+                        nativeCard: {
+                          ...siteConfig.nativeCard,
+                          cleanupSelectors: arr
+                        }
+                      });
+                    }}
+                    placeholder="e.g., .card__badge, .sale-badge, .quick-add-button, [data-quick-add]"
+                    className="w-full p-2 border border-gray-200 rounded text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Elements to remove from cloned/template cards (badges, buttons, etc.)
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="disableAddToCart"
+                      checked={siteConfig.nativeCard.disableAddToCart}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        nativeCard: {
+                          ...siteConfig.nativeCard,
+                          disableAddToCart: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="disableAddToCart" className="mr-2 text-xs text-gray-700">
+                      Disable Add to Cart
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="disablePostFix"
+                      checked={siteConfig.nativeCard.disablePostFix || false}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        nativeCard: {
+                          ...siteConfig.nativeCard,
+                          disablePostFix: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="disablePostFix" className="mr-2 text-xs text-gray-700">
+                      🚫 Disable PostFix
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Behavior Configuration */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Behavior Settings</h4>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Inject Position</label>
+                  <select
+                    value={siteConfig.behavior.injectPosition}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      behavior: {
+                        ...siteConfig.behavior,
+                        injectPosition: e.target.value
+                      }
+                    })}
+                    className="w-full p-2 border border-gray-200 rounded text-sm"
+                  >
+                    <option value="prepend">Prepend</option>
+                    <option value="append">Append</option>
+                    <option value="afterNth">After Nth</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Inject Count</label>
+                  <input
+                    type="number"
+                    value={siteConfig.behavior.injectCount}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      behavior: {
+                        ...siteConfig.behavior,
+                        injectCount: parseInt(e.target.value) || 6
+                      }
+                    })}
                     className="w-full p-2 border border-gray-200 rounded text-sm"
                   />
                 </div>
-              </div>
 
-              {/* Branding Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg">
-                <h4 className="text-sm font-semibold text-purple-900 mb-3">🎨 Branding</h4>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-purple-700 mb-1">Logo URL</label>
-                    <input
-                      type="text"
-                      value={siteConfig.branding?.logoUrl || ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        branding: {
-                          ...siteConfig.branding,
-                          logoUrl: e.target.value
-                        }
-                      })}
-                      placeholder="https://semantix-ai.com/powered.png"
-                      className="w-full p-2 border border-purple-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-purple-700 mb-1">Loading Text</label>
-                    <input
-                      type="text"
-                      value={siteConfig.branding?.loadingText || ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        branding: {
-                          ...siteConfig.branding,
-                          loadingText: e.target.value
-                        }
-                      })}
-                      placeholder="Semantix AI מחפש עבורך..."
-                      className="w-full p-2 border border-purple-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-purple-700 mb-1">Logo Size (px)</label>
-                    <input
-                      type="number"
-                      value={siteConfig.branding?.logoSize || 120}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        branding: {
-                          ...siteConfig.branding,
-                          logoSize: parseInt(e.target.value) || 120
-                        }
-                      })}
-                      placeholder="120"
-                      className="w-full p-2 border border-purple-200 rounded text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Fade Duration (ms)</label>
+                  <input
+                    type="number"
+                    value={siteConfig.behavior.fadeMs}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      behavior: {
+                        ...siteConfig.behavior,
+                        fadeMs: parseInt(e.target.value) || 260
+                      }
+                    })}
+                    className="w-full p-2 border border-gray-200 rounded text-sm"
+                  />
                 </div>
-              </div>
 
-              {/* Autocomplete Footer Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-lg">
-                <h4 className="text-sm font-semibold text-cyan-900 mb-3">🔍 Autocomplete Footer</h4>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="autocompleteFooterEnabled"
-                      checked={siteConfig.autocompleteFooter?.enabled ?? true}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        autocompleteFooter: {
-                          ...siteConfig.autocompleteFooter,
-                          enabled: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="autocompleteFooterEnabled" className="mr-2 text-xs text-cyan-800 font-medium">
-                      Enable Autocomplete Footer
-                    </label>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-cyan-700 mb-1">Footer Text</label>
-                    <input
-                      type="text"
-                      value={siteConfig.autocompleteFooter?.text || ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        autocompleteFooter: {
-                          ...siteConfig.autocompleteFooter,
-                          text: e.target.value
-                        }
-                      })}
-                      placeholder="מופעל על ידי Semantix AI ✨"
-                      className="w-full p-2 border border-cyan-200 rounded text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-cyan-700 mb-1">Container Selector</label>
-                    <input
-                      type="text"
-                      value={siteConfig.autocompleteFooter?.selector || ''}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        autocompleteFooter: {
-                          ...siteConfig.autocompleteFooter,
-                          selector: e.target.value
-                        }
-                      })}
-                      placeholder=".autocomplete-dropdown"
-                      className="w-full p-2 border border-cyan-200 rounded text-sm font-mono"
-                    />
-                    <p className="text-xs text-cyan-600 mt-1">
-                      CSS selector of the autocomplete dropdown container
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-cyan-700 mb-1">Font Size</label>
-                    <input
-                      type="text"
-                      value={siteConfig.autocompleteFooter?.fontSize || '13px'}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        autocompleteFooter: {
-                          ...siteConfig.autocompleteFooter,
-                          fontSize: e.target.value
-                        }
-                      })}
-                      placeholder="13px"
-                      className="w-full p-2 border border-cyan-200 rounded text-sm"
-                    />
-                    <p className="text-xs text-cyan-600 mt-1">
-                      Font size for the footer text (e.g., 13px, 1rem)
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Badge Configuration */}
-              <div className="mb-4 p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-2 border-violet-300 rounded-lg shadow-sm">
-                <h4 className="text-sm font-semibold text-violet-900 mb-1">✨ AI Badge</h4>
-                <p className="text-xs text-violet-600 mb-3">סמן AI אלגנטי על כרטיסי המוצרים</p>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="aiBadgeEnabled"
-                      checked={siteConfig.aiBadge?.enabled ?? true}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        aiBadge: {
-                          ...siteConfig.aiBadge,
-                          enabled: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-violet-600 focus:ring-violet-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="aiBadgeEnabled" className="mr-2 text-xs text-violet-800 font-medium">
-                      Enable AI Badge
-                    </label>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Text</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.text || 'AI'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            text: e.target.value
-                          }
-                        })}
-                        placeholder="AI"
-                        className="w-full p-2 border border-violet-200 rounded text-sm"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Position</label>
-                      <select
-                        value={siteConfig.aiBadge?.position || 'top-right'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            position: e.target.value
-                          }
-                        })}
-                        className="w-full p-2 border border-violet-200 rounded text-sm"
-                      >
-                        <option value="top-left">Top Left</option>
-                        <option value="top-right">Top Right</option>
-                        <option value="bottom-left">Bottom Left</option>
-                        <option value="bottom-right">Bottom Right</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Background</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.backgroundColor || 'rgba(139, 92, 246, 0.1)'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            backgroundColor: e.target.value
-                          }
-                        })}
-                        placeholder="rgba(...)"
-                        className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Text Color</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.textColor || '#8b5cf6'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            textColor: e.target.value
-                          }
-                        })}
-                        placeholder="#8b5cf6"
-                        className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Border Color</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.borderColor || '#8b5cf6'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            borderColor: e.target.value
-                          }
-                        })}
-                        placeholder="#8b5cf6"
-                        className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Border Width</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.borderWidth || '1px'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            borderWidth: e.target.value
-                          }
-                        })}
-                        placeholder="1px"
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Border Style</label>
-                      <select
-                        value={siteConfig.aiBadge?.borderStyle || 'solid'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            borderStyle: e.target.value
-                          }
-                        })}
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      >
-                        <option value="solid">Solid</option>
-                        <option value="dashed">Dashed</option>
-                        <option value="dotted">Dotted</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Border Radius</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.borderRadius || '8px'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            borderRadius: e.target.value
-                          }
-                        })}
-                        placeholder="8px"
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Z-Index</label>
-                      <input
-                        type="number"
-                        value={siteConfig.aiBadge?.zIndex || 10}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            zIndex: parseInt(e.target.value) || 10
-                          }
-                        })}
-                        placeholder="10"
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Font Size</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.fontSize || '11px'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            fontSize: e.target.value
-                          }
-                        })}
-                        placeholder="11px"
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Font Weight</label>
-                      <select
-                        value={siteConfig.aiBadge?.fontWeight || '600'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            fontWeight: e.target.value
-                          }
-                        })}
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      >
-                        <option value="400">Normal (400)</option>
-                        <option value="500">Medium (500)</option>
-                        <option value="600">Semibold (600)</option>
-                        <option value="700">Bold (700)</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-violet-700 mb-1">Padding</label>
-                      <input
-                        type="text"
-                        value={siteConfig.aiBadge?.padding || '3px 8px'}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          aiBadge: {
-                            ...siteConfig.aiBadge,
-                            padding: e.target.value
-                          }
-                        })}
-                        placeholder="3px 8px"
-                        className="w-full p-2 border border-violet-200 rounded text-xs"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-violet-700 mb-1">Box Shadow</label>
-                    <input
-                      type="text"
-                      value={siteConfig.aiBadge?.boxShadow || '0 4px 12px rgba(139, 92, 246, 0.25)'}
-                      onChange={(e) => setSiteConfig({
-                        ...siteConfig,
-                        aiBadge: {
-                          ...siteConfig.aiBadge,
-                          boxShadow: e.target.value
-                        }
-                      })}
-                      placeholder="0 4px 12px rgba(139, 92, 246, 0.25)"
-                      className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
-                    />
-                    <p className="text-xs text-violet-600 mt-1">
-                      צל חזק יותר יוצר אפקט 'צף' אלגנטי ✨
-                    </p>
-                  </div>
-                  
-                  {/* Preview */}
-                  <div className="mt-4 p-4 bg-white border-2 border-violet-200 rounded-lg">
-                    <p className="text-xs font-medium text-violet-700 mb-2">👁️ Preview:</p>
-                    <div className="relative w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <span className="text-gray-400 text-xs">Product Card</span>
-                      <div
-                        style={{
-                          position: 'absolute',
-                          [siteConfig.aiBadge?.position?.includes('top') ? 'top' : 'bottom']: '8px',
-                          [siteConfig.aiBadge?.position?.includes('left') ? 'left' : 'right']: '8px',
-                          backgroundColor: siteConfig.aiBadge?.backgroundColor || 'rgba(139, 92, 246, 0.1)',
-                          color: siteConfig.aiBadge?.textColor || '#8b5cf6',
-                          border: `${siteConfig.aiBadge?.borderWidth || '1px'} ${siteConfig.aiBadge?.borderStyle || 'solid'} ${siteConfig.aiBadge?.borderColor || '#8b5cf6'}`,
-                          borderRadius: siteConfig.aiBadge?.borderRadius || '8px',
-                          fontSize: siteConfig.aiBadge?.fontSize || '11px',
-                          fontWeight: siteConfig.aiBadge?.fontWeight || '600',
-                          padding: siteConfig.aiBadge?.padding || '3px 8px',
-                          boxShadow: siteConfig.aiBadge?.boxShadow || '0 4px 12px rgba(139, 92, 246, 0.25)',
-                          zIndex: siteConfig.aiBadge?.zIndex || 10
-                        }}
-                      >
-                        {siteConfig.aiBadge?.text || 'AI'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Debug Configuration */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Debug Settings</h4>
-                
                 <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id="debugEnabled"
-                    checked={siteConfig.debug.enabled}
+                    id="showLoader"
+                    checked={siteConfig.behavior.loader}
                     onChange={(e) => setSiteConfig({
                       ...siteConfig,
-                      debug: {
-                        ...siteConfig.debug,
-                        enabled: e.target.checked
+                      behavior: {
+                        ...siteConfig.behavior,
+                        loader: e.target.checked
                       }
                     })}
                     className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="debugEnabled" className="mr-2 text-xs text-gray-700">
-                    Enable Debug Mode
+                  <label htmlFor="showLoader" className="mr-2 text-xs text-gray-700">
+                    Show Loader
                   </label>
                 </div>
               </div>
             </div>
 
-            <button 
-              onClick={handleSaveCredentials} 
-              disabled={saveCredentialsStatus === 'loading'}
-              className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-            >
-              {saveCredentialsStatus === 'loading' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : saveCredentialsStatus === 'success' ? (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              ) : saveCredentialsStatus === 'error' ? (
-                <XCircle className="mr-2 h-4 w-4" />
-              ) : null}
-              Save Credentials
-            </button>
-            {saveCredentialsStatus === 'success' && (
-              <p className="text-green-600 text-sm">✓ Credentials saved successfully</p>
-            )}
-            {saveCredentialsStatus === 'error' && (
-              <p className="text-red-600 text-sm">✗ Failed to save credentials</p>
-            )}
-          </div>
-        </div>
-      )}
+            {/* Features Configuration */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Features</h4>
 
-      {/* Sync Products Section */}
-      {userData && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-          <div className="border-b border-gray-100 p-5">
-            <h2 className="text-lg font-semibold text-gray-800">Sync Products</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Trigger an internal sync to fetch and process products from the store. 
-              This will use the user's stored credentials to sync products directly.
-            </p>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="rerankBoost"
+                    checked={siteConfig.features.rerankBoost}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      features: {
+                        ...siteConfig.features,
+                        rerankBoost: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="rerankBoost" className="mr-2 text-xs text-gray-700">
+                    Rerank Boost
+                  </label>
                 </div>
-                <div className="mr-3">
-                  <h3 className="text-sm font-medium text-blue-800">Internal Sync</h3>
-                  <p className="text-sm text-blue-700 mt-1">
-                    This will fetch products from the store using the user's credentials and process them. 
-                    The sync runs internally without requiring external webhooks or user interaction.
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="injectIntoGrid"
+                    checked={siteConfig.features.injectIntoGrid}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      features: {
+                        ...siteConfig.features,
+                        injectIntoGrid: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="injectIntoGrid" className="mr-2 text-xs text-gray-700">
+                    Inject Into Grid
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="zeroReplace"
+                    checked={siteConfig.features.zeroReplace}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      features: {
+                        ...siteConfig.features,
+                        zeroReplace: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="zeroReplace" className="mr-2 text-xs text-gray-700">
+                    Zero Results Replace
+                  </label>
+                </div>
+
+                <div className="flex items-center pt-2 border-t border-gray-200 mt-2">
+                  <input
+                    type="checkbox"
+                    id="featureDisabled"
+                    checked={siteConfig.features.disabled}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      features: {
+                        ...siteConfig.features,
+                        disabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="featureDisabled" className="mr-2 text-xs font-bold text-red-700">
+                    Disable All Features (Manual Kill-switch)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Placeholder Rotation Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-purple-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-purple-900">🔄 Placeholder Rotation</h4>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="placeholderEnabled"
+                    checked={siteConfig.placeholderRotate?.enabled ?? true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      placeholderRotate: {
+                        ...siteConfig.placeholderRotate,
+                        enabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="placeholderEnabled" className="mr-2 text-xs text-purple-700 font-medium">
+                    Enable
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-purple-800 mb-1">
+                    Placeholders (אחד בכל שורה)
+                  </label>
+                  <textarea
+                    value={Array.isArray(siteConfig.placeholderRotate?.placeholders)
+                      ? siteConfig.placeholderRotate.placeholders.join('\n')
+                      : (typeof siteConfig.placeholderRotate?.placeholders === 'string'
+                        ? siteConfig.placeholderRotate.placeholders
+                        : '')}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      placeholderRotate: {
+                        ...siteConfig.placeholderRotate,
+                        placeholders: e.target.value  // Keep as string while typing
+                      }
+                    })}
+                    onBlur={(e) => {
+                      // Convert to array only on blur
+                      const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean);
+                      setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          placeholders: arr
+                        }
+                      });
+                    }}
+                    placeholder="חפש מוצרים…&#10;נסו: טבעת כסף&#10;נסו: שרשרת עדינה"
+                    rows="5"
+                    className="w-full p-2 border border-purple-200 rounded text-sm font-mono"
+                  />
+                  <p className="text-xs text-purple-600 mt-1">
+                    לחץ <kbd className="px-1 py-0.5 bg-purple-100 rounded">Enter</kbd> לשורה חדשה • כל שורה = placeholder אחד
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-purple-700 mb-1">Interval (ms)</label>
+                    <input
+                      type="number"
+                      value={siteConfig.placeholderRotate?.intervalMs ?? 2400}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          intervalMs: parseInt(e.target.value) || 2400
+                        }
+                      })}
+                      className="w-full p-2 border border-purple-200 rounded text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-purple-700 mb-1">Fade Duration (ms)</label>
+                    <input
+                      type="number"
+                      value={siteConfig.placeholderRotate?.fadeMs ?? 220}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          fadeMs: parseInt(e.target.value) || 220
+                        }
+                      })}
+                      className="w-full p-2 border border-purple-200 rounded text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-4 space-x-reverse">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="pauseOnFocus"
+                      checked={siteConfig.placeholderRotate?.pauseOnFocus ?? true}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          pauseOnFocus: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="pauseOnFocus" className="mr-2 text-xs text-purple-700">
+                      Pause on Focus
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="onlyIfEmpty"
+                      checked={siteConfig.placeholderRotate?.onlyIfEmpty ?? true}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          onlyIfEmpty: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="onlyIfEmpty" className="mr-2 text-xs text-purple-700">
+                      Only if Empty
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Consent Popup Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-blue-900">🍪 Consent Popup</h4>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="consentEnabled"
+                    checked={siteConfig.consent?.enabled ?? true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      consent: {
+                        ...siteConfig.consent,
+                        enabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="consentEnabled" className="mr-2 text-xs text-blue-700 font-medium">
+                    Enable
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-blue-700 mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={siteConfig.consent?.title ?? ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      consent: {
+                        ...siteConfig.consent,
+                        title: e.target.value
+                      }
+                    })}
+                    placeholder="🍪 חיפוש מותאם אישית"
+                    className="w-full p-2 border border-blue-200 rounded text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-blue-700 mb-1">Text</label>
+                  <textarea
+                    value={siteConfig.consent?.text ?? ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      consent: {
+                        ...siteConfig.consent,
+                        text: e.target.value
+                      }
+                    })}
+                    placeholder="מאשרים ל־Semantix לשמור סשן לשיפור התוצאות?"
+                    rows="2"
+                    className="w-full p-2 border border-blue-200 rounded text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-blue-700 mb-1">Accept Button</label>
+                    <input
+                      type="text"
+                      value={siteConfig.consent?.acceptText ?? ''}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        consent: {
+                          ...siteConfig.consent,
+                          acceptText: e.target.value
+                        }
+                      })}
+                      placeholder="כן, אשר"
+                      className="w-full p-2 border border-blue-200 rounded text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-blue-700 mb-1">Decline Button</label>
+                    <input
+                      type="text"
+                      value={siteConfig.consent?.declineText ?? ''}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        consent: {
+                          ...siteConfig.consent,
+                          declineText: e.target.value
+                        }
+                      })}
+                      placeholder="לא, תודה"
+                      className="w-full p-2 border border-blue-200 rounded text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Click Tracking Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-green-900">📊 Click Tracking</h4>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="trackingEnabled"
+                    checked={siteConfig.clickTracking?.enabled ?? true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      clickTracking: {
+                        ...siteConfig.clickTracking,
+                        enabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="trackingEnabled" className="mr-2 text-xs text-green-700 font-medium">
+                    Enable
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="pt-2">
+                  <label className="block text-xs font-medium text-green-700 mb-1">Add to Cart Button Selector</label>
+                  <input
+                    type="text"
+                    value={siteConfig.clickTracking?.addToCartSelector || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      clickTracking: {
+                        ...siteConfig.clickTracking,
+                        addToCartSelector: e.target.value
+                      }
+                    })}
+                    placeholder="e.g., .add_to_cart_button, button[name='add']"
+                    className="w-full p-2 border border-green-200 rounded text-sm bg-white focus:ring-2 focus:ring-green-500 transition-all shadow-sm"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-4 space-x-reverse">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="trackNativeClicks"
+                      checked={siteConfig.clickTracking?.trackNativeClicks ?? true}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          trackNativeClicks: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="trackNativeClicks" className="mr-2 text-xs text-green-700">
+                      Track Native Clicks
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="universalMode"
+                      checked={siteConfig.clickTracking?.universalMode ?? false}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          universalMode: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="universalMode" className="mr-2 text-xs text-green-700">
+                      Universal Mode
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="forceNavDelay"
+                      checked={siteConfig.clickTracking?.forceNavDelay ?? true}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          forceNavDelay: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="forceNavDelay" className="mr-2 text-xs text-green-700">
+                      Force Nav Delay
+                    </label>
+                  </div>
+                </div>
+
+                {/* Universal Link Selector - shown when universalMode is enabled */}
+                {siteConfig.clickTracking?.universalMode && (
+                  <div>
+                    <label className="block text-xs font-medium text-green-700 mb-1">
+                      Universal Link Selector
+                      <span className="text-green-600 font-normal mr-1">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={siteConfig.clickTracking?.universalLinkSelector ?? ''}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          universalLinkSelector: e.target.value
+                        }
+                      })}
+                      placeholder='a.my-product-link, .product a[href*="/products/"]'
+                      className="w-full p-2 border border-green-200 rounded text-sm font-mono"
+                    />
+                    <p className="text-xs text-green-600 mt-1">
+                      CSS selector לזיהוי כל הקישורים למוצרים באתר (למשל: <code className="bg-green-100 px-1 rounded">a.product-link</code>)
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-green-700 mb-1">Delay (ms)</label>
+                    <input
+                      type="number"
+                      value={siteConfig.clickTracking?.forceNavDelayMs ?? 80}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          forceNavDelayMs: parseInt(e.target.value) || 80
+                        }
+                      })}
+                      className="w-full p-2 border border-green-200 rounded text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-green-700 mb-1">Queue Max</label>
+                    <input
+                      type="number"
+                      value={siteConfig.clickTracking?.queueMax ?? 25}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        clickTracking: {
+                          ...siteConfig.clickTracking,
+                          queueMax: parseInt(e.target.value) || 25
+                        }
+                      })}
+                      className="w-full p-2 border border-green-200 rounded text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Texts Configuration */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Text Labels</h4>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Loader Text</label>
+                <input
+                  type="text"
+                  value={siteConfig.texts.loader}
+                  onChange={(e) => setSiteConfig({
+                    ...siteConfig,
+                    texts: {
+                      ...siteConfig.texts,
+                      loader: e.target.value
+                    }
+                  })}
+                  placeholder="טוען תוצאות חכמות…"
+                  className="w-full p-2 border border-gray-200 rounded text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Branding Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-purple-900 mb-3">🎨 Branding</h4>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Logo URL</label>
+                  <input
+                    type="text"
+                    value={siteConfig.branding?.logoUrl || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      branding: {
+                        ...siteConfig.branding,
+                        logoUrl: e.target.value
+                      }
+                    })}
+                    placeholder="https://semantix-ai.com/powered.png"
+                    className="w-full p-2 border border-purple-200 rounded text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Loading Text</label>
+                  <input
+                    type="text"
+                    value={siteConfig.branding?.loadingText || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      branding: {
+                        ...siteConfig.branding,
+                        loadingText: e.target.value
+                      }
+                    })}
+                    placeholder="Semantix AI מחפש עבורך..."
+                    className="w-full p-2 border border-purple-200 rounded text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Logo Size (px)</label>
+                  <input
+                    type="number"
+                    value={siteConfig.branding?.logoSize || 120}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      branding: {
+                        ...siteConfig.branding,
+                        logoSize: parseInt(e.target.value) || 120
+                      }
+                    })}
+                    placeholder="120"
+                    className="w-full p-2 border border-purple-200 rounded text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Autocomplete Footer Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-cyan-900 mb-3">🔍 Autocomplete Footer</h4>
+
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="autocompleteFooterEnabled"
+                    checked={siteConfig.autocompleteFooter?.enabled ?? true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      autocompleteFooter: {
+                        ...siteConfig.autocompleteFooter,
+                        enabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="autocompleteFooterEnabled" className="mr-2 text-xs text-cyan-800 font-medium">
+                    Enable Autocomplete Footer
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-cyan-700 mb-1">Footer Text</label>
+                  <input
+                    type="text"
+                    value={siteConfig.autocompleteFooter?.text || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      autocompleteFooter: {
+                        ...siteConfig.autocompleteFooter,
+                        text: e.target.value
+                      }
+                    })}
+                    placeholder="מופעל על ידי Semantix AI ✨"
+                    className="w-full p-2 border border-cyan-200 rounded text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-cyan-700 mb-1">Container Selector</label>
+                  <input
+                    type="text"
+                    value={siteConfig.autocompleteFooter?.selector || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      autocompleteFooter: {
+                        ...siteConfig.autocompleteFooter,
+                        selector: e.target.value
+                      }
+                    })}
+                    placeholder=".autocomplete-dropdown"
+                    className="w-full p-2 border border-cyan-200 rounded text-sm font-mono"
+                  />
+                  <p className="text-xs text-cyan-600 mt-1">
+                    CSS selector of the autocomplete dropdown container
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-cyan-700 mb-1">Font Size</label>
+                  <input
+                    type="text"
+                    value={siteConfig.autocompleteFooter?.fontSize || '13px'}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      autocompleteFooter: {
+                        ...siteConfig.autocompleteFooter,
+                        fontSize: e.target.value
+                      }
+                    })}
+                    placeholder="13px"
+                    className="w-full p-2 border border-cyan-200 rounded text-sm"
+                  />
+                  <p className="text-xs text-cyan-600 mt-1">
+                    Font size for the footer text (e.g., 13px, 1rem)
                   </p>
                 </div>
               </div>
             </div>
 
-            <button 
-              onClick={handleSyncProducts} 
-              disabled={syncStatus === 'loading' || !userData || !apiKey}
-              className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-            >
-              {syncStatus === 'loading' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : syncStatus === 'success' ? (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              ) : syncStatus === 'error' ? (
-                <XCircle className="mr-2 h-4 w-4" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              {syncStatus === 'loading' ? 'Syncing Products...' : 'Sync Products from Store'}
-            </button>
-            {syncStatus === 'success' && (
-              <p className="text-green-600 text-sm text-center">✓ Product sync completed successfully!</p>
-            )}
-            {syncStatus === 'error' && (
-              <p className="text-red-600 text-sm text-center">✗ Error during product sync. Check logs below.</p>
-            )}
+            {/* AI Badge Configuration */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-2 border-violet-300 rounded-lg shadow-sm">
+              <h4 className="text-sm font-semibold text-violet-900 mb-1">✨ AI Badge</h4>
+              <p className="text-xs text-violet-600 mb-3">סמן AI אלגנטי על כרטיסי המוצרים</p>
 
-            {/* Real-time sync logs */}
-            {(syncStatus === 'loading' || syncLogs.length > 0) && (
-              <div className="mt-4 bg-gray-900 rounded-lg p-4 max-h-80 overflow-y-auto">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sync Logs</h4>
-                  {syncStatus === 'loading' && (
-                    <span className="flex items-center text-xs text-yellow-400">
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Processing...
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-0.5 font-mono text-xs">
-                  {syncLogs.length === 0 && syncStatus === 'loading' && (
-                    <p className="text-gray-500">Waiting for first logs...</p>
-                  )}
-                  {syncLogs.map((log, i) => (
-                    <p key={i} className={`${
-                      log.includes('❌') ? 'text-red-400' : 
-                      log.includes('✅') ? 'text-green-400' : 
-                      log.includes('⚠️') ? 'text-yellow-400' :
-                      log.includes('🚀') ? 'text-blue-400' :
-                      log.includes('📊') ? 'text-purple-400' :
-                      'text-gray-300'
-                    }`}>
-                      {log}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Reprocessing Options */}
-      {userData && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-          <div className="border-b border-gray-100 p-5">
-            <h2 className="text-lg font-semibold text-gray-800">Reprocessing Options</h2>
-            <p className="text-sm text-gray-500 mt-1">Select which components to reprocess.</p>
-          </div>
-          <div className="p-6 space-y-4">
-            {/* Filter: Only products without soft categories */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-              <div className="flex flex-col space-y-4">
-                <div className="flex items-start space-x-3 space-x-reverse">
+              <div className="space-y-3">
+                <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id="onlyWithoutSoftCategories"
-                    checked={onlyWithoutSoftCategories}
-                    onChange={(e) => setOnlyWithoutSoftCategories(e.target.checked)}
-                    className="mt-1 h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                    id="aiBadgeEnabled"
+                    checked={siteConfig.aiBadge?.enabled ?? true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      aiBadge: {
+                        ...siteConfig.aiBadge,
+                        enabled: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-violet-600 focus:ring-violet-500 border-gray-300 rounded"
                   />
-                  <div className="flex-1">
-                    <label htmlFor="onlyWithoutSoftCategories" className="text-sm font-semibold text-yellow-900 cursor-pointer flex items-center">
-                      <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      Only Reprocess Products WITHOUT Soft Categories
-                    </label>
-                    <p className="text-xs text-yellow-800 mt-1">
-                      When enabled, only products that are missing soft categories (empty or null) will be reprocessed.
-                    </p>
+                  <label htmlFor="aiBadgeEnabled" className="mr-2 text-xs text-violet-800 font-medium">
+                    Enable AI Badge
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Text</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.text || 'AI'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          text: e.target.value
+                        }
+                      })}
+                      placeholder="AI"
+                      className="w-full p-2 border border-violet-200 rounded text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Position</label>
+                    <select
+                      value={siteConfig.aiBadge?.position || 'top-right'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          position: e.target.value
+                        }
+                      })}
+                      className="w-full p-2 border border-violet-200 rounded text-sm"
+                    >
+                      <option value="top-left">Top Left</option>
+                      <option value="top-right">Top Right</option>
+                      <option value="bottom-left">Bottom Left</option>
+                      <option value="bottom-right">Bottom Right</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-3 space-x-reverse border-t border-yellow-200 pt-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Background</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.backgroundColor || 'rgba(139, 92, 246, 0.1)'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          backgroundColor: e.target.value
+                        }
+                      })}
+                      placeholder="rgba(...)"
+                      className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Text Color</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.textColor || '#8b5cf6'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          textColor: e.target.value
+                        }
+                      })}
+                      placeholder="#8b5cf6"
+                      className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Border Color</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.borderColor || '#8b5cf6'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          borderColor: e.target.value
+                        }
+                      })}
+                      placeholder="#8b5cf6"
+                      className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Border Width</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.borderWidth || '1px'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          borderWidth: e.target.value
+                        }
+                      })}
+                      placeholder="1px"
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Border Style</label>
+                    <select
+                      value={siteConfig.aiBadge?.borderStyle || 'solid'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          borderStyle: e.target.value
+                        }
+                      })}
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    >
+                      <option value="solid">Solid</option>
+                      <option value="dashed">Dashed</option>
+                      <option value="dotted">Dotted</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Border Radius</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.borderRadius || '8px'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          borderRadius: e.target.value
+                        }
+                      })}
+                      placeholder="8px"
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Z-Index</label>
+                    <input
+                      type="number"
+                      value={siteConfig.aiBadge?.zIndex || 10}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          zIndex: parseInt(e.target.value) || 10
+                        }
+                      })}
+                      placeholder="10"
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Font Size</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.fontSize || '11px'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          fontSize: e.target.value
+                        }
+                      })}
+                      placeholder="11px"
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Font Weight</label>
+                    <select
+                      value={siteConfig.aiBadge?.fontWeight || '600'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          fontWeight: e.target.value
+                        }
+                      })}
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    >
+                      <option value="400">Normal (400)</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">Semibold (600)</option>
+                      <option value="700">Bold (700)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-violet-700 mb-1">Padding</label>
+                    <input
+                      type="text"
+                      value={siteConfig.aiBadge?.padding || '3px 8px'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        aiBadge: {
+                          ...siteConfig.aiBadge,
+                          padding: e.target.value
+                        }
+                      })}
+                      placeholder="3px 8px"
+                      className="w-full p-2 border border-violet-200 rounded text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-violet-700 mb-1">Box Shadow</label>
+                  <input
+                    type="text"
+                    value={siteConfig.aiBadge?.boxShadow || '0 4px 12px rgba(139, 92, 246, 0.25)'}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      aiBadge: {
+                        ...siteConfig.aiBadge,
+                        boxShadow: e.target.value
+                      }
+                    })}
+                    placeholder="0 4px 12px rgba(139, 92, 246, 0.25)"
+                    className="w-full p-2 border border-violet-200 rounded text-xs font-mono"
+                  />
+                  <p className="text-xs text-violet-600 mt-1">
+                    צל חזק יותר יוצר אפקט 'צף' אלגנטי ✨
+                  </p>
+                </div>
+
+                {/* Preview */}
+                <div className="mt-4 p-4 bg-white border-2 border-violet-200 rounded-lg">
+                  <p className="text-xs font-medium text-violet-700 mb-2">👁️ Preview:</p>
+                  <div className="relative w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <span className="text-gray-400 text-xs">Product Card</span>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        [siteConfig.aiBadge?.position?.includes('top') ? 'top' : 'bottom']: '8px',
+                        [siteConfig.aiBadge?.position?.includes('left') ? 'left' : 'right']: '8px',
+                        backgroundColor: siteConfig.aiBadge?.backgroundColor || 'rgba(139, 92, 246, 0.1)',
+                        color: siteConfig.aiBadge?.textColor || '#8b5cf6',
+                        border: `${siteConfig.aiBadge?.borderWidth || '1px'} ${siteConfig.aiBadge?.borderStyle || 'solid'} ${siteConfig.aiBadge?.borderColor || '#8b5cf6'}`,
+                        borderRadius: siteConfig.aiBadge?.borderRadius || '8px',
+                        fontSize: siteConfig.aiBadge?.fontSize || '11px',
+                        fontWeight: siteConfig.aiBadge?.fontWeight || '600',
+                        padding: siteConfig.aiBadge?.padding || '3px 8px',
+                        boxShadow: siteConfig.aiBadge?.boxShadow || '0 4px 12px rgba(139, 92, 246, 0.25)',
+                        zIndex: siteConfig.aiBadge?.zIndex || 10
+                      }}
+                    >
+                      {siteConfig.aiBadge?.text || 'AI'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Debug Configuration */}
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Debug Settings</h4>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="debugEnabled"
+                  checked={siteConfig.debug.enabled}
+                  onChange={(e) => setSiteConfig({
+                    ...siteConfig,
+                    debug: {
+                      ...siteConfig.debug,
+                      enabled: e.target.checked
+                    }
+                  })}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="debugEnabled" className="mr-2 text-xs text-gray-700">
+                  Enable Debug Mode
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveCredentials}
+            disabled={saveCredentialsStatus === 'loading'}
+            className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+          >
+            {saveCredentialsStatus === 'loading' ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : saveCredentialsStatus === 'success' ? (
+              <CheckCircle className="mr-2 h-4 w-4" />
+            ) : saveCredentialsStatus === 'error' ? (
+              <XCircle className="mr-2 h-4 w-4" />
+            ) : null}
+            Save Credentials
+          </button>
+          {saveCredentialsStatus === 'success' && (
+            <p className="text-green-600 text-sm">✓ Credentials saved successfully</p>
+          )}
+          {saveCredentialsStatus === 'error' && (
+            <p className="text-red-600 text-sm">✗ Failed to save credentials</p>
+          )}
+        </div>
+      )}
+
+      {/* Sync Products Section */}
+      {
+        userData && (
+          <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+            <div className="border-b border-gray-100 p-5">
+              <h2 className="text-lg font-semibold text-gray-800">Sync Products</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Trigger an internal sync to fetch and process products from the store.
+                This will use the user's stored credentials to sync products directly.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="mr-3">
+                    <h3 className="text-sm font-medium text-blue-800">Internal Sync</h3>
+                    <p className="text-sm text-blue-700 mt-1">
+                      This will fetch products from the store using the user's credentials and process them.
+                      The sync runs internally without requiring external webhooks or user interaction.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSyncProducts}
+                disabled={syncStatus === 'loading' || !userData || !apiKey}
+                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                {syncStatus === 'loading' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : syncStatus === 'success' ? (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                ) : syncStatus === 'error' ? (
+                  <XCircle className="mr-2 h-4 w-4" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                {syncStatus === 'loading' ? 'Syncing Products...' : 'Sync Products from Store'}
+              </button>
+              {syncStatus === 'success' && (
+                <p className="text-green-600 text-sm text-center">✓ Product sync completed successfully!</p>
+              )}
+              {syncStatus === 'error' && (
+                <p className="text-red-600 text-sm text-center">✗ Error during product sync. Check logs below.</p>
+              )}
+
+              {/* Real-time sync logs */}
+              {(syncStatus === 'loading' || syncLogs.length > 0) && (
+                <div className="mt-4 bg-gray-900 rounded-lg p-4 max-h-80 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sync Logs</h4>
+                    {syncStatus === 'loading' && (
+                      <span className="flex items-center text-xs text-yellow-400">
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        Processing...
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 font-mono text-xs">
+                    {syncLogs.length === 0 && syncStatus === 'loading' && (
+                      <p className="text-gray-500">Waiting for first logs...</p>
+                    )}
+                    {syncLogs.map((log, i) => (
+                      <p key={i} className={`${log.includes('❌') ? 'text-red-400' :
+                        log.includes('✅') ? 'text-green-400' :
+                          log.includes('⚠️') ? 'text-yellow-400' :
+                            log.includes('🚀') ? 'text-blue-400' :
+                              log.includes('📊') ? 'text-purple-400' :
+                                'text-gray-300'
+                        }`}>
+                        {log}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      {/* Reprocessing Options */}
+      {
+        userData && (
+          <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+            <div className="border-b border-gray-100 p-5">
+              <h2 className="text-lg font-semibold text-gray-800">Reprocessing Options</h2>
+              <p className="text-sm text-gray-500 mt-1">Select which components to reprocess.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Filter: Only products without soft categories */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-start space-x-3 space-x-reverse">
+                    <input
+                      type="checkbox"
+                      id="onlyWithoutSoftCategories"
+                      checked={onlyWithoutSoftCategories}
+                      onChange={(e) => setOnlyWithoutSoftCategories(e.target.checked)}
+                      className="mt-1 h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="onlyWithoutSoftCategories" className="text-sm font-semibold text-yellow-900 cursor-pointer flex items-center">
+                        <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Only Reprocess Products WITHOUT Soft Categories
+                      </label>
+                      <p className="text-xs text-yellow-800 mt-1">
+                        When enabled, only products that are missing soft categories (empty or null) will be reprocessed.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3 space-x-reverse border-t border-yellow-200 pt-4">
+                    <input
+                      type="checkbox"
+                      id="onlyUnprocessed"
+                      checked={onlyUnprocessed}
+                      onChange={(e) => setOnlyUnprocessed(e.target.checked)}
+                      className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="onlyUnprocessed" className="text-sm font-semibold text-indigo-900 cursor-pointer flex items-center">
+                        <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reprocess Fresh Unprocessed Products ONLY
+                      </label>
+                      <p className="text-xs text-indigo-800 mt-1">
+                        Target products with NO embeddings and NO existing categories/types. Use this for products that failed initial onboarding.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <span className="text-sm font-medium text-gray-700">Select All / Deselect All</span>
+                <button
+                  onClick={toggleAll}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Toggle All
+                </button>
+              </div>
+
+              {[
+                { key: 'reprocessHardCategories', label: 'Hard Categories', description: 'Reprocess main product categories' },
+                { key: 'reprocessSoftCategories', label: 'Soft Categories', description: 'Reprocess flexible categorization' },
+                { key: 'reprocessTypes', label: 'Product Types', description: 'Reprocess product type classifications' },
+                { key: 'reprocessColors', label: 'Colors', description: 'Reprocess product color classifications' },
+                { key: 'reprocessVariants', label: 'Variants', description: 'Reprocess product variants (sizes, colors)' },
+                { key: 'reprocessEmbeddings', label: 'Embeddings', description: 'Regenerate vector embeddings' },
+                { key: 'reprocessDescriptions', label: 'Descriptions', description: 'Retranslate and enrich descriptions' },
+                { key: 'translateBeforeEmbedding', label: 'Translation', description: 'Translate to English before embedding' }
+              ].map(({ key, label, description }) => (
+                <div key={key} className="flex items-start space-x-3 space-x-reverse">
                   <input
                     type="checkbox"
-                    id="onlyUnprocessed"
-                    checked={onlyUnprocessed}
-                    onChange={(e) => setOnlyUnprocessed(e.target.checked)}
+                    id={key}
+                    checked={reprocessOptions[key]}
+                    onChange={() => toggleOption(key)}
                     className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                   />
                   <div className="flex-1">
-                    <label htmlFor="onlyUnprocessed" className="text-sm font-semibold text-indigo-900 cursor-pointer flex items-center">
-                      <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Reprocess Fresh Unprocessed Products ONLY
+                    <label htmlFor={key} className="text-sm font-medium text-gray-700 cursor-pointer">
+                      {label}
                     </label>
-                    <p className="text-xs text-indigo-800 mt-1">
-                      Target products with NO embeddings and NO existing categories/types. Use this for products that failed initial onboarding.
-                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{description}</p>
                   </div>
                 </div>
-              </div>
-            </div>
+              ))}
 
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <span className="text-sm font-medium text-gray-700">Select All / Deselect All</span>
-              <button
-                onClick={toggleAll}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-              >
-                Toggle All
-              </button>
-            </div>
-            
-            {[
-              { key: 'reprocessHardCategories', label: 'Hard Categories', description: 'Reprocess main product categories' },
-              { key: 'reprocessSoftCategories', label: 'Soft Categories', description: 'Reprocess flexible categorization' },
-              { key: 'reprocessTypes', label: 'Product Types', description: 'Reprocess product type classifications' },
-              { key: 'reprocessColors', label: 'Colors', description: 'Reprocess product color classifications' },
-              { key: 'reprocessVariants', label: 'Variants', description: 'Reprocess product variants (sizes, colors)' },
-              { key: 'reprocessEmbeddings', label: 'Embeddings', description: 'Regenerate vector embeddings' },
-              { key: 'reprocessDescriptions', label: 'Descriptions', description: 'Retranslate and enrich descriptions' },
-              { key: 'translateBeforeEmbedding', label: 'Translation', description: 'Translate to English before embedding' }
-            ].map(({ key, label, description }) => (
-              <div key={key} className="flex items-start space-x-3 space-x-reverse">
-                <input
-                  type="checkbox"
-                  id={key}
-                  checked={reprocessOptions[key]}
-                  onChange={() => toggleOption(key)}
-                  className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <div className="flex-1">
-                  <label htmlFor={key} className="text-sm font-medium text-gray-700 cursor-pointer">
-                    {label}
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1">{description}</p>
-                </div>
-              </div>
-            ))}
-
-            {/* Incremental Mode: Add new soft categories - ADDITIONAL OPTION */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
-              <div className="flex flex-col space-y-4">
-                <div className="flex items-start space-x-3 space-x-reverse">
-                  <input
-                    type="checkbox"
-                    id="incrementalMode"
-                    checked={incrementalMode}
-                    onChange={(e) => setIncrementalMode(e.target.checked)}
-                    className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="incrementalMode" className="text-sm font-semibold text-green-900 cursor-pointer flex items-center">
-                      <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      מצב הוספה מצטברת (Incremental Mode) - אפשרות נוספת
-                    </label>
-                    <p className="text-xs text-green-800 mt-1">
-                      הוסף קטגוריות חדשות (רכות ו/או קשיחות) למוצרים מעובדים ללא עיבוד מחדש מלא. זה חוסך זמן ועלויות API.
-                      <br />
-                      <strong>שים לב:</strong> זה מצב נפרד שעובד במקביל לאפשרויות למעלה.
-                    </p>
+              {/* Incremental Mode: Add new soft categories - ADDITIONAL OPTION */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-start space-x-3 space-x-reverse">
+                    <input
+                      type="checkbox"
+                      id="incrementalMode"
+                      checked={incrementalMode}
+                      onChange={(e) => setIncrementalMode(e.target.checked)}
+                      className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="incrementalMode" className="text-sm font-semibold text-green-900 cursor-pointer flex items-center">
+                        <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        מצב הוספה מצטברת (Incremental Mode) - אפשרות נוספת
+                      </label>
+                      <p className="text-xs text-green-800 mt-1">
+                        הוסף קטגוריות חדשות (רכות ו/או קשיחות) למוצרים מעובדים ללא עיבוד מחדש מלא. זה חוסך זמן ועלויות API.
+                        <br />
+                        <strong>שים לב:</strong> זה מצב נפרד שעובד במקביל לאפשרויות למעלה.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {incrementalMode && (
-                  <div className="border-t border-green-200 pt-4 space-y-4">
-                    <div>
-                      <label htmlFor="incrementalSoftCategories" className="block text-sm font-medium text-green-900 mb-2">
-                        קטגוריות רכות חדשות להוספה (מופרדות בפסיקים)
-                      </label>
-                      <input
-                        type="text"
-                        id="incrementalSoftCategories"
-                        value={incrementalSoftCategories}
-                        onChange={(e) => setIncrementalSoftCategories(e.target.value)}
-                        placeholder="לדוגמה: מתנה, קיצי, עמיד למים"
-                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                        dir="rtl"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="incrementalHardCategories" className="block text-sm font-medium text-green-900 mb-2">
-                        קטגוריות קשיחות חדשות להוספה (מופרדות בפסיקים)
-                      </label>
-                      <input
-                        type="text"
-                        id="incrementalHardCategories"
-                        value={incrementalHardCategories}
-                        onChange={(e) => setIncrementalHardCategories(e.target.value)}
-                        placeholder="לדוגמה: ביגוד, אלקטרוניקה, ספורט"
-                        className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                        dir="rtl"
-                      />
-                    </div>
-                    <p className="text-xs text-green-700">
-                      💡 טיפ: המערכת תוסיף רק את הקטגוריות החדשות למוצרים, מבלי לגעת בקטגוריות הקיימות.
-                      ניתן להזין קטגוריות רכות, קשיחות, או שניהם בו-זמנית.
-                    </p>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <div className="mr-2">
-                          <p className="text-xs text-blue-700">
-                            במצב זה, המערכת תעבור רק על מוצרים מעובדים ותוסיף את הקטגוריות החדשות למערך הקיים.
-                          </p>
+                  {incrementalMode && (
+                    <div className="border-t border-green-200 pt-4 space-y-4">
+                      <div>
+                        <label htmlFor="incrementalSoftCategories" className="block text-sm font-medium text-green-900 mb-2">
+                          קטגוריות רכות חדשות להוספה (מופרדות בפסיקים)
+                        </label>
+                        <input
+                          type="text"
+                          id="incrementalSoftCategories"
+                          value={incrementalSoftCategories}
+                          onChange={(e) => setIncrementalSoftCategories(e.target.value)}
+                          placeholder="לדוגמה: מתנה, קיצי, עמיד למים"
+                          className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="incrementalHardCategories" className="block text-sm font-medium text-green-900 mb-2">
+                          קטגוריות קשיחות חדשות להוספה (מופרדות בפסיקים)
+                        </label>
+                        <input
+                          type="text"
+                          id="incrementalHardCategories"
+                          value={incrementalHardCategories}
+                          onChange={(e) => setIncrementalHardCategories(e.target.value)}
+                          placeholder="לדוגמה: ביגוד, אלקטרוניקה, ספורט"
+                          className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="incrementalColors" className="block text-sm font-medium text-green-900 mb-2">
+                          צבעים חדשים להוספה (מופרדים בפסיקים)
+                        </label>
+                        <input
+                          type="text"
+                          id="incrementalColors"
+                          value={incrementalColors}
+                          onChange={(e) => setIncrementalColors(e.target.value)}
+                          placeholder="לדוגמה: שחור, לבן, זהב"
+                          className="w-full px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                          dir="rtl"
+                        />
+                      </div>
+                      <p className="text-xs text-green-700">
+                        💡 טיפ: המערכת תוסיף רק את המאפיינים החדשים למוצרים, מבלי לגעת בקיימים.
+                        ניתן להזין קטגוריות רכות, קשיחות, או צבעים.
+                      </p>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0">
+                            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div className="mr-2">
+                            <p className="text-xs text-blue-700">
+                              במצב זה, המערכת תעבור רק על מוצרים מעובדים ותוסיף את הקטגוריות החדשות למערך הקיים.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Regular Reprocessing Button */}
-            <button 
-              onClick={handleProcessProducts} 
-              disabled={processingStatus === 'loading' || !userData || !dbName}
-              className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center mt-6"
-            >
-              {processingStatus === 'loading' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : processingStatus === 'success' ? (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              ) : processingStatus === 'error' ? (
-                <XCircle className="mr-2 h-4 w-4" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Start Reprocessing
-            </button>
-            {processingStatus === 'success' && (
-              <p className="text-green-600 text-sm text-center">✓ Product reprocessing initiated successfully!</p>
-            )}
-            {processingStatus === 'error' && (
-              <p className="text-red-600 text-sm text-center">✗ Error initiating product reprocessing</p>
-            )}
-
-            {/* Incremental Mode Button - Only shown when incremental mode is enabled */}
-            {incrementalMode && (
-              <>
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">או</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={handleIncrementalProcess} 
-                  disabled={incrementalProcessingStatus === 'loading' || !userData || !dbName}
-                  className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  {incrementalProcessingStatus === 'loading' ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : incrementalProcessingStatus === 'success' ? (
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                  ) : incrementalProcessingStatus === 'error' ? (
-                    <XCircle className="mr-2 h-4 w-4" />
-                  ) : (
-                    <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
                   )}
-                  הוסף קטגוריות חדשות (Incremental)
-                </button>
-                {incrementalProcessingStatus === 'success' && (
-                  <p className="text-green-600 text-sm text-center mt-2">✓ הוספת קטגוריות חדשות החלה בהצלחה!</p>
+                </div>
+              </div>
+
+              {/* Regular Reprocessing Button */}
+              <button
+                onClick={handleProcessProducts}
+                disabled={processingStatus === 'loading' || !userData || !dbName}
+                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center mt-6"
+              >
+                {processingStatus === 'loading' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : processingStatus === 'success' ? (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                ) : processingStatus === 'error' ? (
+                  <XCircle className="mr-2 h-4 w-4" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
                 )}
-                {incrementalProcessingStatus === 'error' && (
-                  <p className="text-red-600 text-sm text-center mt-2">✗ שגיאה בהוספת קטגוריות חדשות</p>
-                )}
-              </>
-            )}
+                Start Reprocessing
+              </button>
+              {processingStatus === 'success' && (
+                <p className="text-green-600 text-sm text-center">✓ Product reprocessing initiated successfully!</p>
+              )}
+              {processingStatus === 'error' && (
+                <p className="text-red-600 text-sm text-center">✗ Error initiating product reprocessing</p>
+              )}
+
+              {/* Incremental Mode Button - Only shown when incremental mode is enabled */}
+              {incrementalMode && (
+                <>
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">או</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleIncrementalProcess}
+                    disabled={incrementalProcessingStatus === 'loading' || !userData || !dbName}
+                    className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  >
+                    {incrementalProcessingStatus === 'loading' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : incrementalProcessingStatus === 'success' ? (
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                    ) : incrementalProcessingStatus === 'error' ? (
+                      <XCircle className="mr-2 h-4 w-4" />
+                    ) : (
+                      <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    )}
+                    הוסף קטגוריות חדשות (Incremental)
+                  </button>
+                  {incrementalProcessingStatus === 'success' && (
+                    <p className="text-green-600 text-sm text-center mt-2">✓ הוספת קטגוריות חדשות החלה בהצלחה!</p>
+                  )}
+                  {incrementalProcessingStatus === 'error' && (
+                    <p className="text-red-600 text-sm text-center mt-2">✗ שגיאה בהוספת קטגוריות חדשות</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
     </div>
   );
 }

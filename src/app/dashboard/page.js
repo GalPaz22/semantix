@@ -50,7 +50,9 @@ import {
   Package,
   DollarSign,
   Monitor,
-
+  MousePointer2,
+  Zap,
+  Star
 } from "lucide-react";
 
 
@@ -310,6 +312,26 @@ function isTransliteration(text1, text2) {
   }
 
   return false;
+}
+
+// Helper to parse event timestamps (handles both ms and seconds)
+function parseEventTime(timestamp) {
+  if (!timestamp) return 0;
+  // If it's a number, check if it's in seconds (typical Unix timestamp ~1.7 billion)
+  // 10000000000 is year 2286 in seconds, so anything below is definitely seconds
+  if (typeof timestamp === 'number') {
+    return timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+  }
+  // If it's a string, try parsing it
+  const parsed = new Date(timestamp).getTime();
+  if (!isNaN(parsed)) {
+    // Some strings might be stringified numbers of seconds
+    if (!isNaN(Number(timestamp)) && Number(timestamp) < 10000000000) {
+      return Number(timestamp) * 1000;
+    }
+    return parsed;
+  }
+  return 0;
 }
 
 function isComplex(query) {
@@ -1043,9 +1065,14 @@ function AnalyticsPanel({ session, onboarding }) {
   const [loadingClicks, setLoadingClicks] = useState(false);
   const [clickError, setClickError] = useState("");
 
+  // Add state for boosted products
+  const [boostedProducts, setBoostedProducts] = useState([]);
+  const [loadingBoosted, setLoadingBoosted] = useState(false);
+
   const [cartDetailsExpanded, setCartDetailsExpanded] = useState(false);
   const [checkoutDetailsExpanded, setCheckoutDetailsExpanded] = useState(false);
   const [clickDetailsExpanded, setClickDetailsExpanded] = useState(false);
+  const [exposureDetailsExpanded, setExposureDetailsExpanded] = useState(false);
 
   // Semantix funnel state
   const [semantixExpanded, setSemantixExpanded] = useState(false);
@@ -1219,8 +1246,8 @@ function AnalyticsPanel({ session, onboarding }) {
           endDate: endDate || null
         };
 
-        // We fetch queries and performance data (cart, checkout, clicks) in parallel
-        const [queriesRes, performanceRes] = await Promise.all([
+        // We fetch queries, performance data, and boosted products in parallel
+        const [queriesRes, performanceRes, boostedRes] = await Promise.all([
           fetch("/api/analytics/queries", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1230,11 +1257,17 @@ function AnalyticsPanel({ session, onboarding }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
+          }),
+          fetch("/api/analytics/boosted-products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dbName: onboardDB })
           })
         ]);
 
         const queriesData = await queriesRes.json();
         const performanceData = await performanceRes.json();
+        const boostedData = await boostedRes.json();
 
         if (!queriesRes.ok) throw new Error(queriesData.error || "Failed to fetch queries");
         if (!performanceRes.ok) throw new Error(performanceData.error || "Failed to fetch performance data");
@@ -1246,6 +1279,7 @@ function AnalyticsPanel({ session, onboarding }) {
         // Update Performance State
         setCartAnalytics(performanceData.cart || []);
         setCheckoutEvents(performanceData.checkout || []);
+        setBoostedProducts(boostedData.boostedProducts || []);
 
         // Note: The performance API currently returns cart and checkout. 
         // If clicks are needed, they should be added to that endpoint or handled here.
@@ -1411,7 +1445,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
     // Filter cart analytics to last 30 days
     const last30DaysCart = cartAnalytics.filter(item => {
-      const itemDate = new Date(item.timestamp || item.created_at);
+      const itemDate = new Date(parseEventTime(item.timestamp || item.created_at));
       return itemDate >= thirtyDaysAgo;
     });
 
@@ -1595,6 +1629,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
     // Group by search query for product clicks
     const clickGroups = {};
+    const productClickCounts = {}; // Aggregate clicks by product
     clickEvents.forEach(item => {
       if (!item.search_query) return;
 
@@ -1607,10 +1642,62 @@ function AnalyticsPanel({ session, onboarding }) {
       }
 
       clickGroups[item.search_query].count += 1;
-      if (item.product_id) clickGroups[item.search_query].products.add(item.product_id);
+      if (item.product_id) {
+        clickGroups[item.search_query].products.add(item.product_id);
+
+        // Aggregate by product ID or name
+        const pId = item.product_id;
+        if (!productClickCounts[pId]) {
+          productClickCounts[pId] = {
+            id: pId,
+            name: item.product_name || item.name || "מוצר לא ידוע",
+            clicks: 0
+          };
+        }
+        productClickCounts[pId].clicks += 1;
+      }
     });
 
+    // Compute Boosted Product Exposure
+    const exposureCounts = {};
+    queries.forEach(query => {
+      if (query.deliveredProducts && Array.isArray(query.deliveredProducts)) {
+        query.deliveredProducts.forEach(productName => {
+          const normalizedName = trimAndNormalize(productName).toLowerCase();
+          if (!exposureCounts[normalizedName]) {
+            exposureCounts[normalizedName] = {
+              name: productName,
+              exposure: 0,
+              isBoosted: false
+            };
+          }
+          exposureCounts[normalizedName].exposure += 1;
+        });
+      }
+    });
+
+    // Cross-reference with boosted products list
+    const boostedExposure = boostedProducts.map(bp => {
+      const normalizedName = trimAndNormalize(bp.name).toLowerCase();
+      const exposureData = exposureCounts[normalizedName] || { exposure: 0 };
+
+      // Also check if this boosted product was clicked
+      const clickData = Object.values(productClickCounts).find(c =>
+        trimAndNormalize(c.name).toLowerCase() === normalizedName
+      ) || { clicks: 0 };
+
+      return {
+        ...bp,
+        exposure: exposureData.exposure,
+        clicks: clickData.clicks
+      };
+    }).sort((a, b) => b.exposure - a.exposure);
+
     // Convert to arrays and sort by count
+    const topClickedProducts = Object.values(productClickCounts)
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 10);
+
     const topAddToCartQueries = Object.values(addToCartGroups)
       .map(group => ({
         ...group,
@@ -1682,6 +1769,8 @@ function AnalyticsPanel({ session, onboarding }) {
       totalRevenueFromCart,
       totalConversions,
       uniqueProducts,
+      boostedExposure,
+      topClickedProducts,
       // New separated metrics
       addToCartMetrics: {
         items: finalAddToCartItems.length,
@@ -1701,7 +1790,7 @@ function AnalyticsPanel({ session, onboarding }) {
         uniqueProducts: new Set(clickEvents.map(item => item.product_id)).size
       }
     };
-  }, [cartAnalytics, checkoutEvents, clickEvents, queries]);
+  }, [cartAnalytics, checkoutEvents, clickEvents, queries, boostedProducts]);
 
   // Semantix Purchases Funnel
   const semantixFunnel = useMemo(() => {
@@ -1784,7 +1873,7 @@ function AnalyticsPanel({ session, onboarding }) {
           productName,
           quantity,
           orderId: event.order_id || null,
-          eventDate: event.timestamp ? new Date(event.timestamp) : (event.created_at ? new Date(event.created_at) : null),
+          eventDate: parseEventTime(event.timestamp || event.created_at) ? new Date(parseEventTime(event.timestamp || event.created_at)) : null,
           revenue
         };
       });
@@ -2109,6 +2198,17 @@ function AnalyticsPanel({ session, onboarding }) {
       queries: upsellQueries
     };
   }, [checkoutEvents, queries]); // Only checkouts, not cart additions
+
+  // Set of boosted product names for fast O(1) per-query lookup
+  const boostedProductNamesSet = useMemo(() => {
+    const set = new Set();
+    boostedProducts.forEach(bp => {
+      if (bp.name) {
+        set.add(trimAndNormalize(bp.name).toLowerCase());
+      }
+    });
+    return set;
+  }, [boostedProducts]);
 
   // Export queries to CSV
   const downloadCSV = () => {
@@ -2588,7 +2688,7 @@ function AnalyticsPanel({ session, onboarding }) {
                           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                             ₪{(cartMetrics?.checkoutMetrics?.revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </h2>
-                          <p className="text-xs sm:text-sm text-gray-600 mt-1">רכישות שהושלמו דרך Semantix</p>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">רכישות סך הכל</p>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                             <span className="text-xs text-gray-500">
                               {(cartMetrics?.checkoutMetrics?.items || 0).toLocaleString('en-US')} רכישות
@@ -2624,21 +2724,19 @@ function AnalyticsPanel({ session, onboarding }) {
                 {/* Product Clicks Section - Only show if we have click events */}
                 {clickEvents.length > 0 && (
                   <>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                       <div className="flex items-center space-x-4 space-x-reverse">
                         <div className="relative flex-shrink-0">
                           <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-2xl blur-md opacity-50"></div>
                           <div className="relative bg-gradient-to-br from-blue-500 via-cyan-500 to-blue-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-blue-200 ring-offset-2">
-                            <svg className="h-6 w-6 sm:h-7 sm:w-7 text-white" fill="currentColor" viewBox="0 0 20 20" strokeWidth={2.5}>
-                              <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
-                            </svg>
+                            <MousePointer2 className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
                           </div>
                         </div>
                         <div className="mr-3 sm:mr-4 min-w-0 flex-1">
                           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                             {(cartMetrics?.clickMetrics?.items || 0).toLocaleString('en-US')}
                           </h2>
-                          <p className="text-xs sm:text-sm text-gray-600 mt-1">מוצרים שנחשפו דרך חיפוש חכם</p>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">לחיצות על מוצרים דרך חיפוש חכם</p>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
                             <span className="text-xs text-gray-500">
                               {(cartMetrics?.clickMetrics?.uniqueProducts || 0).toLocaleString('en-US')} מוצרים ייחודיים
@@ -2671,11 +2769,101 @@ function AnalyticsPanel({ session, onboarding }) {
                   </>
                 )}
 
+                {/* Boosted Product Exposure Section */}
+                {(cartMetrics?.boostedExposure?.length > 0) && (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="flex items-center space-x-4 space-x-reverse">
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-red-600 rounded-2xl blur-md opacity-50"></div>
+                          <div className="relative bg-gradient-to-br from-orange-500 via-red-500 to-orange-600 p-4 sm:p-5 rounded-2xl shadow-xl ring-2 ring-orange-200 ring-offset-2">
+                            <Zap className="h-6 w-6 sm:h-7 sm:w-7 text-white" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                        <div className="mr-3 sm:mr-4 min-w-0 flex-1">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                            {(cartMetrics?.boostedExposure?.reduce((sum, p) => sum + (p.exposure || 0), 0) || 0).toLocaleString('en-US')}
+                          </h2>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">חשיפות למוצרים מקודמים (Boosted)</p>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2">
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.boostedExposure?.length || 0).toLocaleString('en-US')} מוצרים מקודמים פעילים
+                            </span>
+                            <span className="text-xs text-gray-500">•</span>
+                            <span className="text-xs text-gray-500">
+                              {(cartMetrics?.boostedExposure?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0).toLocaleString('en-US')} לחיצות על מקודמים
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setExposureDetailsExpanded(!exposureDetailsExpanded)}
+                        className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors self-start"
+                      >
+                        {exposureDetailsExpanded ? (
+                          <>
+                            <span>הסתר פרטים</span>
+                            <ChevronDown className="h-4 w-4 rotate-180 transition-transform" />
+                          </>
+                        ) : (
+                          <>
+                            <span>קרא עוד</span>
+                            <ChevronDown className="h-4 w-4 transition-transform" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+
                 {/* Expanded Details for Product Clicks */}
                 {clickDetailsExpanded && (
-                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-8">
+                    {/* Top Clicked Products Table */}
                     <div>
-                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות ללחיצות על מוצרים</h3>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">מוצרים עם מספר הלחיצות הגבוה ביותר</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                שם המוצר
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                מספר לחיצות
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(cartMetrics.topClickedProducts || []).length > 0 ? (
+                              (cartMetrics.topClickedProducts || []).map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
+                                    {item.name}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">
+                                      {item.clicks.toLocaleString('en-US')}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="2" className="px-6 py-8 text-center text-gray-500">
+                                  אין נתוני לחיצות זמינים
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Original Query-based table remains */}
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">שאילתות החיפוש המובילות ללחיצות</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full table-auto">
                           <thead>
@@ -2711,7 +2899,76 @@ function AnalyticsPanel({ session, onboarding }) {
                             ) : (
                               <tr>
                                 <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
-                                  אין נתוני לחיצות זמינים כרגע
+                                  אין שאילתות זמינות
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Expanded Details for Boosted Exposure */}
+                {exposureDetailsExpanded && (
+                  <div className="mt-6 pt-6 border-t border-gray-100 space-y-6">
+                    <div>
+                      <h3 className="text-md font-medium text-gray-700 mb-4">ביצועי מוצרים מקודמים (Boosted)</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                מוצר
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                רמת הגברה
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                חשיפות
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                לחיצות
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                CTR
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(cartMetrics.boostedExposure || []).length > 0 ? (
+                              (cartMetrics.boostedExposure || []).map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right flex items-center gap-3">
+                                    {item.image && (
+                                      <img src={item.image} alt={item.name} className="w-8 h-8 rounded object-cover" />
+                                    )}
+                                    <span className="truncate max-w-[200px]">{item.name}</span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <div className="flex items-center text-amber-500 font-bold">
+                                      <Star className="w-3 h-3 fill-current mr-1" />
+                                      {item.boost}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    {item.exposure.toLocaleString('en-US')}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    {item.clicks.toLocaleString('en-US')}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                                    <span className="font-medium text-indigo-600">
+                                      {item.exposure > 0 ? ((item.clicks / item.exposure) * 100).toFixed(1) : '0.0'}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                                  אין נתוני חשיפות למוצרים מקודמים
                                 </td>
                               </tr>
                             )}
@@ -3212,7 +3469,7 @@ function AnalyticsPanel({ session, onboarding }) {
       )}
 
       {/* Table Section - Enhanced Design */}
-      <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+      <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100" dir="rtl">
         <div className="border-b border-gray-100 p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">
@@ -3315,7 +3572,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
               const cartProducts = cartAnalytics
                 .filter(item => {
-                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  const itemTime = parseEventTime(item.timestamp || item.created_at);
                   return (item.search_query || '').toLowerCase().trim() === queryText &&
                     itemTime >= queryTime;
                 })
@@ -3329,7 +3586,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
               const purchaseProducts = checkoutEvents
                 .filter(item => {
-                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  const itemTime = parseEventTime(item.timestamp || item.created_at);
                   return (item.search_query || '').toLowerCase().trim() === queryText &&
                     itemTime >= queryTime;
                 })
@@ -3353,7 +3610,7 @@ function AnalyticsPanel({ session, onboarding }) {
               // Find click events for this query
               const clickedProducts = clickEvents
                 .filter(item => {
-                  const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                  const itemTime = parseEventTime(item.timestamp || item.created_at);
                   return (item.search_query || '').toLowerCase().trim() === queryText &&
                     itemTime >= queryTime;
                 })
@@ -3362,6 +3619,12 @@ function AnalyticsPanel({ session, onboarding }) {
                   url: item.product_url || ''
                 }))
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
+
+              // Boosted product detection for this query
+              const boostedShownProductsMobile = deliveredProducts.filter(
+                p => boostedProductNamesSet.has(trimAndNormalize(p).toLowerCase())
+              );
+              const hasBoostedShownMobile = boostedShownProductsMobile.length > 0;
 
               const hasCartAddition = cartProducts.length > 0;
               const hasPurchase = purchaseProducts.length > 0;
@@ -3420,7 +3683,15 @@ function AnalyticsPanel({ session, onboarding }) {
                         {new Date(query.timestamp).toLocaleDateString('he-IL')} • {new Date(query.timestamp).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5 flex-wrap justify-end">
+                      {hasBoostedShownMobile && (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-semibold"
+                          title={`${boostedShownProductsMobile.length} מוצר מקודם הוצג`}
+                        >
+                          ⚡ Boosted
+                        </span>
+                      )}
                       {hasClick && !hasCartAddition && !hasPurchase && (
                         <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full" title="לחיצה על מוצר">
                           <svg className="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -3598,6 +3869,29 @@ function AnalyticsPanel({ session, onboarding }) {
                     </div>
                   )}
 
+                  {/* Clicked Products */}
+                  {hasClick && (
+                    <div className="mb-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <svg className="w-3.5 h-3.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
+                        </svg>
+                        <span className="text-xs font-medium text-blue-800">לחץ על</span>
+                      </div>
+                      <div className="text-xs text-blue-800 space-y-0.5">
+                        {clickedProducts.slice(0, 2).map((product, idx) => (
+                          <div key={idx} className="flex items-start gap-1">
+                            <span>•</span>
+                            <span className="flex-1">{product.name}</span>
+                          </div>
+                        ))}
+                        {clickedProducts.length > 2 && (
+                          <div className="text-blue-600 font-medium">+{clickedProducts.length - 2} מוצרים נוספים</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Delivered Products Toggle */}
                   {hasDeliveredProducts && (
                     <button
@@ -3621,12 +3915,20 @@ function AnalyticsPanel({ session, onboarding }) {
                     <div className="mt-2 p-2 bg-white border border-gray-200 rounded text-right">
                       <div className="text-xs font-semibold text-gray-600 mb-1.5">מוצרים שהוצגו:</div>
                       <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {deliveredProducts.map((productName, idx) => (
-                          <div key={idx} className="text-xs text-gray-700 flex items-start gap-1.5">
-                            <span className="text-gray-400 mt-0.5">•</span>
-                            <span className="flex-1">{productName}</span>
-                          </div>
-                        ))}
+                        {deliveredProducts.map((productName, idx) => {
+                          const isBoosted = boostedProductNamesSet.has(trimAndNormalize(productName).toLowerCase());
+                          return (
+                            <div key={idx} className={`text-xs text-gray-700 flex items-start gap-1.5 p-1 rounded ${isBoosted ? 'bg-amber-50' : ''}`}>
+                              <span className={`mt-0.5 ${isBoosted ? 'text-amber-500' : 'text-gray-400'}`}>•</span>
+                              <span className="flex-1">{productName}</span>
+                              {isBoosted && (
+                                <span className="inline-flex items-center px-1 py-0.5 bg-amber-100 text-amber-700 rounded text-[8px] font-semibold flex-shrink-0">
+                                  ⚡
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -3639,7 +3941,7 @@ function AnalyticsPanel({ session, onboarding }) {
         {/* Desktop Table View */}
         {!loading && !error && filteredQueries.length > 0 && (
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full table-auto">
+            <table className="w-full table-auto" dir="rtl">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -3684,19 +3986,8 @@ function AnalyticsPanel({ session, onboarding }) {
 
                   const cartProducts = cartAnalytics
                     .filter(item => {
-                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                      const itemTime = parseEventTime(item.timestamp || item.created_at);
                       const isMatch = (item.search_query || '').toLowerCase().trim() === queryText;
-
-                      if (isMatch) {
-                        const diffMinutes = (itemTime - queryTime) / 1000 / 60;
-                        console.log(`[Attribution Debug] Query: "${queryText}"`, {
-                          queryTime: new Date(queryTime).toISOString(),
-                          itemTime: new Date(itemTime).toISOString(),
-                          diffMinutes: diffMinutes.toFixed(2),
-                          isWithinWindow: itemTime >= queryTime && itemTime <= queryTime + ATTRIBUTION_WINDOW_MS
-                        });
-                      }
-
                       return isMatch &&
                         itemTime >= queryTime &&
                         itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
@@ -3711,10 +4002,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
                   const purchaseProducts = checkoutEvents
                     .filter(item => {
-                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
-                      return (item.search_query || '').toLowerCase().trim() === queryText &&
-                        itemTime >= queryTime &&
-                        itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
+                      const itemTime = parseEventTime(item.timestamp || item.created_at);
                       return (item.search_query || '').toLowerCase().trim() === queryText &&
                         itemTime >= queryTime &&
                         itemTime <= queryTime + ATTRIBUTION_WINDOW_MS;
@@ -3740,7 +4028,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   // Find click events for this query
                   const clickedProducts = clickEvents
                     .filter(item => {
-                      const itemTime = new Date(item.timestamp || item.created_at).getTime();
+                      const itemTime = parseEventTime(item.timestamp || item.created_at);
                       return (item.search_query || '').toLowerCase().trim() === queryText &&
                         itemTime >= queryTime;
                     })
@@ -3749,6 +4037,12 @@ function AnalyticsPanel({ session, onboarding }) {
                       url: item.product_url || ''
                     }))
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
+
+                  // Boosted product detection for this query
+                  const boostedShownProducts = deliveredProducts.filter(
+                    p => boostedProductNamesSet.has(trimAndNormalize(p).toLowerCase())
+                  );
+                  const hasBoostedShown = boostedShownProducts.length > 0;
 
                   const hasCartAddition = cartProducts.length > 0;
                   const hasPurchase = purchaseProducts.length > 0;
@@ -3780,11 +4074,21 @@ function AnalyticsPanel({ session, onboarding }) {
                       <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center justify-between gap-2">
-                            <span>{query.query}</span>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="flex-1">{query.query}</span>
+                              {hasBoostedShown && (
+                                <span
+                                  className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold"
+                                  title={`${boostedShownProducts.length} מוצר מקודם הוצג בחיפוש זה`}
+                                >
+                                  ⚡ Boosted
+                                </span>
+                              )}
+                            </div>
                             {hasDeliveredProducts && (
                               <button
                                 onClick={toggleExpanded}
-                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0"
                               >
                                 <span>ראו תוצאות</span>
                                 <svg
@@ -3802,15 +4106,23 @@ function AnalyticsPanel({ session, onboarding }) {
                             <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
                               <div className="text-xs font-semibold text-gray-600 mb-2">מוצרים שהוצגו ({deliveredProducts.length}):</div>
                               <div className="space-y-1 max-h-60 overflow-y-auto">
-                                {deliveredProducts.map((productName, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded hover:bg-gray-50 transition-colors"
-                                  >
-                                    <span className="text-gray-400">•</span>
-                                    <span className="text-xs text-gray-700 flex-1">{productName}</span>
-                                  </div>
-                                ))}
+                                {deliveredProducts.map((productName, idx) => {
+                                  const isBoosted = boostedProductNamesSet.has(trimAndNormalize(productName).toLowerCase());
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`flex items-center gap-2 p-2 rounded hover:bg-gray-50 transition-colors border ${isBoosted ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}
+                                    >
+                                      <span className={isBoosted ? 'text-amber-500' : 'text-gray-400'}>•</span>
+                                      <span className="text-xs text-gray-700 flex-1">{productName}</span>
+                                      {isBoosted && (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-semibold flex-shrink-0">
+                                          ⚡ Boosted
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -3829,13 +4141,24 @@ function AnalyticsPanel({ session, onboarding }) {
                       </td>
                       <td className="px-6 py-4">
                         {hasClick ? (
-                          <div className="flex flex-col items-center gap-1">
+                          <div className="flex flex-col items-center gap-2">
                             <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
                               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M6.672 1.911a1 1 0 10-1.932.518l.259.966a1 1 0 001.932-.518l-.26-.966zM2.429 4.74a1 1 0 10-.517 1.932l.966.259a1 1 0 00.517-1.932l-.966-.26zm8.814-.569a1 1 0 00-1.415-1.414l-.707.707a1 1 0 101.415 1.415l.707-.708zm-7.071 7.072l.707-.707A1 1 0 003.465 9.12l-.708.707a1 1 0 001.415 1.415zm3.2-5.171a1 1 0 00-1.3 1.3l4 10a1 1 0 001.823.075l1.38-2.759 3.018 3.02a1 1 0 001.414-1.415l-3.019-3.02 2.76-1.379a1 1 0 00-.076-1.822l-10-4z" />
                               </svg>
                             </span>
-                            <span className="text-[10px] text-blue-600 font-medium">{clickedProducts.length}</span>
+                            <div className="text-xs text-gray-700 max-w-[120px] space-y-1 text-center">
+                              {clickedProducts.slice(0, 2).map((product, idx) => (
+                                <div key={idx} className="text-[10px] text-blue-700 truncate">
+                                  • {product.name}
+                                </div>
+                              ))}
+                              {clickedProducts.length > 2 && (
+                                <div className="text-[9px] text-blue-400 font-medium">
+                                  +{clickedProducts.length - 2} עוד
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <div className="text-center text-gray-300">–</div>

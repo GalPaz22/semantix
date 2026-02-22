@@ -1,14 +1,14 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  RefreshCw, 
-  Package, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  RefreshCw,
+  Package,
+  CheckCircle,
+  AlertCircle,
   Eye,
   X,
   Save,
@@ -52,7 +52,7 @@ export default function ProductsPanel({ session, onboarding }) {
     softCategories: 0,
     avgPrice: 0
   });
-  
+
   const itemsPerPage = 20;
   const dbName = onboarding?.credentials?.dbName || '';
 
@@ -77,19 +77,19 @@ export default function ProductsPanel({ session, onboarding }) {
   // Fetch products from the database
   const fetchProducts = async (isFilterChange = false) => {
     if (!dbName) return;
-    
+
     if (isFilterChange) {
       setFiltering(true);
     } else {
       setLoading(true);
     }
     setError('');
-    
+
     try {
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dbName,
           page: currentPage,
           limit: itemsPerPage,
@@ -101,11 +101,11 @@ export default function ProductsPanel({ session, onboarding }) {
           processed: processedFilter
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      
+
       const data = await response.json();
       setProducts(data.products || []);
       setTotalPages(data.totalPages || 1);
@@ -163,7 +163,7 @@ export default function ProductsPanel({ session, onboarding }) {
   // Handle product save
   const handleSave = async () => {
     if (!editingProduct) return;
-    
+
     // Ensure type is converted to array if it's still a string
     let finalType = editingProduct.type;
     if (typeof finalType === 'string') {
@@ -175,7 +175,7 @@ export default function ProductsPanel({ session, onboarding }) {
     if (typeof finalSoftCategory === 'string') {
       finalSoftCategory = finalSoftCategory.split(',').map(s => s.trim()).filter(Boolean);
     }
-    
+
     try {
       const response = await fetch('/api/products/update', {
         method: 'POST',
@@ -189,30 +189,63 @@ export default function ProductsPanel({ session, onboarding }) {
             category: editingProduct.category,
             type: finalType,
             softCategory: finalSoftCategory,
-            price: editingProduct.price
+            price: editingProduct.price,
+            boost: editingProduct.boost ? parseInt(editingProduct.boost) : 0
           }
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      
+
       // Update local state with the final arrays
-      const updatedProduct = { 
-        ...editingProduct, 
+      const updatedProduct = {
+        ...editingProduct,
         type: finalType,
-        softCategory: finalSoftCategory 
+        softCategory: finalSoftCategory
       };
-      setProducts(products.map(p => 
+      setProducts(products.map(p =>
         p.id === editingProduct.id ? updatedProduct : p
       ));
-      
+
       setShowModal(false);
       setEditingProduct(null);
     } catch (err) {
       console.error('Error saving product:', err);
       setError('Failed to save product. Please try again.');
+    }
+  };
+
+  // Handle inline boost change
+  const handleBoostChange = async (product, newBoost) => {
+    // Toggle off if clicking the same level
+    const boost = product.boost === newBoost ? 0 : newBoost;
+
+    // Optimistic update
+    setProducts(products.map(p =>
+      p.id === product.id ? { ...p, boost } : p
+    ));
+
+    try {
+      const response = await fetch('/api/products/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbName,
+          productId: product.id,
+          updates: { boost }
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      console.error('Error updating boost:', err);
+      // Revert on failure
+      setProducts(products.map(p =>
+        p.id === product.id ? { ...p, boost: product.boost } : p
+      ));
+      setError('Failed to update boost. Please try again.');
     }
   };
 
@@ -254,7 +287,7 @@ export default function ProductsPanel({ session, onboarding }) {
               </button>
             </div>
           </div>
-          
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-6 bg-white/5 backdrop-blur-sm border-t border-white/10">
             <div className="p-4 backdrop-blur-sm bg-white/10 rounded-xl">
@@ -283,7 +316,7 @@ export default function ProductsPanel({ session, onboarding }) {
           <Filter className="h-5 w-5 text-indigo-600 mr-2" />
           <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
@@ -291,14 +324,14 @@ export default function ProductsPanel({ session, onboarding }) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search products..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
             <select
@@ -315,7 +348,7 @@ export default function ProductsPanel({ session, onboarding }) {
               })}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
             <select
@@ -332,7 +365,7 @@ export default function ProductsPanel({ session, onboarding }) {
               })}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Soft Category</label>
             <select
@@ -349,7 +382,7 @@ export default function ProductsPanel({ session, onboarding }) {
               })}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <select
@@ -362,7 +395,7 @@ export default function ProductsPanel({ session, onboarding }) {
               <option value="outofstock">Out of Stock</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Processing</label>
             <select
@@ -375,7 +408,7 @@ export default function ProductsPanel({ session, onboarding }) {
               <option value="unprocessed">Unprocessed</option>
             </select>
           </div>
-          
+
           <div className="flex items-end">
             <button
               onClick={() => {
@@ -421,7 +454,7 @@ export default function ProductsPanel({ session, onboarding }) {
             Products ({totalProducts})
           </h2>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -443,6 +476,9 @@ export default function ProductsPanel({ session, onboarding }) {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Boost
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -536,6 +572,26 @@ export default function ProductsPanel({ session, onboarding }) {
                     )}
                   </td>
                   <td className="px-6 py-4">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3].map((level) => (
+                        <button
+                          key={level}
+                          onClick={() => handleBoostChange(product, level)}
+                          title={product.boost === level ? 'Remove boost' : `Boost level ${level}`}
+                          className="p-0.5 rounded hover:scale-125 transition-transform"
+                        >
+                          <Star
+                            className={`h-5 w-5 transition-colors ${
+                              level <= (product.boost || 0)
+                                ? 'text-amber-500 fill-current'
+                                : 'text-gray-300 hover:text-amber-300'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => handleEdit(product)}
@@ -607,7 +663,7 @@ export default function ProductsPanel({ session, onboarding }) {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -616,23 +672,23 @@ export default function ProductsPanel({ session, onboarding }) {
                 <input
                   type="text"
                   value={editingProduct.name || ''}
-                  onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
                 </label>
                 <textarea
                   value={editingProduct.description1 || ''}
-                  onChange={(e) => setEditingProduct({...editingProduct, description1: e.target.value})}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, description1: e.target.value })}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -641,11 +697,11 @@ export default function ProductsPanel({ session, onboarding }) {
                   <input
                     type="text"
                     value={editingProduct.category || ''}
-                    onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Price
@@ -654,12 +710,29 @@ export default function ProductsPanel({ session, onboarding }) {
                     type="number"
                     step="0.01"
                     value={editingProduct.price || ''}
-                    onChange={(e) => setEditingProduct({...editingProduct, price: e.target.value})}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 font-bold flex items-center">
+                    <Star className="h-4 w-4 mr-1 text-amber-500 fill-current" />
+                    Product Boost
+                  </label>
+                  <select
+                    value={editingProduct.boost || 0}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, boost: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value={0}>No Boost (Default)</option>
+                    <option value={1}>Boost Level 1</option>
+                    <option value={2}>Boost Level 2</option>
+                    <option value={3}>Boost Level 3 (Maximum)</option>
+                  </select>
+                </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Types (comma-separated)
@@ -671,7 +744,7 @@ export default function ProductsPanel({ session, onboarding }) {
                     const inputValue = e.target.value;
                     // Store the raw input value temporarily for display
                     setEditingProduct({
-                      ...editingProduct, 
+                      ...editingProduct,
                       type: inputValue, // Keep as string while typing
                       _typeInput: inputValue // Store raw input for reference
                     });
@@ -681,7 +754,7 @@ export default function ProductsPanel({ session, onboarding }) {
                     const inputValue = e.target.value;
                     const typesArray = inputValue.split(',').map(t => t.trim()).filter(Boolean);
                     setEditingProduct({
-                      ...editingProduct, 
+                      ...editingProduct,
                       type: typesArray,
                       _typeInput: undefined // Clear temporary input
                     });
@@ -704,18 +777,18 @@ export default function ProductsPanel({ session, onboarding }) {
                   onChange={(e) => {
                     const inputValue = e.target.value;
                     setEditingProduct({
-                      ...editingProduct, 
-                      softCategory: inputValue, 
-                      _softCategoryInput: inputValue 
+                      ...editingProduct,
+                      softCategory: inputValue,
+                      _softCategoryInput: inputValue
                     });
                   }}
                   onBlur={(e) => {
                     const inputValue = e.target.value;
                     const softCatsArray = inputValue.split(',').map(s => s.trim()).filter(Boolean);
                     setEditingProduct({
-                      ...editingProduct, 
+                      ...editingProduct,
                       softCategory: softCatsArray,
-                      _softCategoryInput: undefined 
+                      _softCategoryInput: undefined
                     });
                   }}
                   placeholder="e.g., איטליה, צרפת, פרי, ארוחת ערב"
@@ -726,7 +799,7 @@ export default function ProductsPanel({ session, onboarding }) {
                 </p>
               </div>
             </div>
-            
+
             <div className="p-6 border-t border-gray-100 flex justify-end space-x-3">
               <button
                 onClick={() => setShowModal(false)}
