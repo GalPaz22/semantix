@@ -1630,18 +1630,41 @@ function AnalyticsPanel({ session, onboarding }) {
     // Group by search query for product clicks
     const clickGroups = {};
     const productClickCounts = {}; // Aggregate clicks by product
+    let aiClicksTotal = 0;
+    let zeroResultsClicksTotal = 0;
+    let rerankClicksTotal = 0;
+    let injectClicksTotal = 0;
     clickEvents.forEach(item => {
       if (!item.search_query) return;
+
+      const src = (item.source || '').toLowerCase();
+      const isAi = src === 'ai';
+      const isZeroResults = src === 'zero-results';
+      const isRerank = src === 'rerank';
+      const isInject = src === 'inject';
+      if (isAi) aiClicksTotal += 1;
+      if (isZeroResults) zeroResultsClicksTotal += 1;
+      if (isRerank) rerankClicksTotal += 1;
+      if (isInject) injectClicksTotal += 1;
 
       if (!clickGroups[item.search_query]) {
         clickGroups[item.search_query] = {
           query: item.search_query,
           count: 0,
+          aiCount: 0,
+          zeroResultsCount: 0,
+          rerankCount: 0,
+          injectCount: 0,
           products: new Set()
         };
       }
 
       clickGroups[item.search_query].count += 1;
+      if (isAi) clickGroups[item.search_query].aiCount += 1;
+      if (isZeroResults) clickGroups[item.search_query].zeroResultsCount += 1;
+      if (isRerank) clickGroups[item.search_query].rerankCount += 1;
+      if (isInject) clickGroups[item.search_query].injectCount += 1;
+
       if (item.product_id) {
         clickGroups[item.search_query].products.add(item.product_id);
 
@@ -1651,10 +1674,12 @@ function AnalyticsPanel({ session, onboarding }) {
           productClickCounts[pId] = {
             id: pId,
             name: item.product_name || item.name || "מוצר לא ידוע",
-            clicks: 0
+            clicks: 0,
+            aiClicks: 0
           };
         }
         productClickCounts[pId].clicks += 1;
+        if (isAi) productClickCounts[pId].aiClicks += 1;
       }
     });
 
@@ -1786,8 +1811,13 @@ function AnalyticsPanel({ session, onboarding }) {
       },
       clickMetrics: {
         items: clickEvents.length,
+        aiClicks: aiClicksTotal,
+        zeroResultsClicks: zeroResultsClicksTotal,
+        rerankClicks: rerankClicksTotal,
+        injectClicks: injectClicksTotal,
         queries: topClickQueries,
-        uniqueProducts: new Set(clickEvents.map(item => item.product_id)).size
+        uniqueProducts: new Set(clickEvents.map(item => item.product_id)).size,
+        topClickedProducts
       }
     };
   }, [cartAnalytics, checkoutEvents, clickEvents, queries, boostedProducts]);
@@ -2745,6 +2775,38 @@ function AnalyticsPanel({ session, onboarding }) {
                             <span className="text-xs text-gray-500">
                               {(cartMetrics?.clickMetrics?.queries || []).length} שאילתות ייחודיות
                             </span>
+                            {(cartMetrics?.clickMetrics?.aiClicks || 0) > 0 && (
+                              <>
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">
+                                  ✦ {(cartMetrics.clickMetrics.aiClicks).toLocaleString('en-US')} AI
+                                </span>
+                              </>
+                            )}
+                            {(cartMetrics?.clickMetrics?.zeroResultsClicks || 0) > 0 && (
+                              <>
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">
+                                  ◎ {(cartMetrics.clickMetrics.zeroResultsClicks).toLocaleString('en-US')} Zero
+                                </span>
+                              </>
+                            )}
+                            {(cartMetrics?.clickMetrics?.rerankClicks || 0) > 0 && (
+                              <>
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                                  ↑ {(cartMetrics.clickMetrics.rerankClicks).toLocaleString('en-US')} Rerank
+                                </span>
+                              </>
+                            )}
+                            {(cartMetrics?.clickMetrics?.injectClicks || 0) > 0 && (
+                              <>
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-semibold">
+                                  ⊕ {(cartMetrics.clickMetrics.injectClicks).toLocaleString('en-US')} Inject
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -3616,7 +3678,8 @@ function AnalyticsPanel({ session, onboarding }) {
                 })
                 .map(item => ({
                   name: item.product_name || 'מוצר לא ידוע',
-                  url: item.product_url || ''
+                  url: item.product_url || '',
+                  source: (item.source || '').toLowerCase()
                 }))
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
 
@@ -3880,9 +3943,13 @@ function AnalyticsPanel({ session, onboarding }) {
                       </div>
                       <div className="text-xs text-blue-800 space-y-0.5">
                         {clickedProducts.slice(0, 2).map((product, idx) => (
-                          <div key={idx} className="flex items-start gap-1">
+                          <div key={idx} className="flex items-center gap-1 flex-wrap">
                             <span>•</span>
                             <span className="flex-1">{product.name}</span>
+                            {product.source === 'ai' && <span className="inline-flex items-center px-1 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[8px] font-bold">✦ AI</span>}
+                            {product.source === 'zero-results' && <span className="inline-flex items-center px-1 py-0.5 bg-orange-100 text-orange-600 rounded text-[8px] font-bold">◎ Zero</span>}
+                            {product.source === 'rerank' && <span className="inline-flex items-center px-1 py-0.5 bg-purple-100 text-purple-600 rounded text-[8px] font-bold">↑ Rerank</span>}
+                            {product.source === 'inject' && <span className="inline-flex items-center px-1 py-0.5 bg-teal-100 text-teal-600 rounded text-[8px] font-bold">⊕ Inject</span>}
                           </div>
                         ))}
                         {clickedProducts.length > 2 && (
@@ -4034,7 +4101,8 @@ function AnalyticsPanel({ session, onboarding }) {
                     })
                     .map(item => ({
                       name: item.product_name || 'מוצר לא ידוע',
-                      url: item.product_url || ''
+                      url: item.product_url || '',
+                      source: (item.source || '').toLowerCase()
                     }))
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
 
@@ -4149,8 +4217,12 @@ function AnalyticsPanel({ session, onboarding }) {
                             </span>
                             <div className="text-xs text-gray-700 max-w-[120px] space-y-1 text-center">
                               {clickedProducts.slice(0, 2).map((product, idx) => (
-                                <div key={idx} className="text-[10px] text-blue-700 truncate">
-                                  • {product.name}
+                                <div key={idx} className="flex flex-col items-center gap-0.5">
+                                  <div className="text-[10px] text-blue-700 truncate">• {product.name}</div>
+                                  {product.source === 'ai' && <span className="inline-flex items-center px-1 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[8px] font-bold">✦ AI</span>}
+                                  {product.source === 'zero-results' && <span className="inline-flex items-center px-1 py-0.5 bg-orange-100 text-orange-600 rounded text-[8px] font-bold">◎ Zero</span>}
+                                  {product.source === 'rerank' && <span className="inline-flex items-center px-1 py-0.5 bg-purple-100 text-purple-600 rounded text-[8px] font-bold">↑ Rerank</span>}
+                                  {product.source === 'inject' && <span className="inline-flex items-center px-1 py-0.5 bg-teal-100 text-teal-600 rounded text-[8px] font-bold">⊕ Inject</span>}
                                 </div>
                               ))}
                               {clickedProducts.length > 2 && (

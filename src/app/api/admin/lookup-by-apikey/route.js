@@ -26,10 +26,11 @@ export async function GET(request) {
 
   try {
     const { searchParams } = new URL(request.url);
+    const searchName = searchParams.get('name');
     const apiKey = searchParams.get('apiKey');
 
-    if (!apiKey) {
-      return NextResponse.json({ error: "apiKey parameter is required" }, { status: 400 });
+    if (!searchName && !apiKey) {
+      return NextResponse.json({ error: "name or apiKey parameter is required" }, { status: 400 });
     }
 
     // Connect to database
@@ -37,27 +38,30 @@ export async function GET(request) {
     const db = client.db("users");
     const users = db.collection("users");
 
-    // Find user by API key (exclude password)
-    const user = await users.findOne(
-      { apiKey },
-      { projection: { password: 0 } }
-    );
+    // Find user by name (case-insensitive) or apiKey fallback
+    const query = searchName
+      ? { name: { $regex: searchName, $options: 'i' } }
+      : { apiKey };
+
+    const user = await users.findOne(query, { projection: { password: 0 } });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found with provided API key" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Extract relevant information
     const {
       email,
       name,
+      apiKey: userApiKey,
       credentials = {},
       platform, // Platform is stored as a top-level field
       syncMode = "text",
       context = "",
       explain = false,
       createdAt,
-      onboardingComplete
+      onboardingComplete,
+      active
     } = user;
 
     const {
@@ -87,9 +91,10 @@ export async function GET(request) {
       user: {
         email,
         name,
-        apiKey,
+        apiKey: userApiKey,
         onboardingComplete,
-        createdAt
+        createdAt,
+        active: active !== false
       },
       credentials: {
         siteConfig: siteConfig || null

@@ -5,6 +5,7 @@ import { Loader2, CheckCircle, XCircle, RefreshCw, Copy } from 'lucide-react';
 
 export default function AdminPanel({ session }) {
   const [apiKey, setApiKey] = useState('');
+  const [searchName, setSearchName] = useState('');
   const [processingStatus, setProcessingStatus] = useState('idle');
   const [fetchStatus, setFetchStatus] = useState('idle');
   const [saveCredentialsStatus, setSaveCredentialsStatus] = useState('idle');
@@ -12,6 +13,7 @@ export default function AdminPanel({ session }) {
 
   // User data fetched from API key
   const [userData, setUserData] = useState(null);
+  const [userActive, setUserActive] = useState(true);
   const [dbName, setDbName] = useState('');
   const [categories, setCategories] = useState('');
   const [productTypes, setProductTypes] = useState('');
@@ -98,7 +100,14 @@ export default function AdminPanel({ session }) {
       forceNavDelay: true,
       forceNavDelayMs: 80,
       queueKey: 'semantix_click_q_v1',
-      queueMax: 25
+      queueMax: 25,
+      cartInterceptor: {
+        enabled: true,
+        urlPatterns: [],
+        checkoutPatterns: [],
+        productIdField: 'product_id',
+        quantityField: 'quantity'
+      }
     },
     placeholderRotate: {
       enabled: true,
@@ -147,6 +156,10 @@ export default function AdminPanel({ session }) {
     },
     debug: {
       enabled: false
+    },
+    zero: {
+      replaceNoResultsText: "מחפש תוצאות חכמות...",
+      replaceNoResultsSelector: ""
     }
   });
 
@@ -195,14 +208,18 @@ export default function AdminPanel({ session }) {
   const isAdmin = userEmail === 'galpaz2210@gmail.com';
 
   const handleFetchUserData = async () => {
-    if (!isAdmin || !apiKey) return;
+    if (!isAdmin || !searchName) return;
     setFetchStatus('loading');
     try {
-      const response = await fetch(`/api/admin/lookup-by-apikey?apiKey=${encodeURIComponent(apiKey)}`);
+      const response = await fetch(`/api/admin/lookup-by-apikey?name=${encodeURIComponent(searchName)}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched user data:', data);
         setUserData(data);
+
+        // Auto-populate apiKey from the fetched user (needed for save/sync)
+        if (data.user?.apiKey) setApiKey(data.user.apiKey);
+        setUserActive(data.user?.active !== false);
 
         // Extract from nested configuration structure
         const config = data.configuration || {};
@@ -301,7 +318,14 @@ export default function AdminPanel({ session }) {
               forceNavDelay: safeGet(savedConfig, 'clickTracking.forceNavDelay', true),
               forceNavDelayMs: safeGet(savedConfig, 'clickTracking.forceNavDelayMs', 80),
               queueKey: safeGet(savedConfig, 'clickTracking.queueKey', 'semantix_click_q_v1'),
-              queueMax: safeGet(savedConfig, 'clickTracking.queueMax', 25)
+              queueMax: safeGet(savedConfig, 'clickTracking.queueMax', 25),
+              cartInterceptor: {
+                enabled: safeGet(savedConfig, 'clickTracking.cartInterceptor.enabled', true),
+                urlPatterns: safeGet(savedConfig, 'clickTracking.cartInterceptor.urlPatterns', []),
+                checkoutPatterns: safeGet(savedConfig, 'clickTracking.cartInterceptor.checkoutPatterns', []),
+                productIdField: safeGet(savedConfig, 'clickTracking.cartInterceptor.productIdField', 'product_id'),
+                quantityField: safeGet(savedConfig, 'clickTracking.cartInterceptor.quantityField', 'quantity')
+              }
             },
             placeholderRotate: {
               enabled: safeGet(savedConfig, 'placeholderRotate.enabled', true),
@@ -350,6 +374,10 @@ export default function AdminPanel({ session }) {
             },
             debug: {
               enabled: safeGet(savedConfig, 'debug.enabled', false)
+            },
+            zero: {
+              replaceNoResultsText: safeGet(savedConfig, 'zero.replaceNoResultsText', "מחפש תוצאות חכמות..."),
+              replaceNoResultsSelector: safeGet(savedConfig, 'zero.replaceNoResultsSelector', "")
             }
           });
 
@@ -367,6 +395,21 @@ export default function AdminPanel({ session }) {
       setFetchStatus('error');
     } finally {
       setTimeout(() => setFetchStatus('idle'), 3000);
+    }
+  };
+
+  const handleSetActive = async (newValue) => {
+    if (!isAdmin || !apiKey) return;
+    setUserActive(newValue);
+    try {
+      await fetch('/api/admin/set-user-active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, active: newValue })
+      });
+    } catch (error) {
+      console.error('Failed to set active:', error);
+      setUserActive(!newValue); // revert on error
     }
   };
 
@@ -458,6 +501,7 @@ export default function AdminPanel({ session }) {
       };
 
       // Debug: Log cardTemplate and zero config before saving
+      console.log('🛒 Saving siteConfig.clickTracking.cartInterceptor:', normalizedSiteConfig.clickTracking?.cartInterceptor);
       console.log('🔍 Saving siteConfig.nativeCard.cardTemplate:', normalizedSiteConfig.nativeCard?.cardTemplate?.substring(0, 100));
       console.log('🎯 Saving siteConfig.selectors.zero:', {
         enabled: normalizedSiteConfig.selectors?.zero?.enabled,
@@ -476,7 +520,8 @@ export default function AdminPanel({ session }) {
           types: productTypes.split(',').map(t => t.trim()).filter(Boolean),
           softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
           colors: colors.split(',').map(c => c.trim()).filter(Boolean),
-          siteConfig: normalizedSiteConfig
+          siteConfig: normalizedSiteConfig,
+          active: userActive
         }),
       });
       if (response.ok) {
@@ -1485,25 +1530,26 @@ export default function AdminPanel({ session }) {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-4">
-      {/* API Key Section */}
+      {/* User Lookup Section */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-5">
-          <h2 className="text-lg font-semibold text-gray-800">API Key Lookup</h2>
-          <p className="text-sm text-gray-500 mt-1">Enter an API key to fetch and manage user credentials.</p>
+          <h2 className="text-lg font-semibold text-gray-800">User Lookup</h2>
+          <p className="text-sm text-gray-500 mt-1">Enter a user name to fetch and manage their credentials.</p>
         </div>
         <div className="p-6 space-y-4">
           <div className="flex gap-2">
             <input
-              id="apiKey"
+              id="searchName"
               type="text"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter API key"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleFetchUserData()}
+              placeholder="Enter user name"
               className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
             />
             <button
               onClick={handleFetchUserData}
-              disabled={fetchStatus === 'loading' || !apiKey}
+              disabled={fetchStatus === 'loading' || !searchName}
               className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
             >
               {fetchStatus === 'loading' ? (
@@ -1522,6 +1568,24 @@ export default function AdminPanel({ session }) {
           )}
         </div>
       </div>
+
+      {/* Activation */}
+      {userData && (
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Account Status</p>
+            <p className={`text-xs mt-0.5 ${userActive ? 'text-green-600' : 'text-red-500'}`}>
+              {userActive ? 'Active — Semantix is enabled' : 'Inactive — Semantix is disabled'}
+            </p>
+          </div>
+          <button
+            onClick={() => handleSetActive(!userActive)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${userActive ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${userActive ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      )}
 
       {/* User Credentials Editor */}
       {userData && (
@@ -3328,6 +3392,112 @@ export default function AdminPanel({ session }) {
                     />
                   </div>
                 </div>
+
+                {/* Cart Interceptor */}
+                <div className="mt-3 p-3 bg-white border-2 border-emerald-400 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-xs font-semibold text-green-800">Cart Interceptor</h5>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        id="cartInterceptorEnabled"
+                        checked={siteConfig.clickTracking?.cartInterceptor?.enabled ?? true}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          clickTracking: {
+                            ...siteConfig.clickTracking,
+                            cartInterceptor: {
+                              ...siteConfig.clickTracking.cartInterceptor,
+                              enabled: e.target.checked
+                            }
+                          }
+                        })}
+                        className="h-3 w-3 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="cartInterceptorEnabled" className="text-xs text-green-700">Enabled</label>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">URL Patterns (comma-separated)</label>
+                      <input
+                        type="text"
+                        value={Array.isArray(siteConfig.clickTracking?.cartInterceptor?.urlPatterns) ? siteConfig.clickTracking.cartInterceptor.urlPatterns.join(', ') : ''}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          clickTracking: {
+                            ...siteConfig.clickTracking,
+                            cartInterceptor: {
+                              ...siteConfig.clickTracking.cartInterceptor,
+                              urlPatterns: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                            }
+                          }
+                        })}
+                        placeholder="/cart/add, /api/basket"
+                        className="w-full p-2 border border-green-200 rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">Checkout Patterns (comma-separated)</label>
+                      <input
+                        type="text"
+                        value={Array.isArray(siteConfig.clickTracking?.cartInterceptor?.checkoutPatterns) ? siteConfig.clickTracking.cartInterceptor.checkoutPatterns.join(', ') : ''}
+                        onChange={(e) => setSiteConfig({
+                          ...siteConfig,
+                          clickTracking: {
+                            ...siteConfig.clickTracking,
+                            cartInterceptor: {
+                              ...siteConfig.clickTracking.cartInterceptor,
+                              checkoutPatterns: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                            }
+                          }
+                        })}
+                        placeholder="/checkout, /order/create"
+                        className="w-full p-2 border border-green-200 rounded text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-green-700 mb-1">Product ID Field</label>
+                        <input
+                          type="text"
+                          value={siteConfig.clickTracking?.cartInterceptor?.productIdField || ''}
+                          onChange={(e) => setSiteConfig({
+                            ...siteConfig,
+                            clickTracking: {
+                              ...siteConfig.clickTracking,
+                              cartInterceptor: {
+                                ...siteConfig.clickTracking.cartInterceptor,
+                                productIdField: e.target.value
+                              }
+                            }
+                          })}
+                          placeholder="product_id"
+                          className="w-full p-2 border border-green-200 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-green-700 mb-1">Quantity Field</label>
+                        <input
+                          type="text"
+                          value={siteConfig.clickTracking?.cartInterceptor?.quantityField || ''}
+                          onChange={(e) => setSiteConfig({
+                            ...siteConfig,
+                            clickTracking: {
+                              ...siteConfig.clickTracking,
+                              cartInterceptor: {
+                                ...siteConfig.clickTracking.cartInterceptor,
+                                quantityField: e.target.value
+                              }
+                            }
+                          })}
+                          placeholder="quantity"
+                          className="w-full p-2 border border-green-200 rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -3348,6 +3518,40 @@ export default function AdminPanel({ session }) {
                     }
                   })}
                   placeholder="טוען תוצאות חכמות…"
+                  className="w-full p-2 border border-gray-200 rounded text-sm"
+                />
+              </div>
+
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Replace No Results Text</label>
+                <input
+                  type="text"
+                  value={siteConfig.zero?.replaceNoResultsText || ''}
+                  onChange={(e) => setSiteConfig({
+                    ...siteConfig,
+                    zero: {
+                      ...siteConfig.zero,
+                      replaceNoResultsText: e.target.value
+                    }
+                  })}
+                  placeholder="מחפש תוצאות חכמות..."
+                  className="w-full p-2 border border-gray-200 rounded text-sm"
+                />
+              </div>
+
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Replace No Results Selector</label>
+                <input
+                  type="text"
+                  value={siteConfig.zero?.replaceNoResultsSelector || ''}
+                  onChange={(e) => setSiteConfig({
+                    ...siteConfig,
+                    zero: {
+                      ...siteConfig.zero,
+                      replaceNoResultsSelector: e.target.value
+                    }
+                  })}
+                  placeholder="h2.no-results-heading"
                   className="w-full p-2 border border-gray-200 rounded text-sm"
                 />
               </div>

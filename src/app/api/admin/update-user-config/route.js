@@ -44,7 +44,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig } = body;
+    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
@@ -90,6 +90,11 @@ export async function POST(request) {
     // Add siteConfig if provided
     if (siteConfig) {
       updateFields["credentials.siteConfig"] = siteConfig;
+    }
+
+    // Add active flag if provided
+    if (active !== undefined) {
+      updateFields["active"] = active;
     }
 
     // Update user's configuration
