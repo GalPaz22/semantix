@@ -2660,7 +2660,7 @@ function AnalyticsPanel({ session, onboarding }) {
             ) : (
               <>
                 {/* Add to Cart Section */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+                {(cartMetrics?.addToCartMetrics?.revenue || 0) >= 1000 && <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
                   <div className="flex items-center space-x-4 space-x-reverse">
                     <div className="relative flex-shrink-0">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-2xl blur-md opacity-50"></div>
@@ -2701,10 +2701,10 @@ function AnalyticsPanel({ session, onboarding }) {
                       </>
                     )}
                   </button>
-                </div>
+                </div>}
 
-                {/* Checkout Section - Only show if we have checkout events */}
-                {checkoutEvents.length > 0 && (
+                {/* Checkout Section - Only show if we have checkout events and revenue >= 1000 */}
+                {checkoutEvents.length > 0 && (cartMetrics?.checkoutMetrics?.revenue || 0) >= 1000 && (
                   <>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div className="flex items-center space-x-4 space-x-reverse">
@@ -3670,11 +3670,19 @@ function AnalyticsPanel({ session, onboarding }) {
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
 
               // Find click events for this query
+              // Use tight window for inferred clicks (3 min) vs direct attribution (10 min)
+              // Exclude 'native' source — these are ambient page clicks, not Semantix widget clicks
+              const MOBILE_ATTRIBUTION_WINDOW_MS = 10 * 60 * 1000;
+              const MOBILE_INFERRED_CLICK_WINDOW_MS = 3 * 60 * 1000;
               const clickedProducts = clickEvents
                 .filter(item => {
+                  if ((item.source || '').toLowerCase() === 'native') return false;
                   const itemTime = parseEventTime(item.timestamp || item.created_at);
+                  const isInferred = item.query_source === 'inferred_from_recent';
+                  const clickWindow = isInferred ? MOBILE_INFERRED_CLICK_WINDOW_MS : MOBILE_ATTRIBUTION_WINDOW_MS;
                   return (item.search_query || '').toLowerCase().trim() === queryText &&
-                    itemTime >= queryTime;
+                    itemTime >= queryTime &&
+                    itemTime <= queryTime + clickWindow;
                 })
                 .map(item => ({
                   name: item.product_name || 'מוצר לא ידוע',
@@ -3682,6 +3690,13 @@ function AnalyticsPanel({ session, onboarding }) {
                   source: (item.source || '').toLowerCase()
                 }))
                 .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
+
+              // Dominant click source for mobile card
+              const mobileSourceCounts = {};
+              clickedProducts.forEach(p => { if (p.source && p.source !== 'native') mobileSourceCounts[p.source] = (mobileSourceCounts[p.source] || 0) + 1; });
+              const dominantSourceMobile = Object.entries(mobileSourceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+              const mobileSourceBg = { 'ai': 'bg-indigo-50', 'zero-results': 'bg-orange-50', 'rerank': 'bg-purple-50', 'inject': 'bg-teal-50' };
+              const mobileSourceBorder = { 'ai': 'border-indigo-300', 'zero-results': 'border-orange-300', 'rerank': 'border-purple-300', 'inject': 'border-teal-300' };
 
               // Boosted product detection for this query
               const boostedShownProductsMobile = deliveredProducts.filter(
@@ -3733,7 +3748,9 @@ function AnalyticsPanel({ session, onboarding }) {
                   borderColor = 'border-green-300 bg-green-50/30';
                 }
               } else if (hasClick) {
-                borderColor = 'border-blue-200 bg-blue-50/30';
+                const srcBorder = dominantSourceMobile ? mobileSourceBorder[dominantSourceMobile] : null;
+                const srcBg = dominantSourceMobile ? mobileSourceBg[dominantSourceMobile] : null;
+                borderColor = `${srcBorder || 'border-blue-200'} ${srcBg || 'bg-blue-50/30'}`;
               }
 
               return (
@@ -4093,11 +4110,18 @@ function AnalyticsPanel({ session, onboarding }) {
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i);
 
                   // Find click events for this query
+                  // Use tight window for inferred clicks (3 min) vs direct attribution (10 min)
+                  // Exclude 'native' source — these are ambient page clicks, not Semantix widget clicks
+                  const INFERRED_CLICK_WINDOW_MS = 3 * 60 * 1000;
                   const clickedProducts = clickEvents
                     .filter(item => {
+                      if ((item.source || '').toLowerCase() === 'native') return false;
                       const itemTime = parseEventTime(item.timestamp || item.created_at);
+                      const isInferred = item.query_source === 'inferred_from_recent';
+                      const clickWindow = isInferred ? INFERRED_CLICK_WINDOW_MS : ATTRIBUTION_WINDOW_MS;
                       return (item.search_query || '').toLowerCase().trim() === queryText &&
-                        itemTime >= queryTime;
+                        itemTime >= queryTime &&
+                        itemTime <= queryTime + clickWindow;
                     })
                     .map(item => ({
                       name: item.product_name || 'מוצר לא ידוע',
@@ -4105,6 +4129,13 @@ function AnalyticsPanel({ session, onboarding }) {
                       source: (item.source || '').toLowerCase()
                     }))
                     .filter((v, i, a) => a.findIndex(x => x.name === v.name) === i); // unique
+
+                  // Dominant click source for this query (excludes 'native')
+                  const desktopSourceCounts = {};
+                  clickedProducts.forEach(p => { if (p.source && p.source !== 'native') desktopSourceCounts[p.source] = (desktopSourceCounts[p.source] || 0) + 1; });
+                  const dominantSource = Object.entries(desktopSourceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+                  const sourceRowBg = { 'ai': 'bg-indigo-50 hover:bg-indigo-100', 'zero-results': 'bg-orange-50 hover:bg-orange-100', 'rerank': 'bg-purple-50 hover:bg-purple-100', 'inject': 'bg-teal-50 hover:bg-teal-100' };
+                  const rowBgClass = sourceRowBg[dominantSource] || 'hover:bg-gray-50';
 
                   // Boosted product detection for this query
                   const boostedShownProducts = deliveredProducts.filter(
@@ -4137,7 +4168,7 @@ function AnalyticsPanel({ session, onboarding }) {
                   return (
                     <tr
                       key={index}
-                      className="hover:bg-gray-50 transition-colors"
+                      className={`${rowBgClass} transition-colors`}
                     >
                       <td className="px-6 py-4 text-sm text-gray-800 font-medium text-right">
                         <div className="flex flex-col gap-2">
