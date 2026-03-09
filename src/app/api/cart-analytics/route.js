@@ -126,6 +126,44 @@ export async function POST(request) {
         .sort({ timestamp: -1 }) // Most recent first
         .toArray();
 
+      // For items with missing/zero price, look up the product by name to get the real price
+      const itemsMissingPrice = cartItems.filter(item => {
+        const price = parseFloat((item.product_price || "0").toString().replace(/[^0-9.]/g, ""));
+        return !price || price === 0;
+      });
+
+      if (itemsMissingPrice.length > 0) {
+        const productNames = [...new Set(
+          itemsMissingPrice
+            .map(item => item.product_name || item.product_title || item.name)
+            .filter(Boolean)
+        )];
+
+        if (productNames.length > 0) {
+          const productDocs = await db
+            .collection("products")
+            .find({ name: { $in: productNames } }, { projection: { name: 1, price: 1, regular_price: 1 } })
+            .toArray();
+
+          const priceByName = {};
+          for (const doc of productDocs) {
+            if (doc.name && (doc.price || doc.regular_price)) {
+              priceByName[doc.name] = doc.price || doc.regular_price;
+            }
+          }
+
+          for (const item of cartItems) {
+            const price = parseFloat((item.product_price || "0").toString().replace(/[^0-9.]/g, ""));
+            if (!price || price === 0) {
+              const name = item.product_name || item.product_title || item.name;
+              if (name && priceByName[name] != null) {
+                item.product_price = String(priceByName[name]);
+              }
+            }
+          }
+        }
+      }
+
       // Get some basic analytics
       const totalCartItems = cartItems.length;
       const uniqueQueries = new Set(cartItems.map(item => item.search_query)).size;

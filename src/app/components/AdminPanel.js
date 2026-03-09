@@ -116,13 +116,15 @@ export default function AdminPanel({ session }) {
       fadeMs: 220,
       startDelayMs: 600,
       pauseOnFocus: true,
-      onlyIfEmpty: true
+      onlyIfEmpty: true,
+      textColor: '#6b7280'
     },
     features: {
       rerankBoost: true,
       injectIntoGrid: true,
       zeroReplace: true,
-      disabled: false
+      disabled: false,
+      shadowMode: false
     },
     texts: {
       loader: ''
@@ -181,6 +183,15 @@ export default function AdminPanel({ session }) {
   // Filter option: only reprocess fresh/unprocessed products
   const [onlyUnprocessed, setOnlyUnprocessed] = useState(false);
 
+  // Boost management
+  const [softCategoryBoosts, setSoftCategoryBoosts] = useState({}); // { catName: multiplier }
+  const [adminBulkBoostType, setAdminBulkBoostType] = useState('soft');
+  const [adminBulkCategory, setAdminBulkCategory] = useState('');
+  const [adminBulkBoostLevel, setAdminBulkBoostLevel] = useState(1);
+  const [adminBulkBoostStatus, setAdminBulkBoostStatus] = useState('idle');
+  const [adminBulkBoostResult, setAdminBulkBoostResult] = useState(null);
+  const [adminCatBoostSaveStatus, setAdminCatBoostSaveStatus] = useState('idle');
+
   // Incremental mode: add new categories to existing products
   const [incrementalMode, setIncrementalMode] = useState(false);
   const [incrementalSoftCategories, setIncrementalSoftCategories] = useState('');
@@ -228,6 +239,9 @@ export default function AdminPanel({ session }) {
         setProductTypes(Array.isArray(config.types?.list) ? config.types.list.join(', ') : '');
         setSoftCategories(Array.isArray(config.softCategories?.list) ? config.softCategories.list.join(', ') : '');
         setColors(Array.isArray(config.colors?.list) ? config.colors.list.join(', ') : '');
+        setSoftCategoryBoosts(config.softCategoryBoosts || {});
+        setAdminBulkCategory('');
+        setAdminBulkBoostResult(null);
 
         // Extract platform
         const platform = config.platform || data.credentials?.platform || 'woocommerce';
@@ -334,13 +348,15 @@ export default function AdminPanel({ session }) {
               fadeMs: safeGet(savedConfig, 'placeholderRotate.fadeMs', 220),
               startDelayMs: safeGet(savedConfig, 'placeholderRotate.startDelayMs', 600),
               pauseOnFocus: safeGet(savedConfig, 'placeholderRotate.pauseOnFocus', true),
-              onlyIfEmpty: safeGet(savedConfig, 'placeholderRotate.onlyIfEmpty', true)
+              onlyIfEmpty: safeGet(savedConfig, 'placeholderRotate.onlyIfEmpty', true),
+              textColor: safeGet(savedConfig, 'placeholderRotate.textColor', '#6b7280')
             },
             features: {
               rerankBoost: safeGet(savedConfig, 'features.rerankBoost', true),
               injectIntoGrid: safeGet(savedConfig, 'features.injectIntoGrid', true),
               zeroReplace: safeGet(savedConfig, 'features.zeroReplace', true),
-              disabled: safeGet(savedConfig, 'features.disabled', false)
+              disabled: safeGet(savedConfig, 'features.disabled', false),
+              shadowMode: safeGet(savedConfig, 'features.shadowMode', false)
             },
             texts: {
               loader: safeGet(savedConfig, 'texts.loader', '')
@@ -520,6 +536,7 @@ export default function AdminPanel({ session }) {
           types: productTypes.split(',').map(t => t.trim()).filter(Boolean),
           softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
           colors: colors.split(',').map(c => c.trim()).filter(Boolean),
+          softCategoryBoosts,
           siteConfig: normalizedSiteConfig,
           active: userActive
         }),
@@ -577,6 +594,62 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  // Bulk-boost all products in a category
+  const handleAdminBulkBoost = async () => {
+    if (!isAdmin || !dbName || !adminBulkCategory) return;
+    setAdminBulkBoostStatus('loading');
+    setAdminBulkBoostResult(null);
+    try {
+      const res = await fetch('/api/products/boost-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbName,
+          category: adminBulkCategory,
+          categoryType: adminBulkBoostType,
+          boost: adminBulkBoostLevel
+        })
+      });
+      if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      const data = await res.json();
+      setAdminBulkBoostResult(data);
+      setAdminBulkBoostStatus('success');
+      setTimeout(() => setAdminBulkBoostStatus('idle'), 4000);
+    } catch (err) {
+      console.error('Admin bulk boost error:', err);
+      setAdminBulkBoostStatus('error');
+      setTimeout(() => setAdminBulkBoostStatus('idle'), 4000);
+    }
+  };
+
+  // Save category score boosts via update-user-config
+  const handleAdminCatBoostSave = async () => {
+    if (!isAdmin || !apiKey) return;
+    setAdminCatBoostSaveStatus('loading');
+    try {
+      const res = await fetch('/api/admin/update-user-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey,
+          categories: categories.split(',').map(c => c.trim()).filter(Boolean),
+          types: productTypes.split(',').map(t => t.trim()).filter(Boolean),
+          softCategories: softCategories.split(',').map(s => s.trim()).filter(Boolean),
+          colors: colors.split(',').map(c => c.trim()).filter(Boolean),
+          softCategoryBoosts,
+          active: userActive
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAdminCatBoostSaveStatus('success');
+      setTimeout(() => setAdminCatBoostSaveStatus('idle'), 3000);
+    } catch (err) {
+      console.error('Admin cat boost save error:', err);
+      setAdminCatBoostSaveStatus('error');
+      setTimeout(() => setAdminCatBoostSaveStatus('idle'), 3000);
+    }
+  };
+
   const handleIncrementalProcess = async () => {
     if (!isAdmin || !userData || !dbName) return;
 
@@ -620,28 +693,51 @@ export default function AdminPanel({ session }) {
       if (response.ok) {
         setIncrementalProcessingStatus('success');
 
-        // Update the UI with merged soft categories
+        // Compute merged values (used for both UI update and auto-save to DB)
+        const currentSoft = softCategories.split(',').map(s => s.trim()).filter(Boolean);
+        const mergedSoft = newSoftCats.length > 0 ? [...new Set([...currentSoft, ...newSoftCats])] : currentSoft;
+
+        const currentHard = categories.split(',').map(c => c.trim()).filter(Boolean);
+        const mergedHard = newHardCats.length > 0 ? [...new Set([...currentHard, ...newHardCats])] : currentHard;
+
+        const currentColorsList = colors.split(',').map(c => c.trim()).filter(Boolean);
+        const mergedColors = newColors.length > 0 ? [...new Set([...currentColorsList, ...newColors])] : currentColorsList;
+
+        // Update the UI
         if (newSoftCats.length > 0) {
-          const currentSoft = softCategories.split(',').map(s => s.trim()).filter(Boolean);
-          const mergedSoft = [...new Set([...currentSoft, ...newSoftCats])];
           setSoftCategories(mergedSoft.join(', '));
           console.log('✅ Soft categories updated in UI:', mergedSoft.join(', '));
         }
-
-        // Update the UI with merged hard categories
         if (newHardCats.length > 0) {
-          const currentHard = categories.split(',').map(c => c.trim()).filter(Boolean);
-          const mergedHard = [...new Set([...currentHard, ...newHardCats])];
           setCategories(mergedHard.join(', '));
           console.log('✅ Hard categories updated in UI:', mergedHard.join(', '));
         }
-
-        // Update the UI with merged colors
         if (newColors.length > 0) {
-          const currentColors = colors.split(',').map(c => c.trim()).filter(Boolean);
-          const mergedColors = [...new Set([...currentColors, ...newColors])];
           setColors(mergedColors.join(', '));
           console.log('✅ Colors updated in UI:', mergedColors.join(', '));
+        }
+
+        // Auto-save merged filters to DB
+        try {
+          const saveResponse = await fetch('/api/admin/update-user-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              apiKey,
+              categories: mergedHard,
+              types: productTypes.split(',').map(t => t.trim()).filter(Boolean),
+              softCategories: mergedSoft,
+              colors: mergedColors,
+              active: userActive
+            }),
+          });
+          if (saveResponse.ok) {
+            console.log('✅ Incremental filters auto-saved to DB');
+          } else {
+            console.error('⚠️ Failed to auto-save incremental filters to DB');
+          }
+        } catch (saveError) {
+          console.error('⚠️ Error auto-saving incremental filters:', saveError);
         }
       } else {
         const errorData = await response.json();
@@ -836,13 +932,15 @@ export default function AdminPanel({ session }) {
         fadeMs: 220,
         startDelayMs: 600,
         pauseOnFocus: true,
-        onlyIfEmpty: true
+        onlyIfEmpty: true,
+        textColor: '#6b7280'
       },
       features: {
         rerankBoost: false,
         injectIntoGrid: true,
         zeroReplace: true,
-        disabled: false
+        disabled: false,
+        shadowMode: false
       },
       texts: {
         loader: "טוען תוצאות חכמות"
@@ -933,13 +1031,15 @@ export default function AdminPanel({ session }) {
         fadeMs: 220,
         startDelayMs: 600,
         pauseOnFocus: true,
-        onlyIfEmpty: true
+        onlyIfEmpty: true,
+        textColor: '#6b7280'
       },
       features: {
         rerankBoost: false,
         injectIntoGrid: true,
         zeroReplace: true,
-        disabled: false
+        disabled: false,
+        shadowMode: false
       },
       texts: {
         loader: "Loading smart results..."
@@ -1107,12 +1207,14 @@ export default function AdminPanel({ session }) {
         fadeMs: 220,
         startDelayMs: 600,
         pauseOnFocus: true,
-        onlyIfEmpty: true
+        onlyIfEmpty: true,
+        textColor: '#6b7280'
       },
       features: {
         rerankBoost: false,
         injectIntoGrid: true,
-        zeroReplace: true
+        zeroReplace: true,
+        shadowMode: false
       },
       texts: {
         loader: "טוען תוצאות חכמות"
@@ -1416,12 +1518,14 @@ export default function AdminPanel({ session }) {
           fadeMs: parsed.placeholderRotate?.fadeMs || 220,
           startDelayMs: parsed.placeholderRotate?.startDelayMs || 600,
           pauseOnFocus: parsed.placeholderRotate?.pauseOnFocus !== undefined ? parsed.placeholderRotate.pauseOnFocus : true,
-          cursorBlink: parsed.placeholderRotate?.cursorBlink !== undefined ? parsed.placeholderRotate.cursorBlink : true
+          cursorBlink: parsed.placeholderRotate?.cursorBlink !== undefined ? parsed.placeholderRotate.cursorBlink : true,
+          textColor: parsed.placeholderRotate?.textColor || '#6b7280'
         },
         features: {
           rerankBoost: parsed.features?.rerankBoost || false,
           injectIntoGrid: parsed.features?.injectIntoGrid !== undefined ? parsed.features.injectIntoGrid : true,
-          zeroReplace: parsed.features?.zeroReplace !== undefined ? parsed.features.zeroReplace : true
+          zeroReplace: parsed.features?.zeroReplace !== undefined ? parsed.features.zeroReplace : true,
+          shadowMode: parsed.features?.shadowMode !== undefined ? parsed.features.shadowMode : false
         },
         texts: {
           loader: parsed.texts?.loader || 'טוען תוצאות חכמות'
@@ -2976,6 +3080,25 @@ export default function AdminPanel({ session }) {
                   </label>
                 </div>
 
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="shadowMode"
+                    checked={siteConfig.features.shadowMode}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      features: {
+                        ...siteConfig.features,
+                        shadowMode: e.target.checked
+                      }
+                    })}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="shadowMode" className="mr-2 text-xs text-gray-700">
+                    Shadow Mode
+                  </label>
+                </div>
+
                 <div className="flex items-center pt-2 border-t border-gray-200 mt-2">
                   <input
                     type="checkbox"
@@ -3130,6 +3253,36 @@ export default function AdminPanel({ session }) {
                     <label htmlFor="onlyIfEmpty" className="mr-2 text-xs text-purple-700">
                       Only if Empty
                     </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1">
+                    <label htmlFor="placeholderTextColor" className="text-xs text-purple-700 whitespace-nowrap">Text Color</label>
+                    <input
+                      type="color"
+                      id="placeholderTextColor"
+                      value={siteConfig.placeholderRotate?.textColor || '#6b7280'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          textColor: e.target.value
+                        }
+                      })}
+                      className="h-6 w-10 cursor-pointer rounded border border-gray-300"
+                    />
+                    <input
+                      type="text"
+                      value={siteConfig.placeholderRotate?.textColor || '#6b7280'}
+                      onChange={(e) => setSiteConfig({
+                        ...siteConfig,
+                        placeholderRotate: {
+                          ...siteConfig.placeholderRotate,
+                          textColor: e.target.value
+                        }
+                      })}
+                      placeholder="#6b7280"
+                      className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-400"
+                    />
                   </div>
                 </div>
               </div>
@@ -4125,6 +4278,153 @@ export default function AdminPanel({ session }) {
           </div>
         )
       }
+
+      {/* Boost Management */}
+      {userData && (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+          <div className="border-b border-gray-100 p-5">
+            <h2 className="text-lg font-semibold text-gray-800">Boost Management</h2>
+            <p className="text-sm text-gray-500 mt-1">Bulk-pin products by category, or tune category score multipliers.</p>
+          </div>
+          <div className="p-6 space-y-8">
+
+            {/* ── A. Bulk product boost ── */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Bulk Product Boost by Category</h3>
+              <div className="flex flex-wrap gap-3 items-end">
+                {/* soft / hard toggle */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Category type</label>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                    {['soft', 'hard'].map(t => (
+                      <button
+                        key={t}
+                        onClick={() => { setAdminBulkBoostType(t); setAdminBulkCategory(''); }}
+                        className={`px-4 py-2 text-sm font-medium transition-colors capitalize ${adminBulkBoostType === t ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* category dropdown */}
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                  <select
+                    value={adminBulkCategory}
+                    onChange={e => setAdminBulkCategory(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  >
+                    <option value="">Select a category…</option>
+                    {(adminBulkBoostType === 'soft'
+                      ? softCategories.split(',').map(s => s.trim()).filter(Boolean)
+                      : categories.split(',').map(c => c.trim()).filter(Boolean)
+                    ).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* boost level */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Boost level</label>
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3].map(lvl => (
+                      <button
+                        key={lvl}
+                        onClick={() => setAdminBulkBoostLevel(lvl)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          adminBulkBoostLevel === lvl
+                            ? lvl === 0 ? 'bg-gray-600 text-white border-gray-600' : 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {lvl === 0 ? 'Remove' : '★'.repeat(lvl)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* apply */}
+                <button
+                  onClick={handleAdminBulkBoost}
+                  disabled={!adminBulkCategory || adminBulkBoostStatus === 'loading'}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  {adminBulkBoostStatus === 'loading' ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Applying…</>
+                  ) : (
+                    'Apply'
+                  )}
+                </button>
+              </div>
+
+              {adminBulkBoostStatus === 'success' && adminBulkBoostResult && (
+                <p className="mt-3 text-sm text-green-700">
+                  ✓ {adminBulkBoostLevel === 0
+                    ? `Boost removed from ${adminBulkBoostResult.updatedCount} products in "${adminBulkCategory}"`
+                    : `${adminBulkBoostResult.updatedCount} products in "${adminBulkCategory}" boosted to level ${adminBulkBoostLevel}`}
+                </p>
+              )}
+              {adminBulkBoostStatus === 'error' && (
+                <p className="mt-3 text-sm text-red-600">✗ Failed to apply boost. Check logs.</p>
+              )}
+            </div>
+
+            {/* ── B. Category score multipliers ── */}
+            {softCategories && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Category Score Multipliers</h3>
+                  <div className="flex items-center gap-2">
+                    {adminCatBoostSaveStatus === 'success' && <span className="text-xs text-green-600">✓ Saved</span>}
+                    {adminCatBoostSaveStatus === 'error' && <span className="text-xs text-red-600">✗ Error</span>}
+                    <button
+                      onClick={handleAdminCatBoostSave}
+                      disabled={adminCatBoostSaveStatus === 'loading' || !userData}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                    >
+                      {adminCatBoostSaveStatus === 'loading' ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                      Save Multipliers
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {softCategories.split(',').map(s => s.trim()).filter(Boolean).map(cat => {
+                    const val = softCategoryBoosts[cat] ?? 1.0;
+                    const isHigh = val > 1.5;
+                    const isLow = val < 0.8;
+                    return (
+                      <div key={cat} className={`p-3 rounded-lg border-2 ${isHigh ? 'border-green-300 bg-green-50' : isLow ? 'border-gray-300 bg-gray-50' : 'border-blue-200 bg-blue-50'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-800 truncate mr-2">{cat}</span>
+                          <span className={`text-base font-bold ${isHigh ? 'text-green-700' : isLow ? 'text-gray-600' : 'text-blue-700'}`}>{val.toFixed(1)}×</span>
+                        </div>
+                        <input
+                          type="range" min="0.1" max="10" step="0.1"
+                          value={val}
+                          onChange={e => setSoftCategoryBoosts(prev => ({ ...prev, [cat]: parseFloat(e.target.value) }))}
+                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="flex gap-1 mt-2">
+                          {[0.5, 1.0, 2.0, 5.0].map(p => (
+                            <button key={p} onClick={() => setSoftCategoryBoosts(prev => ({ ...prev, [cat]: p }))}
+                              className={`flex-1 px-1 py-0.5 text-xs rounded transition-colors ${val === p ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+                              {p}×
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
       {/* Reprocessing Options */}
       {

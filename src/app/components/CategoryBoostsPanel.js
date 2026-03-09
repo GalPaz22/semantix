@@ -12,6 +12,8 @@ import {
 
 export default function CategoryBoostsPanel({ session }) {
   const [softCategories, setSoftCategories] = useState([]);
+  const [hardCategories, setHardCategories] = useState([]);
+  const [dbName, setDbName] = useState('');
   const [boosts, setBoosts] = useState({});
   const [originalBoosts, setOriginalBoosts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -19,6 +21,13 @@ export default function CategoryBoostsPanel({ session }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Bulk boost state
+  const [bulkCategoryType, setBulkCategoryType] = useState('soft');
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkBoostLevel, setBulkBoostLevel] = useState(1);
+  const [bulkBoostStatus, setBulkBoostStatus] = useState('idle'); // idle | loading | success | error
+  const [bulkResult, setBulkResult] = useState(null);
 
   // Fetch current boosts
   const fetchBoosts = async () => {
@@ -37,6 +46,8 @@ export default function CategoryBoostsPanel({ session }) {
 
       const data = await response.json();
       setSoftCategories(data.softCategories || []);
+      setHardCategories(data.categories || []);
+      setDbName(data.dbName || '');
 
       // Ensure all categories have a boost value (default 1.0)
       const boostData = data.boosts || {};
@@ -120,6 +131,37 @@ export default function CategoryBoostsPanel({ session }) {
     setBoosts(defaultBoosts);
   };
 
+  // Apply boost level to all products in the selected category
+  const handleBulkBoost = async () => {
+    if (!bulkCategory || !dbName) return;
+    setBulkBoostStatus('loading');
+    setBulkResult(null);
+    try {
+      const response = await fetch('/api/products/boost-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbName,
+          category: bulkCategory,
+          categoryType: bulkCategoryType,
+          boost: bulkBoostLevel
+        })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      setBulkResult(data);
+      setBulkBoostStatus('success');
+      setTimeout(() => setBulkBoostStatus('idle'), 4000);
+    } catch (err) {
+      console.error('Error bulk boosting category:', err);
+      setBulkBoostStatus('error');
+      setTimeout(() => setBulkBoostStatus('idle'), 4000);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto">
@@ -186,6 +228,104 @@ export default function CategoryBoostsPanel({ session }) {
           </div>
         </div>
       </header>
+
+      {/* ── Bulk Category Boost ── */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-1 flex items-center gap-2">
+          <Zap className="h-5 w-5 text-indigo-500" />
+          Boost All Products by Category
+        </h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Set a boost level on every product that belongs to a chosen category at once.
+        </p>
+
+        <div className="flex flex-wrap gap-4 items-end">
+          {/* Category type toggle */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Category type</label>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+              <button
+                onClick={() => { setBulkCategoryType('soft'); setBulkCategory(''); }}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${bulkCategoryType === 'soft' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                Soft
+              </button>
+              <button
+                onClick={() => { setBulkCategoryType('hard'); setBulkCategory(''); }}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${bulkCategoryType === 'hard' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                Hard
+              </button>
+            </div>
+          </div>
+
+          {/* Category selector */}
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <select
+              value={bulkCategory}
+              onChange={e => setBulkCategory(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <option value="">Select a category…</option>
+              {(bulkCategoryType === 'soft' ? softCategories : hardCategories).map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Boost level */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Boost level</label>
+            <div className="flex gap-1">
+              {[0, 1, 2, 3].map(level => (
+                <button
+                  key={level}
+                  onClick={() => setBulkBoostLevel(level)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    bulkBoostLevel === level
+                      ? level === 0
+                        ? 'bg-gray-600 text-white border-gray-600'
+                        : 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {level === 0 ? 'Remove' : `★`.repeat(level)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Apply button */}
+          <button
+            onClick={handleBulkBoost}
+            disabled={!bulkCategory || bulkBoostStatus === 'loading'}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            {bulkBoostStatus === 'loading' ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Applying…</>
+            ) : (
+              <><Zap className="h-4 w-4" /> Apply</>
+            )}
+          </button>
+        </div>
+
+        {/* Feedback */}
+        {bulkBoostStatus === 'success' && bulkResult && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            {bulkBoostLevel === 0
+              ? `Boost removed from ${bulkResult.updatedCount} product${bulkResult.updatedCount !== 1 ? 's' : ''} in "${bulkCategory}"`
+              : `${bulkResult.updatedCount} product${bulkResult.updatedCount !== 1 ? 's' : ''} in "${bulkCategory}" boosted to level ${bulkBoostLevel}`}
+          </div>
+        )}
+        {bulkBoostStatus === 'error' && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            Failed to apply boost. Please try again.
+          </div>
+        )}
+      </div>
 
       {/* Success Message */}
       {success && (

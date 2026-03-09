@@ -27,9 +27,13 @@ export async function GET(request) {
 
     const boosts = user.credentials?.softCategoryBoosts || {};
     const softCategories = user.credentials?.softCategories || [];
+    const categories = user.credentials?.categories || [];
+    const dbName = user.credentials?.dbName || '';
 
     return NextResponse.json({
       softCategories,
+      categories,
+      dbName,
       boosts
     });
 

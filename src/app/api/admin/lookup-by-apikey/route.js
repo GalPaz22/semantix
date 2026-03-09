@@ -70,6 +70,7 @@ export async function GET(request) {
       type: userTypes = [],
       softCategories = [],
       colors: userColors = [],
+      softCategoryBoosts = {},
       shopifyDomain,
       wooUrl,
       siteConfig
@@ -122,6 +123,7 @@ export async function GET(request) {
           count: userColors.length,
           list: userColors
         },
+        softCategoryBoosts,
         productCount
       }
     });
