@@ -119,49 +119,131 @@ export async function POST(request) {
       });
     } else {
       // Default: fetch cart items from the 'cart' collection
-      // These are items added to cart after a search query
       const cartItems = await db
         .collection("cart")
         .find(matchStage)
-        .sort({ timestamp: -1 }) // Most recent first
+        .sort({ timestamp: -1 })
         .toArray();
 
-      // For items with missing/zero price, look up the product by name to get the real price
-      const itemsMissingPrice = cartItems.filter(item => {
-        const price = parseFloat((item.product_price || "0").toString().replace(/[^0-9.]/g, ""));
-        return !price || price === 0;
-      });
+      // Helper: resolve the effective numeric price from an item (checks both field names)
+      function effectivePrice(item) {
+        const raw = item.price ?? item.product_price ?? "0";
+        return parseFloat(String(raw).replace(/[^0-9.]/g, "")) || 0;
+      }
+
+      // --- Price enrichment ---
+      // For items where both price fields are 0/null/empty, look up the product doc
+      const itemsMissingPrice = cartItems.filter(item => effectivePrice(item) === 0);
 
       if (itemsMissingPrice.length > 0) {
-        const productNames = [...new Set(
-          itemsMissingPrice
-            .map(item => item.product_name || item.product_title || item.name)
-            .filter(Boolean)
-        )];
+        // Collect unique product_ids and product_names for batch lookup
+        const missingIds = [...new Set(itemsMissingPrice.map(i => i.product_id).filter(Boolean))];
+        const missingNames = [...new Set(itemsMissingPrice.map(i => i.product_name || i.name).filter(Boolean))];
 
-        if (productNames.length > 0) {
-          const productDocs = await db
+        // Build a combined price map keyed by String(id) and by name
+        const priceMap = {}; // key → price
+
+        if (missingIds.length > 0) {
+          const numericIds = missingIds.map(Number).filter(n => !isNaN(n));
+          const allIds = [...missingIds, ...numericIds];
+          const byId = await db
             .collection("products")
-            .find({ name: { $in: productNames } }, { projection: { name: 1, price: 1, regular_price: 1 } })
+            .find({ id: { $in: allIds } }, { projection: { id: 1, name: 1, price: 1, regular_price: 1 } })
             .toArray();
-
-          const priceByName = {};
-          for (const doc of productDocs) {
-            if (doc.name && (doc.price || doc.regular_price)) {
-              priceByName[doc.name] = doc.price || doc.regular_price;
-            }
-          }
-
-          for (const item of cartItems) {
-            const price = parseFloat((item.product_price || "0").toString().replace(/[^0-9.]/g, ""));
-            if (!price || price === 0) {
-              const name = item.product_name || item.product_title || item.name;
-              if (name && priceByName[name] != null) {
-                item.product_price = String(priceByName[name]);
-              }
-            }
+          console.log(`[cart-analytics] id lookup: ${missingIds.length} ids → ${byId.length} docs`);
+          for (const doc of byId) {
+            const p = doc.price || doc.regular_price;
+            if (doc.id != null && p) priceMap[`id:${doc.id}`] = p;
+            if (doc.name && p) priceMap[`name:${doc.name}`] = p;
           }
         }
+
+        // Name-based fallback for any that still didn't match
+        const stillMissingNames = missingNames.filter(n => !priceMap[`name:${n}`]);
+        if (stillMissingNames.length > 0) {
+          const byName = await db
+            .collection("products")
+            .find({ name: { $in: stillMissingNames } }, { projection: { name: 1, price: 1, regular_price: 1 } })
+            .toArray();
+          console.log(`[cart-analytics] name lookup: ${stillMissingNames.length} names → ${byName.length} docs`);
+          for (const doc of byName) {
+            const p = doc.price || doc.regular_price;
+            if (doc.name && p) priceMap[`name:${doc.name}`] = p;
+          }
+        }
+
+        // Apply resolved prices
+        for (const item of cartItems) {
+          if (effectivePrice(item) !== 0) continue;
+          const resolved =
+            (item.product_id != null && priceMap[`id:${item.product_id}`]) ||
+            (item.product_id != null && priceMap[`id:${Number(item.product_id)}`]) ||
+            priceMap[`name:${item.product_name || item.name}`] ||
+            null;
+          if (resolved != null) {
+            item.price = resolved;
+            item.product_price = String(resolved);
+          }
+        }
+      }
+
+      // --- Session-based click-to-cart cross-reference ---
+      // Find product_click events that share a session_id with a cart add,
+      // matching on product_id — these represent reranked search clicks that converted.
+      let clickToCartCount = 0;
+      let clickToCartSessions = 0;
+      let zeroResultsCartCount = 0;
+      let zeroResultsCartSessions = 0;
+      try {
+        const sessionIds = [...new Set(cartItems.map(i => i.session_id).filter(Boolean))];
+        if (sessionIds.length > 0) {
+          // Build a set of "session:product" keys from cart items
+          const cartKeys = new Set(
+            cartItems
+              .filter(i => i.session_id && i.product_id)
+              .map(i => `${i.session_id}:${String(i.product_id)}`)
+          );
+
+          // Fetch product_clicks that share any of these session_ids
+          const [clickDocs, zeroResultsClickDocs] = await Promise.all([
+            db.collection("product_clicks")
+              .find(
+                { session_id: { $in: sessionIds } },
+                { projection: { session_id: 1, product_id: 1 } }
+              )
+              .toArray(),
+            db.collection("product_clicks")
+              .find(
+                { session_id: { $in: sessionIds }, source: { $in: ["zero-results", "inject"] } },
+                { projection: { session_id: 1, product_id: 1 } }
+              )
+              .toArray()
+          ]);
+
+          // Count clicks whose (session_id + product_id) pair also appears in cart
+          const matchedSessions = new Set();
+          for (const click of clickDocs) {
+            const key = `${click.session_id}:${String(click.product_id)}`;
+            if (cartKeys.has(key)) {
+              clickToCartCount++;
+              matchedSessions.add(click.session_id);
+            }
+          }
+          clickToCartSessions = matchedSessions.size;
+
+          // Count zero-results inject clicks that converted to cart adds
+          const zeroResultsMatchedSessions = new Set();
+          for (const click of zeroResultsClickDocs) {
+            const key = `${click.session_id}:${String(click.product_id)}`;
+            if (cartKeys.has(key)) {
+              zeroResultsCartCount++;
+              zeroResultsMatchedSessions.add(click.session_id);
+            }
+          }
+          zeroResultsCartSessions = zeroResultsMatchedSessions.size;
+        }
+      } catch (e) {
+        console.log("[cart-analytics] click-to-cart cross-reference skipped:", e.message);
       }
 
       // Get some basic analytics
@@ -169,13 +251,16 @@ export async function POST(request) {
       const uniqueQueries = new Set(cartItems.map(item => item.search_query)).size;
       const uniqueProducts = new Set(cartItems.map(item => item.product_id)).size;
 
-      // Return the data
       return Response.json({
         cartItems,
         analytics: {
           totalCartItems,
           uniqueQueries,
-          uniqueProducts
+          uniqueProducts,
+          clickToCartCount,         // # of product clicks (from search) that led to a cart add in same session
+          clickToCartSessions,      // # of unique sessions where a search click converted to cart
+          zeroResultsCartCount,     // # of zero-results inject clicks that converted to cart adds
+          zeroResultsCartSessions   // # of unique sessions where a zero-results inject click converted to cart
         }
       });
     }

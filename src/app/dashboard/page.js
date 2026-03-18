@@ -1054,6 +1054,10 @@ function AnalyticsPanel({ session, onboarding }) {
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [loadingCart, setLoadingCart] = useState(false);
   const [cartError, setCartError] = useState("");
+  const [zeroResultsCart, setZeroResultsCart] = useState({ count: 0, sessions: 0, items: [] });
+  const [zeroResultsExpanded, setZeroResultsExpanded] = useState(false);
+  const [injectCart, setInjectCart] = useState({ count: 0, sessions: 0, items: [] });
+  const [injectExpanded, setInjectExpanded] = useState(false);
 
   // Add state for checkout events
   const [checkoutEvents, setCheckoutEvents] = useState([]);
@@ -1279,6 +1283,18 @@ function AnalyticsPanel({ session, onboarding }) {
         // Update Performance State
         setCartAnalytics(performanceData.cart || []);
         setCheckoutEvents(performanceData.checkout || []);
+        setZeroResultsCart({
+          count: performanceData.zeroResultsCartCount || 0,
+          sessions: performanceData.zeroResultsCartSessions || 0,
+          value: performanceData.zeroResultsCartValue || 0,
+          items: performanceData.zeroResultsItems || []
+        });
+        setInjectCart({
+          count: performanceData.injectCartCount || 0,
+          sessions: performanceData.injectCartSessions || 0,
+          value: performanceData.injectCartValue || 0,
+          items: performanceData.injectItems || []
+        });
         setBoostedProducts(boostedData.boostedProducts || []);
 
         // Note: The performance API currently returns cart and checkout. 
@@ -2702,6 +2718,117 @@ function AnalyticsPanel({ session, onboarding }) {
                     )}
                   </button>
                 </div>}
+
+                {/* Zero-results inject clicks that converted to cart adds */}
+                {zeroResultsCart.count > 0 && (
+                  <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="flex-shrink-0 bg-orange-100 text-orange-600 rounded-lg p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                          <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-orange-800">
+                          {zeroResultsCart.count.toLocaleString('en-US')} הוספות לסל מחיפושי אפס-תוצאות
+                          {zeroResultsCart.value > 0 && (
+                            <span className="mr-2 text-orange-700">· ₪{zeroResultsCart.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-orange-600 mt-0.5">
+                          מוצרים שהוזרקו ע"י AI הובילו לרכישה — {zeroResultsCart.sessions} סשנים
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setZeroResultsExpanded(!zeroResultsExpanded)}
+                        className="flex items-center gap-1 text-xs text-orange-700 hover:text-orange-900 font-medium flex-shrink-0"
+                      >
+                        {zeroResultsExpanded ? "הסתר" : "פרטים"}
+                        <ChevronDown className={`h-3 w-3 transition-transform ${zeroResultsExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                    {zeroResultsExpanded && zeroResultsCart.items.length > 0 && (
+                      <div className="border-t border-orange-200 divide-y divide-orange-100">
+                        {zeroResultsCart.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between px-4 py-2 text-xs">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-800 truncate">{item.productName || item.productId}</p>
+                              {item.searchQuery && (
+                                <p className="text-gray-500 mt-0.5">חיפוש: <span className="text-orange-700">"{item.searchQuery}"</span></p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0 ml-4">
+                              {item.price != null && item.price !== "" && (
+                                <p className="font-semibold text-gray-700">
+                                  ₪{parseFloat(String(item.price).replace(/[^0-9.]/g, "")).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </p>
+                              )}
+                              {item.cartTime && (
+                                <p className="text-gray-400 mt-0.5">{new Date(item.cartTime).toLocaleDateString('he-IL')}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Inject clicks that converted to cart adds */}
+                {injectCart.count > 0 && (
+                  <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="flex-shrink-0 bg-purple-100 text-purple-600 rounded-lg p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-purple-800">
+                          {injectCart.count.toLocaleString('en-US')} הוספות לסל מהזרקת מוצרים (Inject)
+                          {injectCart.value > 0 && (
+                            <span className="mr-2 text-purple-700">· ₪{injectCart.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-purple-600 mt-0.5">
+                          מוצרים שהוזרקו ישירות הובילו לרכישה — {injectCart.sessions} סשנים
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setInjectExpanded(!injectExpanded)}
+                        className="flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-medium flex-shrink-0"
+                      >
+                        {injectExpanded ? "הסתר" : "פרטים"}
+                        <ChevronDown className={`h-3 w-3 transition-transform ${injectExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                    {injectExpanded && injectCart.items.length > 0 && (
+                      <div className="border-t border-purple-200 divide-y divide-purple-100">
+                        {injectCart.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between px-4 py-2 text-xs">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-800 truncate">{item.productName || item.productId}</p>
+                              {item.searchQuery && (
+                                <p className="text-gray-500 mt-0.5">חיפוש: <span className="text-purple-700">"{item.searchQuery}"</span></p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0 ml-4">
+                              {item.price != null && item.price !== "" && (
+                                <p className="font-semibold text-gray-700">
+                                  ₪{parseFloat(String(item.price).replace(/[^0-9.]/g, "")).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </p>
+                              )}
+                              {item.cartTime && (
+                                <p className="text-gray-400 mt-0.5">{new Date(item.cartTime).toLocaleDateString('he-IL')}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Checkout Section - Only show if we have checkout events and revenue >= 1000 */}
                 {checkoutEvents.length > 0 && (cartMetrics?.checkoutMetrics?.revenue || 0) >= 1000 && (

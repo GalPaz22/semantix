@@ -338,6 +338,8 @@ export default function AnalyticsPage() {
   const [queries, setQueries] = useState([]);
   const [filteredQueries, setFilteredQueries] = useState([]);
   const [cartAnalytics, setCartAnalytics] = useState([]);
+  const [clickToCart, setClickToCart] = useState({ count: 0, sessions: 0 });
+  const [zeroResultsCart, setZeroResultsCart] = useState({ count: 0, sessions: 0 });
   const [checkoutAnalytics, setCheckoutAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -698,6 +700,14 @@ export default function AnalyticsPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error fetching cart analytics");
         setCartAnalytics(data.cartItems || []);
+        setClickToCart({
+          count: data.analytics?.clickToCartCount || 0,
+          sessions: data.analytics?.clickToCartSessions || 0
+        });
+        setZeroResultsCart({
+          count: data.analytics?.zeroResultsCartCount || 0,
+          sessions: data.analytics?.zeroResultsCartSessions || 0
+        });
         setDataLoaded(prev => ({ ...prev, cart: true }));
       } catch (err) {
         console.error("[Analytics] Cart analytics error:", err);
@@ -863,7 +873,7 @@ export default function AnalyticsPage() {
       const query = (item.search_query || "").toLowerCase().trim();
       if (query && queryAnalysis[query]) {
         queryAnalysis[query].conversions += 1;
-        const price = parseFloat((item.product_price || "0").replace(/[^0-9.]/g, ''));
+        const price = parseFloat((item.product_price || item.price || "0").toString().replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
           queryAnalysis[query].revenue += price * (item.quantity || 1);
         }
@@ -911,7 +921,7 @@ export default function AnalyticsPage() {
 
     // Calculate total revenue from all cart items (both checkout and add to cart)
     const totalRevenueFromCart = cartAnalytics.reduce((sum, item) => {
-      const price = parseFloat((item.product_price || "0").replace(/[^0-9.]/g, ''));
+      const price = parseFloat((item.product_price || item.price || "0").toString().replace(/[^0-9.]/g, ''));
       if (!isNaN(price)) {
         return sum + (price * (item.quantity || 1));
       }
@@ -969,7 +979,7 @@ export default function AnalyticsPage() {
       const hour = date.getHours();
       const dayOfWeek = date.getDay();
       const dayName = dayNames[dayOfWeek];
-      const price = parseFloat((item.product_price || "0").replace(/[^0-9.]/g, ''));
+      const price = parseFloat((item.product_price || item.price || "0").toString().replace(/[^0-9.]/g, ''));
 
       // Initialize if doesn't exist
       if (!timeAnalysis.hourly[hour]) {
@@ -1286,6 +1296,20 @@ export default function AnalyticsPage() {
                       <p className="text-white/80 text-sm">הכנסות כוללות</p>
                       <p className="text-xl font-bold text-white">₪{(businessInsights.totalRevenueFromCart || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                     </div>
+                    {clickToCart.count > 0 && (
+                      <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm shadow-lg border border-white/10">
+                        <p className="text-white/80 text-sm">קליקים שהובילו לסל</p>
+                        <p className="text-xl font-bold text-white">{clickToCart.count.toLocaleString('en-US')}</p>
+                        <p className="text-white/60 text-xs">{clickToCart.sessions} סשנים</p>
+                      </div>
+                    )}
+                    {zeroResultsCart.count > 0 && (
+                      <div className="text-center bg-white/20 rounded-lg px-4 py-2 backdrop-blur-sm shadow-lg border border-white/10">
+                        <p className="text-white/80 text-sm">תוצאות אפס שהובילו לסל</p>
+                        <p className="text-xl font-bold text-white">{zeroResultsCart.count.toLocaleString('en-US')}</p>
+                        <p className="text-white/60 text-xs">{zeroResultsCart.sessions} סשנים</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
