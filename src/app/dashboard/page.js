@@ -1054,9 +1054,9 @@ function AnalyticsPanel({ session, onboarding }) {
   const [cartAnalytics, setCartAnalytics] = useState([]);
   const [loadingCart, setLoadingCart] = useState(false);
   const [cartError, setCartError] = useState("");
-  const [zeroResultsCart, setZeroResultsCart] = useState({ count: 0, sessions: 0, items: [] });
+  const [zeroResultsCart, setZeroResultsCart] = useState({ count: 0, sessions: 0, value: 0, items: [] });
   const [zeroResultsExpanded, setZeroResultsExpanded] = useState(false);
-  const [injectCart, setInjectCart] = useState({ count: 0, sessions: 0, items: [] });
+  const [injectCart, setInjectCart] = useState({ count: 0, sessions: 0, value: 0, items: [] });
   const [injectExpanded, setInjectExpanded] = useState(false);
 
   // Add state for checkout events
@@ -2720,7 +2720,7 @@ function AnalyticsPanel({ session, onboarding }) {
                 </div>}
 
                 {/* Zero-results inject clicks that converted to cart adds */}
-                {zeroResultsCart.count > 0 && (
+                {zeroResultsCart.count > 0 && zeroResultsCart.value > 0 && (
                   <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg overflow-hidden">
                     <div className="flex items-center gap-3 p-3">
                       <div className="flex-shrink-0 bg-orange-100 text-orange-600 rounded-lg p-2">
@@ -2776,7 +2776,7 @@ function AnalyticsPanel({ session, onboarding }) {
                 )}
 
                 {/* Inject clicks that converted to cart adds */}
-                {injectCart.count > 0 && (
+                {injectCart.count > 0 && injectCart.value > 0 && (
                   <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg overflow-hidden">
                     <div className="flex items-center gap-3 p-3">
                       <div className="flex-shrink-0 bg-purple-100 text-purple-600 rounded-lg p-2">
