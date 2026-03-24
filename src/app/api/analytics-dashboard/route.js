@@ -1,7 +1,7 @@
 
 import { getServerSession } from "next-auth"; // Assuming authOptions are available or can be configured
 import clientPromise from "../../../../lib/mongodb"; // Adjust relative path
-import { authOptions } from "../../api/auth/[...nextauth]/route"; // Adjust relative path
+import { authOptions } from "@/lib/auth/options"; // Adjust relative path
 
 export async function POST(request) {
     try {

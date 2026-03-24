@@ -4,7 +4,7 @@
 
 import { paddle } from '/lib/paddle';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth/options';
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
 import clientPromise from '/lib/mongodb';
 import { NextResponse } from 'next/server';

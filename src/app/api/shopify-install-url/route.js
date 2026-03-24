@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/options";
 import { INSTALL_URL } from "/lib/shopify-app-config";
 
 export async function GET(request) {

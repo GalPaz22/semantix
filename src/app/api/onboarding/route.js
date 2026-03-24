@@ -1,6 +1,6 @@
 /* eslint-disable consistent-return */
 import { getServerSession }  from "next-auth";
-import { authOptions }       from "../auth/[...nextauth]/route";
+import { authOptions }       from "@/lib/auth/options";
 import clientPromise         from "../../../../lib/mongodb.js";
 import processShopify        from "../../../../lib/processShopify.js";
 import { processWooProducts } from "../../../../lib/processWoo.js";

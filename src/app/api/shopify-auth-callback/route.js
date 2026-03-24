@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/options";
 import clientPromise from "/lib/mongodb";
 import { exchangeCodeForToken, WEBHOOK_TOPICS, APP_URL } from "/lib/shopify-app-config";
 import crypto from "crypto";

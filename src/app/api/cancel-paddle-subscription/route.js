@@ -1,6 +1,6 @@
 import { paddle } from '/lib/paddle';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth/options';
 import { getUserByEmail, updateUserTier } from '/lib/subscription-utils';
 import { NextResponse } from 'next/server';
 

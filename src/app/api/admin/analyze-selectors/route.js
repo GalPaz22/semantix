@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { authOptions } from "../@/lib/auth/options";
 import { GoogleGenAI } from '@google/genai';
 
 const adminEmail = "galpaz2210@gmail.com";
