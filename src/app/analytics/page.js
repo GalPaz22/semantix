@@ -258,7 +258,7 @@ function normalizePrice(price) {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function isComplex(query) {
+function isComplex(query) {
   const normalized = trimAndNormalize(query);
   if (!normalized) return false;
   const lower = normalized.toLowerCase();
