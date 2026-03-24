@@ -1,7 +1,7 @@
 
 import { getServerSession } from "next-auth";
 import clientPromise from "../../../../../lib/mongodb";
-import { authOptions } from "../@/lib/auth/options";
+import { authOptions } from "@/lib/auth/options";
 import { buildDynamicDateFilter } from "../../../../../lib/analytics-helper";
 
 export async function POST(request) {

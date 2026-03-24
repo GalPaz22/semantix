@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import clientPromise from "/lib/mongodb";
-import { authOptions } from "../@/lib/auth/options";
+import { authOptions } from "@/lib/auth/options";
 
 /**
  * API endpoint to fetch products that have a boost level > 0
