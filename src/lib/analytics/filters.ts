@@ -1,7 +1,5 @@
 import type { DashboardFilters } from "@/lib/dashboard/types";
 
-import { getEnv } from "@/lib/config/env";
-
 const FALLBACK_DATE_RANGE_DAYS = 30;
 
 function toIsoDate(date: Date) {
@@ -9,13 +7,7 @@ function toIsoDate(date: Date) {
 }
 
 export function buildDefaultFilters(): DashboardFilters {
-  let defaultRangeDays = FALLBACK_DATE_RANGE_DAYS;
-
-  try {
-    defaultRangeDays = getEnv().DEFAULT_DATE_RANGE_DAYS;
-  } catch {
-    defaultRangeDays = FALLBACK_DATE_RANGE_DAYS;
-  }
+  const defaultRangeDays = FALLBACK_DATE_RANGE_DAYS;
 
   const to = new Date();
   const from = new Date();
