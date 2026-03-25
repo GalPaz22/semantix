@@ -9,6 +9,12 @@ const iconTone = {
   ip: "bg-emerald-100 text-emerald-700"
 } as const;
 
+const identifierTypeLabel = {
+  user: "משתמש",
+  session: "סשן",
+  ip: 'IP'
+} as const;
+
 function ProfileIcon({ profile }: { profile: CustomerSearchProfile }) {
   const initials = profile.label
     .split(/\s+/)
@@ -37,7 +43,7 @@ function ProfileCard({ profile, featured = false }: { profile: CustomerSearchPro
           <ProfileIcon profile={profile} />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7b63c8]">
-              {profile.identifierType}
+              {identifierTypeLabel[profile.identifierType]}
             </p>
             <h3 className="mt-2 truncate font-display text-[1.75rem] font-bold tracking-[-0.04em] text-ink">
               {profile.label}

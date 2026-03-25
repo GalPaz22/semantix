@@ -964,7 +964,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
       id: key,
       label: buildProfileLabel(key),
       identifier,
-      identifierType: sorted[0]?.userId ? "משתמש" : sorted[0]?.sessionId ? "סשן" : "IP",
+      identifierType: sorted[0]?.userId ? "user" : sorted[0]?.sessionId ? "session" : "ip",
       sessionId: sorted[0]?.sessionId ?? key,
       ipAddress: sorted[0]?.ipAddress ?? "לא ידוע",
       userId: sorted[0]?.userId,

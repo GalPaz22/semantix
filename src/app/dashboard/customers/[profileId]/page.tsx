@@ -13,6 +13,12 @@ type CustomerProfilePageProps = {
   searchParams: Record<string, string | string[] | undefined>;
 };
 
+const identifierTypeLabel = {
+  user: "משתמש",
+  session: "סשן",
+  ip: 'IP'
+} as const;
+
 export default async function CustomerProfilePage({
   params,
   searchParams
@@ -31,7 +37,7 @@ export default async function CustomerProfilePage({
       <Panel
         eyebrow="כרטיס לקוח"
         title={profile.label}
-        description={`פירוט סשן של סמנטיקס עבור ${profile.identifierType}: ${profile.identifier}`}
+        description={`פירוט סשן של סמנטיקס עבור ${identifierTypeLabel[profile.identifierType]}: ${profile.identifier}`}
       >
         <div className="grid gap-4 lg:grid-cols-5">
           <div className="rounded-panel bg-[#faf7ff] p-4">
