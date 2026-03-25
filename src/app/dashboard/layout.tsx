@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import { getCurrentDashboardContext } from "@/lib/dashboard/runtime";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function SemantixLogo() {
   return (
@@ -14,6 +18,15 @@ function SemantixLogo() {
 }
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  let workspaceName = "Workspace";
+
+  try {
+    const context = await getCurrentDashboardContext();
+    workspaceName = context.dbName;
+  } catch {
+    workspaceName = "לא הוגדר";
+  }
+
   return (
     <main dir="rtl" className="min-h-screen semantix-shell text-right">
       <aside className="border-b border-line bg-white lg:fixed lg:inset-y-0 lg:right-0 lg:z-50 lg:w-72 lg:border-b-0 lg:border-l">
@@ -26,13 +39,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           </div>
           <div className="border-t border-line px-6 py-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">סביבת עבודה</p>
-            <p className="mt-2 text-sm font-semibold text-ink">Mendelson</p>
+            <p className="mt-2 text-sm font-semibold text-ink">{workspaceName}</p>
             <p className="mt-1 text-sm text-muted">מודול מודיעין חיפוש</p>
           </div>
         </div>
       </aside>
 
-      <DashboardHeader />
+      <DashboardHeader workspaceName={workspaceName} />
 
       <div className="lg:pr-72">
         <section className="mx-auto max-w-7xl px-4 pb-8 pt-20 sm:px-6 lg:pt-24">

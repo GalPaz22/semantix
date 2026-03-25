@@ -86,9 +86,17 @@ export const authOptions = {
           });
 
           if (dbUser) {
+            const dbName =
+              dbUser?.onboarding?.credentials?.dbName ||
+              dbUser?.credentials?.dbName ||
+              dbUser?.onboarding?.dbName ||
+              dbUser?.dbName ||
+              "";
+
             session.user.id = dbUser._id.toString();
             session.user.onboardingComplete = dbUser.onboardingComplete ?? false;
             session.user.tier = dbUser.tier ?? "basic";
+            session.user.dbName = dbName;
           }
         }
         return session;

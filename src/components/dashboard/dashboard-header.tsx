@@ -11,7 +11,7 @@ const labels: Record<string, string> = {
   "/dashboard/boost": "מוצרים",
 };
 
-export function DashboardHeader() {
+export function DashboardHeader({ workspaceName }: { workspaceName: string }) {
   const pathname = usePathname();
   const title = labels[pathname] ?? "דאשבורד";
 
@@ -33,7 +33,7 @@ export function DashboardHeader() {
         </div>
         <div className="hidden items-center gap-2 sm:flex">
           <span className="rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-medium text-[#6d28d9]">
-            Mendelson בזמן אמת
+            {workspaceName} בזמן אמת
           </span>
         </div>
       </div>
