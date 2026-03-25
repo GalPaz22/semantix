@@ -14,7 +14,7 @@ export function RankedBarChart({
   color?: string;
 }) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No comparison data is available for this view.</p>;
+    return <p className="text-sm text-muted">אין כרגע נתוני השוואה זמינים לתצוגה הזו.</p>;
   }
 
   return (

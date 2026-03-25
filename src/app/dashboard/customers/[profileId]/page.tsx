@@ -29,39 +29,39 @@ export default async function CustomerProfilePage({
   return (
     <div className="grid gap-6">
       <Panel
-        eyebrow="Customer Ticket"
+        eyebrow="כרטיס לקוח"
         title={profile.label}
-        description={`A Semantix session breakdown for ${profile.identifierType}: ${profile.identifier}`}
+        description={`פירוט סשן של סמנטיקס עבור ${profile.identifierType}: ${profile.identifier}`}
       >
         <div className="grid gap-4 lg:grid-cols-5">
           <div className="rounded-panel bg-[#faf7ff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">Total session value</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">שווי סשן כולל</p>
             <p className="mt-2 text-3xl font-extrabold text-ink">{formatCompactCurrency(profile.totalSessionValue)}</p>
           </div>
           <div className="rounded-panel bg-[#faf7ff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">Total clicks</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">סך כל הקליקים</p>
             <p className="mt-2 text-3xl font-extrabold text-ink">{profile.totalClicks}</p>
           </div>
           <div className="rounded-panel bg-[#faf7ff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">Total searches</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">סך כל החיפושים</p>
             <p className="mt-2 text-3xl font-extrabold text-ink">{profile.totalSearches}</p>
           </div>
           <div className="rounded-panel bg-[#faf7ff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">Add to cart</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">הוספות לעגלה</p>
             <p className="mt-2 text-3xl font-extrabold text-ink">{profile.totalAddToCarts}</p>
-            <p className="mt-2 text-sm text-muted">Avg value {formatCompactCurrency(profile.averageCartValue)}</p>
+            <p className="mt-2 text-sm text-muted">שווי ממוצע {formatCompactCurrency(profile.averageCartValue)}</p>
           </div>
           <div className="rounded-panel bg-[#faf7ff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">Last seen</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b63c8]">נראה לאחרונה</p>
             <p className="mt-2 text-lg font-extrabold text-ink">{formatDate(profile.lastSeen)}</p>
           </div>
         </div>
       </Panel>
 
       <Panel
-        eyebrow="Session Timeline"
-        title="Customer journey"
-        description='Example flow: Search "sweet red wine" → Click product → Add to cart → Purchase'
+        eyebrow="ציר זמן"
+        title="מסע הלקוח"
+        description='דוגמה: חיפוש "יין אדום מתוק" ← קליק על מוצר ← הוספה לעגלה ← רכישה'
       >
         <JourneyTimeline journey={profile.journey} />
       </Panel>

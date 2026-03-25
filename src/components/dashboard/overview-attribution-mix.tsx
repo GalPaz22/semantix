@@ -21,7 +21,7 @@ export function OverviewAttributionMix({ rows, labels }: OverviewAttributionMixP
     <Panel className="p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c3aed]">Attribution Mix</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c3aed]">תמהיל אטריביושן</p>
           <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-ink">Zero Results, ReRank, Inject</h2>
         </div>
       </div>
@@ -40,7 +40,7 @@ export function OverviewAttributionMix({ rows, labels }: OverviewAttributionMixP
                   {labels[source]}
                 </span>
                 <span className="text-xs font-medium text-muted">
-                  {(row?.clicks ?? 0).toLocaleString("en-US")} clicks
+                  {(row?.clicks ?? 0).toLocaleString("he-IL")} קליקים
                 </span>
               </div>
 
@@ -49,7 +49,7 @@ export function OverviewAttributionMix({ rows, labels }: OverviewAttributionMixP
                   {formatCurrency(row?.attributedValue ?? 0)}
                 </p>
                 <p className="text-xs text-muted">
-                  {(row?.attributedCarts ?? 0).toLocaleString("en-US")} carts
+                  {(row?.attributedCarts ?? 0).toLocaleString("he-IL")} עגלות
                 </p>
               </div>
             </article>

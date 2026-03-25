@@ -17,7 +17,7 @@ import type {
 import { demoSemantixRecords } from "@/lib/dashboard/demo";
 import { buildAttribution, buildCustomerProfile, buildCustomersDashboard, buildInsightsDashboard, buildProductsDashboard, buildQueriesDashboard, buildSemantixOverview } from "@/lib/dashboard/semantix";
 const dashboardRecords = demoSemantixRecords as NormalizedRecord[];
-const dashboardWarning = "Using bundled demo data in this deployment.";
+const dashboardWarning = "המערכת מציגה כרגע דאטה דמו מובנה בדיפלוי הזה.";
 
 function baseResponse<T>(
   filters: DashboardFilters,

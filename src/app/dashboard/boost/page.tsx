@@ -69,13 +69,13 @@ export default async function BoostPage({ searchParams }: BoostPageProps) {
 
       <BoostSummaryPanel summary={boostView.data.summary} />
 
-      <Panel eyebrow="Catalog" title="All products" className="p-4 md:p-5">
+      <Panel eyebrow="קטלוג" title="כל המוצרים" className="p-4 md:p-5">
         <ProductCatalogTable rows={boostView.data.products} editable />
 
         {boostView.data.pagination.totalPages > 1 ? (
           <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4 md:flex-row md:items-center md:justify-between">
             <p className="text-sm text-muted">
-              Showing page <span className="font-semibold text-ink">{boostView.data.pagination.page}</span> of{" "}
+              עמוד <span className="font-semibold text-ink">{boostView.data.pagination.page}</span> מתוך{" "}
               <span className="font-semibold text-ink">{boostView.data.pagination.totalPages}</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
@@ -84,7 +84,7 @@ export default async function BoostPage({ searchParams }: BoostPageProps) {
                   href={buildPageHref(searchParams, boostView.data.pagination.page - 1)}
                   className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:bg-[#faf7ff]"
                 >
-                  Previous
+                  הקודם
                 </Link>
               ) : null}
               {getVisiblePages(boostView.data.pagination.page, boostView.data.pagination.totalPages).map((page) => (
@@ -105,7 +105,7 @@ export default async function BoostPage({ searchParams }: BoostPageProps) {
                   href={buildPageHref(searchParams, boostView.data.pagination.page + 1)}
                   className="rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6d28d9]"
                 >
-                  Next
+                  הבא
                 </Link>
               ) : null}
             </div>

@@ -27,13 +27,13 @@ export function SourceValueStrip({ rows, labels }: SourceValueStripProps) {
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sourceTone[source]}`}>
                 {labels[source]}
               </span>
-              <span className="text-xs text-muted">{(row?.clicks ?? 0).toLocaleString("en-US")} clicks</span>
+              <span className="text-xs text-muted">{(row?.clicks ?? 0).toLocaleString("he-IL")} קליקים</span>
             </div>
             <p className="mt-4 text-2xl font-bold tracking-[-0.04em] text-ink">
               {formatCurrency(row?.attributedValue ?? 0)}
             </p>
             <p className="mt-1 text-xs text-muted">
-              {(row?.attributedCarts ?? 0).toLocaleString("en-US")} matched carts
+              {(row?.attributedCarts ?? 0).toLocaleString("he-IL")} עגלות תואמות
             </p>
           </article>
         );

@@ -2,7 +2,7 @@ import type { MetricValue } from "@/lib/dashboard/types";
 
 export function formatMetric(metric: MetricValue) {
   if (metric.format === "currency") {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("he-IL", {
       style: "currency",
       currency: "USD",
       maximumFractionDigits: 0
@@ -17,28 +17,28 @@ export function formatMetric(metric: MetricValue) {
     return `${metric.value.toFixed(1)}h`;
   }
 
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("he-IL", {
     maximumFractionDigits: 0
   }).format(metric.value);
 }
 
 export function formatDelta(delta?: number) {
   if (delta == null) {
-    return "No comparison";
+    return "ללא השוואה";
   }
 
   return `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`;
 }
 
 export function formatCompactNumber(value: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("he-IL", {
     notation: "compact",
     maximumFractionDigits: 1
   }).format(value);
 }
 
 export function formatCompactCurrency(value: number) {
-  const compact = new Intl.NumberFormat("en-US", {
+  const compact = new Intl.NumberFormat("he-IL", {
     notation: "compact",
     maximumFractionDigits: 1
   }).format(value);
@@ -47,7 +47,7 @@ export function formatCompactCurrency(value: number) {
 }
 
 export function formatCurrency(value: number) {
-  const formatted = new Intl.NumberFormat("en-US", {
+  const formatted = new Intl.NumberFormat("he-IL", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1
   }).format(value);
@@ -57,10 +57,10 @@ export function formatCurrency(value: number) {
 
 export function formatDate(value?: string) {
   if (!value) {
-    return "Unknown";
+    return "לא ידוע";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("he-IL", {
     month: "short",
     day: "numeric",
     hour: "numeric",

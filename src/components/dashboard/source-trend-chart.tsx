@@ -14,17 +14,17 @@ import {
 } from "recharts";
 
 const series = [
-  { key: "native", label: "Native", color: "#111827" },
-  { key: "zeroResults", label: "Zero Results", color: "#dc2626" },
-  { key: "inject", label: "Inject", color: "#0f766e" },
-  { key: "rerank", label: "ReRank", color: "#7c3aed" },
+  { key: "native", label: "אורגני", color: "#111827" },
+  { key: "zeroResults", label: "אפס תוצאות", color: "#dc2626" },
+  { key: "inject", label: "הזרקה", color: "#0f766e" },
+  { key: "rerank", label: "רי-רנק", color: "#7c3aed" },
   { key: "ai", label: "AI", color: "#2563eb" },
-  { key: "unknown", label: "Unknown", color: "#9ca3af" }
+  { key: "unknown", label: "לא ידוע", color: "#9ca3af" }
 ] as const;
 
 export function SourceTrendChart({ data }: { data: SourceTrendPoint[] }) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No source trend is available yet.</p>;
+    return <p className="text-sm text-muted">עדיין אין מגמת מקורות זמינה.</p>;
   }
 
   return (

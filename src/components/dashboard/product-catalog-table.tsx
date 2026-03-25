@@ -20,7 +20,7 @@ type SaveState = {
 };
 
 const BOOST_OPTIONS: Array<{ label: string; value: BoostLevel }> = [
-  { label: "Clear", value: 0 },
+  { label: "נקה", value: 0 },
   { label: "1", value: 1 },
   { label: "2", value: 2 },
   { label: "3", value: 3 }
@@ -31,6 +31,17 @@ function statusTone(status?: string) {
   if (/in stock|available|active/i.test(status)) return "bg-emerald-100 text-emerald-700";
   if (/out|inactive|disabled/i.test(status)) return "bg-rose-100 text-rose-700";
   return "bg-slate-100 text-slate-700";
+}
+
+function formatProductStatus(status?: string) {
+  if (!status) return status;
+  if (/^in stock$/i.test(status)) return "במלאי";
+  if (/^out of stock$/i.test(status)) return "אזל מהמלאי";
+  if (/^available$/i.test(status)) return "זמין";
+  if (/^active$/i.test(status)) return "פעיל";
+  if (/^inactive$/i.test(status)) return "לא פעיל";
+  if (/^disabled$/i.test(status)) return "מושבת";
+  return status;
 }
 
 function BoostControl({
@@ -82,7 +93,7 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
   }, [rows]);
 
   if (!localRows.length) {
-    return <p className="text-sm text-muted">No products are available for the selected filters.</p>;
+    return <p className="text-sm text-muted">אין מוצרים זמינים עבור הסינון שנבחר.</p>;
   }
 
   const updateBoost = (productId: string, nextBoost: BoostLevel) => {
@@ -112,7 +123,7 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
         });
         const payload = (await response.json()) as { error?: string };
         if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to save boost.");
+          throw new Error(payload.error ?? "לא ניתן לשמור את הבוסט.");
         }
 
         setRowState((current) => ({
@@ -131,7 +142,7 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
           [productId]: {
             status: "failed",
             value: previous,
-            error: error instanceof Error ? error.message : "Unable to save boost."
+            error: error instanceof Error ? error.message : "לא ניתן לשמור את הבוסט."
           }
         }));
       }
@@ -161,23 +172,23 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
                     <p className="truncate text-[15px] font-semibold leading-6 text-ink">{row.name}</p>
                     {row.currentBoost > 0 ? (
                       <span className="rounded-full bg-[#f3e8ff] px-2 py-0.5 text-[11px] font-semibold text-[#7c3aed]">
-                        Boost {row.currentBoost}
+                        בוסט {row.currentBoost}
                       </span>
                     ) : null}
                     {row.status ? (
                       <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", statusTone(row.status))}>
-                        {row.status}
+                        {formatProductStatus(row.status)}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] text-muted">ID {row.id}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted">מזהה {row.id}</p>
 
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                     <span className="font-semibold text-ink">
                       {row.price != null ? formatCurrency(row.price) : "-"}
                     </span>
-                    <span className="text-muted">{row.clicks.toLocaleString("en-US")} clicks</span>
-                    <span className="text-muted">{row.carts.toLocaleString("en-US")} carts</span>
+                    <span className="text-muted">{row.clicks.toLocaleString("he-IL")} קליקים</span>
+                    <span className="text-muted">{row.carts.toLocaleString("he-IL")} עגלות</span>
                   </div>
 
                   {categoryItems.length ? (
@@ -209,20 +220,20 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
               <div className="mt-3 grid gap-1.5">
                 {editable ? (
                   <>
-                    <BoostControl value={row.currentBoost} productId={row.id} onChange={updateBoost} disabled={!editable} />
-                    <p className="text-[11px] text-muted">
-                      {row.currentBoost > 0
-                        ? `Tracking ${row.clicks.toLocaleString("en-US")} clicks and ${row.carts.toLocaleString("en-US")} carts`
-                        : "No active boost"}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm font-semibold text-ink">{row.currentBoost > 0 ? `Boost ${row.currentBoost}` : "Not boosted"}</p>
+                        <BoostControl value={row.currentBoost} productId={row.id} onChange={updateBoost} disabled={!editable} />
+                        <p className="text-[11px] text-muted">
+                          {row.currentBoost > 0
+                            ? `במעקב: ${row.clicks.toLocaleString("he-IL")} קליקים ו-${row.carts.toLocaleString("he-IL")} עגלות`
+                            : "אין בוסט פעיל"}
+                        </p>
+                      </>
+                    ) : (
+                  <p className="text-sm font-semibold text-ink">{row.currentBoost > 0 ? `בוסט ${row.currentBoost}` : "ללא בוסט"}</p>
                 )}
 
-                {state?.status === "saving" ? <p className="text-[11px] font-semibold text-[#7c3aed]">Saving...</p> : null}
-                {state?.status === "saved" ? <p className="text-[11px] font-semibold text-emerald-600">Saved</p> : null}
-                {state?.status === "failed" ? <p className="text-[11px] font-semibold text-danger">{state.error ?? "Failed"}</p> : null}
+                {state?.status === "saving" ? <p className="text-[11px] font-semibold text-[#7c3aed]">שומר...</p> : null}
+                {state?.status === "saved" ? <p className="text-[11px] font-semibold text-emerald-600">נשמר</p> : null}
+                {state?.status === "failed" ? <p className="text-[11px] font-semibold text-danger">{state.error ?? "נכשל"}</p> : null}
               </div>
             </article>
           );
@@ -230,14 +241,14 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
       </div>
 
       <div className="hidden overflow-auto xl:block">
-        <table className="min-w-full border-separate border-spacing-y-2 text-left text-sm">
+        <table className="min-w-full border-separate border-spacing-y-2 text-right text-sm">
           <thead className="sticky top-0 z-10 bg-[#fcfbff] text-xs uppercase tracking-[0.18em] text-muted">
             <tr>
-              <th className="pb-2 pr-4">Product</th>
-              <th className="pb-2 pr-4">Category</th>
-              <th className="pb-2 pr-4">Price</th>
-              <th className="pb-2 pr-4">Performance</th>
-              <th className="pb-2">Boost</th>
+              <th className="pb-2 pr-4">מוצר</th>
+              <th className="pb-2 pr-4">קטגוריה</th>
+              <th className="pb-2 pr-4">מחיר</th>
+              <th className="pb-2 pr-4">ביצועים</th>
+              <th className="pb-2">בוסט</th>
             </tr>
           </thead>
           <tbody>
@@ -251,26 +262,26 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
                     row.currentBoost > 0 ? "ring-1 ring-[#e9ddff]" : ""
                   )}
                 >
-                  <td className="rounded-l-2xl px-4 py-2.5">
+                  <td className="rounded-r-2xl px-4 py-2.5">
                     <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-semibold text-ink">{row.name}</p>
                         {row.currentBoost > 0 ? (
                           <span className="rounded-full bg-[#f3e8ff] px-2.5 py-1 text-[11px] font-semibold text-[#7c3aed]">
-                            Boost {row.currentBoost}
+                            בוסט {row.currentBoost}
                           </span>
                         ) : null}
                         {row.status ? (
                           <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", statusTone(row.status))}>
-                            {row.status}
+                            {formatProductStatus(row.status)}
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-muted">ID {row.id}</p>
-                      {state?.status === "saving" ? <p className="mt-1 text-xs font-semibold text-[#7c3aed]">Saving...</p> : null}
-                      {state?.status === "saved" ? <p className="mt-1 text-xs font-semibold text-emerald-600">Saved</p> : null}
-                      {state?.status === "failed" ? <p className="mt-1 text-xs font-semibold text-danger">{state.error ?? "Failed"}</p> : null}
+                      <p className="mt-0.5 truncate text-xs text-muted">מזהה {row.id}</p>
+                      {state?.status === "saving" ? <p className="mt-1 text-xs font-semibold text-[#7c3aed]">שומר...</p> : null}
+                      {state?.status === "saved" ? <p className="mt-1 text-xs font-semibold text-emerald-600">נשמר</p> : null}
+                      {state?.status === "failed" ? <p className="mt-1 text-xs font-semibold text-danger">{state.error ?? "נכשל"}</p> : null}
                     </div>
                     {row.imageUrl ? (
                       <img src={row.imageUrl} alt={row.name} className="h-14 w-10 rounded-xl object-cover" />
@@ -305,23 +316,23 @@ export function ProductCatalogTable({ rows, editable = false }: ProductCatalogTa
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="grid gap-1">
-                      <p className="font-semibold text-ink">{row.clicks.toLocaleString("en-US")} clicks</p>
-                      <p className="text-xs text-muted">{row.carts.toLocaleString("en-US")} carts</p>
+                      <p className="font-semibold text-ink">{row.clicks.toLocaleString("he-IL")} קליקים</p>
+                      <p className="text-xs text-muted">{row.carts.toLocaleString("he-IL")} עגלות</p>
                     </div>
                   </td>
-                  <td className="rounded-r-2xl px-4 py-2.5">
+                  <td className="rounded-l-2xl px-4 py-2.5">
                     {editable ? (
                       <div className="grid gap-2">
                         <BoostControl value={row.currentBoost} productId={row.id} onChange={updateBoost} disabled={!editable} />
                         <p className="text-xs text-muted">
                           {row.currentBoost > 0
-                            ? `Tracking ${row.clicks.toLocaleString("en-US")} clicks and ${row.carts.toLocaleString("en-US")} carts`
-                            : "No active boost"}
+                            ? `במעקב: ${row.clicks.toLocaleString("he-IL")} קליקים ו-${row.carts.toLocaleString("he-IL")} עגלות`
+                            : "אין בוסט פעיל"}
                         </p>
                       </div>
                     ) : (
                       <span className="text-sm font-semibold text-ink">
-                        {row.currentBoost > 0 ? `Boost ${row.currentBoost}` : "Not boosted"}
+                        {row.currentBoost > 0 ? `בוסט ${row.currentBoost}` : "ללא בוסט"}
                       </span>
                     )}
                   </td>

@@ -53,9 +53,9 @@ export function AttributionMoneyHero({
   const semantixClicks = semantixRows.reduce((sum, row) => sum + row.clicks, 0);
 
   const presets = [
-    { label: "Last 24 Hours", days: 1 },
-    { label: "Last 7 Days", days: 7 },
-    { label: "Last 30 Days", days: 30 }
+    { label: "24 השעות האחרונות", days: 1 },
+    { label: "7 הימים האחרונים", days: 7 },
+    { label: "30 הימים האחרונים", days: 30 }
   ] as const;
 
   return (
@@ -79,22 +79,22 @@ export function AttributionMoneyHero({
 
         <div className="grid gap-3 lg:grid-cols-[1.1fr_0.8fr_0.8fr]">
           <article className="rounded-[20px] border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-xs font-semibold text-white/80">Attributed Value</p>
+            <p className="text-xs font-semibold text-white/80">שווי מיוחס</p>
             <p className="mt-2 font-display text-4xl font-bold tracking-[-0.05em]">
               {formatCurrency(attributedValue)}
             </p>
-            <p className="mt-1 text-xs text-white/75">Matched cart value recovered through Semantix sources.</p>
+            <p className="mt-1 text-xs text-white/75">שווי עגלות שתואם חזרה למקורות של סמנטיקס.</p>
           </article>
           <article className="rounded-[20px] border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-xs font-semibold text-white/80">Attributed Add to Cart</p>
+            <p className="text-xs font-semibold text-white/80">הוספות לעגלה מיוחסות</p>
             <p className="mt-2 font-display text-3xl font-bold tracking-[-0.04em]">
-              {searchCore.attributedAddToCarts.toLocaleString("en-US")}
+              {searchCore.attributedAddToCarts.toLocaleString("he-IL")}
             </p>
           </article>
           <article className="rounded-[20px] border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-xs font-semibold text-white/80">Semantix Clicks</p>
+            <p className="text-xs font-semibold text-white/80">קליקים דרך סמנטיקס</p>
             <p className="mt-2 font-display text-3xl font-bold tracking-[-0.04em]">
-              {semantixClicks.toLocaleString("en-US")}
+              {semantixClicks.toLocaleString("he-IL")}
             </p>
           </article>
         </div>

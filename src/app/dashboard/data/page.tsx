@@ -25,9 +25,9 @@ export default async function DataHealthPage({ searchParams }: DataHealthPagePro
       />
       <FilterBar filters={filters} options={filterOptions.data} />
       <Panel
-        eyebrow="Collection diagnostics"
-        title="Data source health"
-        description="Collection-level discovery used to identify timestamps, statuses, dimensions, and freshness signals."
+        eyebrow="דיאגנוסטיקה לקולקציות"
+        title="בריאות מקורות הנתונים"
+        description="בדיקה ברמת קולקציה לזיהוי חותמות זמן, סטטוסים, ממדים וסימני עדכניות."
       >
         <SourceHealthGrid collections={health.data.collections} />
       </Panel>

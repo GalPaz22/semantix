@@ -82,7 +82,7 @@ function StatusCell({
 
 export function OverviewQueryList({ rows, labels }: OverviewQueryListProps) {
   if (!rows.length) {
-    return <p className="text-sm text-muted">No query rows are available for the selected filters.</p>;
+    return <p className="text-sm text-muted">אין שורות שאילתה זמינות עבור הסינון שנבחר.</p>;
   }
 
   return (
@@ -94,20 +94,20 @@ export function OverviewQueryList({ rows, labels }: OverviewQueryListProps) {
           </span>
         ))}
       </div>
-      <table className="min-w-full border-separate border-spacing-y-2.5 text-left text-sm">
+      <table className="min-w-full border-separate border-spacing-y-2.5 text-right text-sm">
         <thead className="text-xs uppercase tracking-[0.18em] text-muted">
           <tr>
-            <th className="pb-2">Query</th>
-            <th className="pb-2">Timestamp</th>
-            <th className="pb-2">Source</th>
-            <th className="pb-2">Click</th>
-            <th className="pb-2">Add to Cart</th>
+            <th className="pb-2">שאילתה</th>
+            <th className="pb-2">זמן</th>
+            <th className="pb-2">מקור</th>
+            <th className="pb-2">קליק</th>
+            <th className="pb-2">הוספה לעגלה</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className={`rounded-l-2xl border border-r-0 border-line px-4 py-4 font-semibold text-ink ${rowStyles[row.source]}`}>
+              <td className={`rounded-r-2xl border border-l-0 border-line px-4 py-4 font-semibold text-ink ${rowStyles[row.source]}`}>
                 <div className="max-w-[18rem] truncate">{row.query}</div>
               </td>
               <td className={`border-y border-line px-4 py-4 text-muted ${rowStyles[row.source]}`}>
@@ -125,7 +125,7 @@ export function OverviewQueryList({ rows, labels }: OverviewQueryListProps) {
               <td className={`border-y border-line px-4 py-4 ${rowStyles[row.source]}`}>
                 <StatusCell items={row.clickItems} active={row.hasClick} kind="click" />
               </td>
-              <td className={`rounded-r-2xl border border-l-0 border-line px-4 py-4 ${rowStyles[row.source]}`}>
+              <td className={`rounded-l-2xl border border-r-0 border-line px-4 py-4 ${rowStyles[row.source]}`}>
                 <StatusCell items={row.addToCartItems} active={row.hasAddToCart} kind="cart" />
               </td>
             </tr>

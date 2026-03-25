@@ -89,7 +89,7 @@ export function CustomerProfileDrawer({
                   <ProfileInitials profile={profile} />
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">
-                      {profile.activeNow ? "Active now" : "Customer profile"}
+                      {profile.activeNow ? "פעיל עכשיו" : "פרופיל לקוח"}
                     </p>
                     <h3 className="mt-1 text-2xl font-bold tracking-[-0.04em] text-ink">{profile.label}</h3>
                     <p className="mt-1 truncate font-mono text-xs text-muted" title={profile.identifier}>
@@ -102,30 +102,30 @@ export function CustomerProfileDrawer({
                   onClick={onClose}
                   className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-muted transition hover:bg-[#faf7ff] hover:text-ink"
                 >
-                  Close
+                  סגור
                 </button>
               </div>
             </header>
 
             <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DrawerMetric label="Session value" value={formatCompactCurrency(profile.totalSessionValue)} />
-                <DrawerMetric label="Avg cart value" value={formatCompactCurrency(profile.averageCartValue)} />
-                <DrawerMetric label="Clicks" value={profile.totalClicks.toLocaleString("en-US")} />
-                <DrawerMetric label="Searches" value={profile.totalSearches.toLocaleString("en-US")} />
-                <DrawerMetric label="Add to cart" value={profile.totalAddToCarts.toLocaleString("en-US")} />
-                <DrawerMetric label="Last seen" value={formatDate(profile.lastSeen)} />
+                <DrawerMetric label="שווי סשן" value={formatCompactCurrency(profile.totalSessionValue)} />
+                <DrawerMetric label="שווי עגלה ממוצע" value={formatCompactCurrency(profile.averageCartValue)} />
+                <DrawerMetric label="קליקים" value={profile.totalClicks.toLocaleString("he-IL")} />
+                <DrawerMetric label="חיפושים" value={profile.totalSearches.toLocaleString("he-IL")} />
+                <DrawerMetric label="הוספות לעגלה" value={profile.totalAddToCarts.toLocaleString("he-IL")} />
+                <DrawerMetric label="נראה לאחרונה" value={formatDate(profile.lastSeen)} />
               </div>
 
               <div className="rounded-2xl border border-line bg-[#fcfbff] px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">Top query</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">שאילתה מובילה</p>
                 <p className="mt-2 text-base font-semibold text-ink">{profile.topQuery ?? "-"}</p>
               </div>
 
               {profile.preferredTopics.length ? (
                 <div className="rounded-2xl border border-line bg-[#fcfbff] px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">
-                    Preference signals
+                    העדפות בולטות
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {profile.preferredTopics.map((topic) => (
@@ -145,15 +145,15 @@ export function CustomerProfileDrawer({
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">
-                      Journey
+                      מסע
                     </p>
-                    <h4 className="mt-1 text-lg font-bold tracking-[-0.03em] text-ink">Customer timeline</h4>
+                    <h4 className="mt-1 text-lg font-bold tracking-[-0.03em] text-ink">ציר הזמן של הלקוח</h4>
                   </div>
                   <Link
                     href={`/dashboard/customers/${encodeURIComponent(profile.id)}`}
                     className="inline-flex items-center rounded-xl bg-[#7c3aed] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#6d28d9]"
                   >
-                    Open full profile
+                    פתח פרופיל מלא
                   </Link>
                 </div>
                 <JourneyTimeline journey={profile.journey} />

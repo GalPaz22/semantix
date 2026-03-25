@@ -36,8 +36,8 @@ export function InsightsCommerceSnapshot({
   return (
     <div className="grid gap-4 2xl:grid-cols-4 xl:grid-cols-2">
       <SnapshotColumn
-        eyebrow="Search Demand"
-        title="Most searched terms"
+        eyebrow="ביקוש בחיפוש"
+        title="מונחי החיפוש המובילים"
         items={topQueries.slice(0, 5).map((query) => (
           <article
             key={query.query}
@@ -45,18 +45,18 @@ export function InsightsCommerceSnapshot({
           >
             <div className="min-w-0">
               <p dir="auto" className="truncate font-semibold text-ink">{query.query}</p>
-              <p className="text-sm text-muted">{query.clicks.toLocaleString("en-US")} clicks</p>
+              <p className="text-sm text-muted">{query.clicks.toLocaleString("he-IL")} קליקים</p>
             </div>
             <span className="shrink-0 text-sm font-semibold text-[#5d44ef]">
-              {query.searches.toLocaleString("en-US")} searches
+              {query.searches.toLocaleString("he-IL")} חיפושים
             </span>
           </article>
         ))}
       />
 
       <SnapshotColumn
-        eyebrow="Discovery Leaders"
-        title="Most clicked products"
+        eyebrow="מובילי גילוי"
+        title="המוצרים עם הכי הרבה קליקים"
         items={mostClickedProducts.slice(0, 5).map((product) => (
           <article
             key={product.product}
@@ -65,19 +65,19 @@ export function InsightsCommerceSnapshot({
             <div className="min-w-0">
               <p dir="auto" className="truncate font-semibold text-ink">{product.product}</p>
               <p className="text-sm text-muted">
-                {product.addToCart.toLocaleString("en-US")} carts · {formatCurrency(product.revenue)} value
+                {product.addToCart.toLocaleString("he-IL")} עגלות · שווי {formatCurrency(product.revenue)}
               </p>
             </div>
             <span className="shrink-0 text-sm font-semibold text-[#5d44ef]">
-              {product.clicks.toLocaleString("en-US")} clicks
+              {product.clicks.toLocaleString("he-IL")} קליקים
             </span>
           </article>
         ))}
       />
 
       <SnapshotColumn
-        eyebrow="Revenue Leaders"
-        title="High-value products"
+        eyebrow="מובילי הכנסות"
+        title="המוצרים בעלי השווי הגבוה"
         items={highValueProducts.slice(0, 5).map((product) => (
           <article
             key={product.product}
@@ -86,7 +86,7 @@ export function InsightsCommerceSnapshot({
             <div className="min-w-0">
               <p dir="auto" className="truncate font-semibold text-ink">{product.product}</p>
               <p className="text-sm text-muted">
-                {product.addToCart.toLocaleString("en-US")} carts · {product.clicks.toLocaleString("en-US")} clicks
+                {product.addToCart.toLocaleString("he-IL")} עגלות · {product.clicks.toLocaleString("he-IL")} קליקים
               </p>
             </div>
             <span className="shrink-0 text-sm font-semibold text-[#5d44ef]">
@@ -97,8 +97,8 @@ export function InsightsCommerceSnapshot({
       />
 
       <SnapshotColumn
-        eyebrow="Best Sellers"
-        title="Most added to cart"
+        eyebrow="נמכרים מובילים"
+        title="המוצרים שנוספו הכי הרבה לעגלה"
         items={topCartProducts.slice(0, 5).map((product) => (
           <article
             key={product.product}
@@ -106,10 +106,10 @@ export function InsightsCommerceSnapshot({
           >
             <div className="min-w-0">
               <p dir="auto" className="truncate font-semibold text-ink">{product.product}</p>
-              <p className="text-sm text-muted">{formatCurrency(product.revenue)} value</p>
+              <p className="text-sm text-muted">שווי {formatCurrency(product.revenue)}</p>
             </div>
             <span className="shrink-0 text-sm font-semibold text-[#5d44ef]">
-              {product.addToCart.toLocaleString("en-US")} carts
+              {product.addToCart.toLocaleString("he-IL")} עגלות
             </span>
           </article>
         ))}

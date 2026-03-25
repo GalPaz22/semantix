@@ -20,10 +20,10 @@ function SummaryMetric({
 export function CustomersSummaryStrip({ summary }: { summary: CustomersSummary }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <SummaryMetric label="Total Profiles" value={summary.totalProfiles.toLocaleString("en-US")} />
-      <SummaryMetric label="Active Now" value={summary.activeNow.toLocaleString("en-US")} />
-      <SummaryMetric label="Profiles With Carts" value={summary.profilesWithCarts.toLocaleString("en-US")} />
-      <SummaryMetric label="Attributed Value" value={formatCompactCurrency(summary.attributedValue)} />
+      <SummaryMetric label="סך כל הפרופילים" value={summary.totalProfiles.toLocaleString("he-IL")} />
+      <SummaryMetric label="פעילים עכשיו" value={summary.activeNow.toLocaleString("he-IL")} />
+      <SummaryMetric label="פרופילים עם עגלות" value={summary.profilesWithCarts.toLocaleString("he-IL")} />
+      <SummaryMetric label="שווי מיוחס" value={formatCompactCurrency(summary.attributedValue)} />
     </section>
   );
 }

@@ -11,7 +11,7 @@ const stepStyles = {
 
 export function JourneyTimeline({ journey }: { journey: CustomerJourneyStep[] }) {
   if (!journey.length) {
-    return <p className="text-sm text-muted">No journey steps are available for this profile.</p>;
+    return <p className="text-sm text-muted">אין כרגע שלבים זמינים במסע של הפרופיל הזה.</p>;
   }
 
   return (

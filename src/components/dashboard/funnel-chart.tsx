@@ -6,7 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 export function FunnelChart({ data }: { data: SearchFunnelStage[] }) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No funnel data is available yet.</p>;
+    return <p className="text-sm text-muted">עדיין אין נתוני משפך זמינים.</p>;
   }
 
   return (

@@ -81,15 +81,15 @@ export function SemantixAttributionHeader({
   const totalSearchValue = searchCore.totalSearchValue;
 
   const presets = [
-    { label: "Last 24 Hours", days: 1 },
-    { label: "Last 7 Days", days: 7 },
-    { label: "Last 30 Days", days: 30 }
+    { label: "24 השעות האחרונות", days: 1 },
+    { label: "7 הימים האחרונים", days: 7 },
+    { label: "30 הימים האחרונים", days: 30 }
   ] as const;
 
   return (
     <section
-      dir="ltr"
-      className="rounded-[24px] bg-[linear-gradient(135deg,#4f46e5_0%,#7c3aed_48%,#c026d3_100%)] p-4 text-left text-white shadow-[0_18px_40px_rgba(108,43,217,0.18)]"
+      dir="rtl"
+      className="rounded-[24px] bg-[linear-gradient(135deg,#4f46e5_0%,#7c3aed_48%,#c026d3_100%)] p-4 text-right text-white shadow-[0_18px_40px_rgba(108,43,217,0.18)]"
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">
@@ -112,38 +112,38 @@ export function SemantixAttributionHeader({
 
         <div className="grid gap-3 lg:grid-cols-[1.05fr_0.8fr_0.8fr]">
           <article className="rounded-[20px] border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-xs font-semibold text-white/80">All Search Value</p>
+            <p className="text-xs font-semibold text-white/80">שווי כולל מכל החיפוש</p>
             <p className="mt-2 font-display text-4xl font-bold tracking-[-0.06em]">{formatCurrency(totalSearchValue)}</p>
           </article>
 
           <button
             type="button"
             onClick={() => setIsExpanded((current) => !current)}
-            className="rounded-[20px] border border-white/20 bg-white/10 p-4 text-left backdrop-blur-sm transition hover:bg-white/14"
+            className="rounded-[20px] border border-white/20 bg-white/10 p-4 text-right backdrop-blur-sm transition hover:bg-white/14"
           >
-            <p className="text-xs font-semibold text-white/80">Semantix Attributed Value</p>
+            <p className="text-xs font-semibold text-white/80">שווי מיוחס לסמנטיקס</p>
             <p className="mt-2 font-display text-3xl font-bold tracking-[-0.05em]">{formatCurrency(semantixValue)}</p>
-            <p className="mt-1.5 text-xs text-white/75">{isExpanded ? "Hide breakdown" : "Open breakdown"}</p>
+            <p className="mt-1.5 text-xs text-white/75">{isExpanded ? "הסתר פירוט" : "פתח פירוט"}</p>
           </button>
 
           <article className="rounded-[20px] border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <p className="text-xs font-semibold text-white/80">Semantix Clicks</p>
-            <p className="mt-2 font-display text-3xl font-bold tracking-[-0.05em]">{semantixClicks.toLocaleString("en-US")}</p>
+            <p className="text-xs font-semibold text-white/80">קליקים דרך סמנטיקס</p>
+            <p className="mt-2 font-display text-3xl font-bold tracking-[-0.05em]">{semantixClicks.toLocaleString("he-IL")}</p>
           </article>
         </div>
 
         <div className="grid gap-2 md:grid-cols-3">
           <article className="rounded-2xl border border-white/15 bg-black/10 px-3.5 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">All Search Clicks</p>
-            <p className="mt-1.5 text-lg font-bold text-white">{totalSearchClicks.toLocaleString("en-US")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">כלל הקליקים מחיפוש</p>
+            <p className="mt-1.5 text-lg font-bold text-white">{totalSearchClicks.toLocaleString("he-IL")}</p>
           </article>
           <article className="rounded-2xl border border-white/15 bg-black/10 px-3.5 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">All Add to Cart</p>
-            <p className="mt-1.5 text-lg font-bold text-white">{totalSearchCarts.toLocaleString("en-US")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">כלל ההוספות לעגלה</p>
+            <p className="mt-1.5 text-lg font-bold text-white">{totalSearchCarts.toLocaleString("he-IL")}</p>
           </article>
           <article className="rounded-2xl border border-white/15 bg-black/10 px-3.5 py-3 backdrop-blur-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Semantix Add to Cart</p>
-            <p className="mt-1.5 text-lg font-bold text-white">{semantixCarts.toLocaleString("en-US")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">הוספות לעגלה דרך סמנטיקס</p>
+            <p className="mt-1.5 text-lg font-bold text-white">{semantixCarts.toLocaleString("he-IL")}</p>
           </article>
         </div>
 
@@ -152,10 +152,10 @@ export function SemantixAttributionHeader({
             <div className="flex flex-col gap-2 border-b border-white/15 pb-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                  Attribution Details
+                  פירוט אטריביושן
                 </p>
                 <h3 className="mt-1.5 font-display text-xl font-bold tracking-[-0.04em] text-white">
-                  What builds {formatCurrency(semantixValue)}
+                  מה מרכיב את {formatCurrency(semantixValue)}
                 </h3>
               </div>
             </div>
@@ -180,9 +180,9 @@ export function SemantixAttributionHeader({
                       </div>
                     </div>
 
-                    <div className="text-left md:text-right">
+                    <div className="text-right">
                       <p className="text-lg font-bold text-white">{formatCurrency(entry.price)}</p>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">Attributed price</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">מחיר מיוחס</p>
                     </div>
                   </div>
                 </article>

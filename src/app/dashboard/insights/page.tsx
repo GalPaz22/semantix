@@ -57,7 +57,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       />
 
       {primaryGroups.map((group) => (
-        <Panel key={group.id} eyebrow="Insight Group" title={group.title}>
+        <Panel key={group.id} eyebrow="קבוצת תובנות" title={group.title}>
           <div className="grid gap-4 xl:grid-cols-2">
             {group.cards.map((insight) => (
               <SearchInsightCardView key={insight.id} insight={insight} />
@@ -67,16 +67,16 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       ))}
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel eyebrow="Top Queries" title="Top queries in the selected range">
+        <Panel eyebrow="שאילתות מובילות" title="השאילתות הבולטות בטווח הזמן שנבחר">
           <QueryTrendsTable rows={queries.data.topQueries} />
         </Panel>
-        <Panel eyebrow="Popular Terms" title="Language merchants should act on">
+        <Panel eyebrow="מונחים פופולריים" title="שפה שכדאי לפעול עליה מסחרית">
           <QueryTermCloud terms={queries.data.popularTerms} />
         </Panel>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel eyebrow="Zero Result Queries" title="Demand going unanswered">
+        <Panel eyebrow="שאילתות בלי תוצאות" title="ביקוש שלא מקבל מענה">
           <RankedBarChart
             data={queries.data.zeroResultQueries.map((query) => ({
               label: query.query,
@@ -86,7 +86,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
             color="#f15757"
           />
         </Panel>
-        <Panel eyebrow="Emerging Queries" title="New search trends">
+        <Panel eyebrow="שאילתות מתפתחות" title="מגמות חיפוש חדשות">
           <RankedBarChart
             data={queries.data.emergingQueries.map((query) => ({
               label: query.query,
@@ -99,7 +99,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       </div>
 
       {lowConversionGroup ? (
-        <Panel eyebrow="Worklist" title="Low-conversion queries">
+        <Panel eyebrow="רשימת עבודה" title="שאילתות עם המרה נמוכה">
           <div className="grid gap-4 xl:grid-cols-2">
             {lowConversionGroup.cards.map((insight) => (
               <SearchInsightCardView key={insight.id} insight={insight} />

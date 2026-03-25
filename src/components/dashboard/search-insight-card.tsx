@@ -8,12 +8,18 @@ const styles = {
   critical: "border-[#f5caca] bg-[#fff6f6]"
 };
 
+const severityLabels = {
+  info: "מידע",
+  warning: "אזהרה",
+  critical: "קריטי"
+} as const;
+
 export function SearchInsightCardView({ insight }: { insight: SearchInsightCard }) {
   return (
     <article className={cn("rounded-panel border p-5 shadow-panel", styles[insight.severity])}>
       <div className="flex items-start justify-between gap-4">
         <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#7b63c8]">
-          {insight.severity}
+          {severityLabels[insight.severity]}
         </span>
         <span className="text-sm font-semibold text-[#6b628d]">{insight.impactMetric}</span>
       </div>

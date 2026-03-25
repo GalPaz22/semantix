@@ -52,26 +52,26 @@ function ProfileCard({ profile, featured = false }: { profile: CustomerSearchPro
         </div>
         {featured ? (
           <span className="shrink-0 rounded-full bg-[#f4f0ff] px-3 py-1 text-xs font-bold text-[#5d44ef]">
-            Top profile
+            פרופיל מוביל
           </span>
         ) : null}
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl bg-[#faf7ff] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">Total value</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">שווי כולל</p>
           <p className="mt-2 text-xl font-bold text-ink">{formatCompactCurrency(profile.totalSessionValue)}</p>
         </div>
         <div className="rounded-2xl bg-[#faf7ff] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">Avg value</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">שווי ממוצע</p>
           <p className="mt-2 text-xl font-bold text-ink">{formatCompactCurrency(profile.averageCartValue)}</p>
         </div>
         <div className="rounded-2xl bg-[#faf7ff] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">Clicks</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">קליקים</p>
           <p className="mt-2 text-xl font-bold text-ink">{profile.totalClicks}</p>
         </div>
         <div className="rounded-2xl bg-[#faf7ff] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">Carts / searches</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7f769f]">עגלות / חיפושים</p>
           <p className="mt-2 text-xl font-bold text-ink">
             {profile.totalAddToCarts} / {profile.totalSearches}
           </p>
@@ -80,10 +80,10 @@ function ProfileCard({ profile, featured = false }: { profile: CustomerSearchPro
 
       <div className="mt-4 grid gap-2 border-t border-line pt-4 text-sm text-muted">
         <p className="truncate">
-          Top query: <span className="font-semibold text-ink">{profile.topQuery ?? "-"}</span>
+          שאילתה מובילה: <span className="font-semibold text-ink">{profile.topQuery ?? "-"}</span>
         </p>
         <p>
-          Last seen: <span className="font-semibold text-ink">{formatDate(profile.lastSeen)}</span>
+          נראה לאחרונה: <span className="font-semibold text-ink">{formatDate(profile.lastSeen)}</span>
         </p>
       </div>
     </Link>
@@ -92,7 +92,7 @@ function ProfileCard({ profile, featured = false }: { profile: CustomerSearchPro
 
 export function CustomerProfilesList({ profiles }: { profiles: CustomerSearchProfile[] }) {
   if (!profiles.length) {
-    return <p className="text-sm text-muted">No customer search profiles are available yet.</p>;
+    return <p className="text-sm text-muted">עדיין אין פרופילי לקוחות זמינים.</p>;
   }
 
   const featured = profiles.slice(0, 3);

@@ -15,7 +15,7 @@ import {
 
 export function SearchActivityTrendChart({ data }: { data: SearchActivityPoint[] }) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No overview trend is available for the selected filters.</p>;
+    return <p className="text-sm text-muted">אין כרגע מגמת סקירה זמינה עבור הסינון שנבחר.</p>;
   }
 
   return (
@@ -34,15 +34,15 @@ export function SearchActivityTrendChart({ data }: { data: SearchActivityPoint[]
             }}
           />
           <Legend />
-          <Line type="monotone" dataKey="queries" stroke="#111827" strokeWidth={2.5} dot={false} name="Queries" />
-          <Line type="monotone" dataKey="clicks" stroke="#7c3aed" strokeWidth={2.5} dot={false} name="Clicks" />
+          <Line type="monotone" dataKey="queries" stroke="#111827" strokeWidth={2.5} dot={false} name="שאילתות" />
+          <Line type="monotone" dataKey="clicks" stroke="#7c3aed" strokeWidth={2.5} dot={false} name="קליקים" />
           <Line
             type="monotone"
             dataKey="attributedCarts"
             stroke="#2563eb"
             strokeWidth={2.5}
             dot={false}
-            name="Attributed Carts"
+            name="הוספות לעגלה מיוחסות"
           />
         </LineChart>
       </ResponsiveContainer>

@@ -162,7 +162,7 @@ function FeaturedList({
     return (
       <section className="rounded-2xl border border-line bg-white p-4 shadow-panel">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">{title}</p>
-        <p className="mt-3 text-sm text-muted">No profiles in this segment yet.</p>
+        <p className="mt-3 text-sm text-muted">אין עדיין פרופילים בסגמנט הזה.</p>
       </section>
     );
   }
@@ -176,13 +176,13 @@ function FeaturedList({
             key={profile.id}
             type="button"
             onClick={() => onSelect(profile.id)}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-[#faf7ff] px-3 py-3 text-left transition hover:bg-[#f5f0ff]"
+            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-[#faf7ff] px-3 py-3 text-right transition hover:bg-[#f5f0ff]"
           >
             <InitialsBubble profile={profile} size="sm" />
             <div className="min-w-0">
               <p className="truncate font-semibold text-ink">{profile.label}</p>
               <p className="truncate text-xs text-muted">
-                {profile.topQuery ?? "No top query"} · {formatDate(profile.lastSeen)}
+                {profile.topQuery ?? "אין שאילתה מובילה"} · {formatDate(profile.lastSeen)}
               </p>
             </div>
             <span className="text-sm font-semibold text-[#5d44ef]">
@@ -249,7 +249,7 @@ export function CustomerConstellation({
   if (!profiles.length) {
     return (
       <section className="rounded-2xl border border-line bg-white p-6 shadow-panel">
-        <p className="text-sm text-muted">No customer profiles are available yet for the selected range.</p>
+        <p className="text-sm text-muted">אין עדיין פרופילי לקוחות זמינים עבור טווח הזמן שנבחר.</p>
       </section>
     );
   }
@@ -258,15 +258,15 @@ export function CustomerConstellation({
     <div className="grid gap-5">
       <section className="overflow-hidden rounded-[28px] border border-line bg-white shadow-panel">
         <div className="border-b border-line px-5 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">Customer constellation</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c3aed]">מפת לקוחות</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-bold tracking-[-0.04em] text-ink">Live customer map</h2>
+            <h2 className="text-2xl font-bold tracking-[-0.04em] text-ink">מפת לקוחות חיה</h2>
             <div className="flex flex-wrap gap-2">
               <span className="rounded-full bg-[#f4f0ff] px-3 py-1.5 text-xs font-semibold text-[#5d44ef]">
-                {nodes.length.toLocaleString("en-US")} shown
+                {nodes.length.toLocaleString("he-IL")} מוצגים
               </span>
               <span className="rounded-full bg-[#eefbf3] px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                Green = active in last 5 min
+                ירוק = פעיל ב־5 הדקות האחרונות
               </span>
             </div>
           </div>
@@ -283,7 +283,7 @@ export function CustomerConstellation({
               <button
                 key={profile.id}
                 type="button"
-                title={`${profile.label} · ${formatCompactCurrency(profile.totalSessionValue)} · ${profile.totalClicks} clicks · ${formatDate(profile.lastSeen)}`}
+                title={`${profile.label} · ${formatCompactCurrency(profile.totalSessionValue)} · ${profile.totalClicks.toLocaleString("he-IL")} קליקים · ${formatDate(profile.lastSeen)}`}
                 onClick={() => handleSelect(profile.id)}
                 className={cn(
                   "absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-[0_10px_24px_rgba(63,36,123,0.12)] transition duration-200 hover:scale-[1.03]"
@@ -303,9 +303,9 @@ export function CustomerConstellation({
       </section>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <FeaturedList title="Top active now" profiles={featuredLists.topActiveNow} onSelect={handleSelect} />
-        <FeaturedList title="Top value" profiles={featuredLists.topValue} onSelect={handleSelect} />
-        <FeaturedList title="Needs attention" profiles={featuredLists.needsAttention} onSelect={handleSelect} />
+        <FeaturedList title="פעילים עכשיו" profiles={featuredLists.topActiveNow} onSelect={handleSelect} />
+        <FeaturedList title="שווי גבוה" profiles={featuredLists.topValue} onSelect={handleSelect} />
+        <FeaturedList title="דורשים תשומת לב" profiles={featuredLists.needsAttention} onSelect={handleSelect} />
       </div>
 
       <CustomerProfileDrawer profile={selectedProfile} open={open} onClose={() => setOpen(false)} />

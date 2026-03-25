@@ -7,27 +7,27 @@ import { formatCompactNumber, formatMetric } from "@/lib/dashboard/format";
 const metrics = (searchCore: OverviewSearchCore) => [
   {
     id: "total-queries",
-    label: "Total Queries",
+    label: "סך כל השאילתות",
     value: formatCompactNumber(searchCore.totalQueries),
-    description: "Search requests captured in the selected range."
+    description: "בקשות חיפוש שנקלטו בטווח הזמן שנבחר."
   },
   {
     id: "total-clicks",
-    label: "Total Product Clicks",
+    label: "סך כל הקליקים על מוצרים",
     value: formatCompactNumber(searchCore.totalProductClicks),
-    description: "Clicks on search-driven product results."
+    description: "קליקים על תוצאות מוצרים שהגיעו מחיפוש."
   },
   {
     id: "attributed-carts",
-    label: "Attributed Add to Carts",
+    label: "הוספות לעגלה מיוחסות",
     value: formatCompactNumber(searchCore.attributedAddToCarts),
-    description: "Cart events matched to an earlier search click."
+    description: "אירועי עגלה שתואמו לקליק חיפוש מוקדם יותר."
   },
   {
     id: "cart-match-rate",
-    label: "Cart Match Rate",
+    label: "שיעור התאמת עגלה",
     value: formatMetric({ value: searchCore.cartMatchRate, format: "percent" }),
-    description: "Share of cart events that could be attributed to a prior click."
+    description: "שיעור אירועי העגלה שניתן לייחס לקליק קודם."
   }
 ];
 

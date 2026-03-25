@@ -18,7 +18,7 @@ type SaveState = {
 };
 
 const BOOST_OPTIONS: Array<{ label: string; value: BoostLevel }> = [
-  { label: "Clear", value: 0 },
+  { label: "נקה", value: 0 },
   { label: "1", value: 1 },
   { label: "2", value: 2 },
   { label: "3", value: 3 }
@@ -35,7 +35,7 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
   }, [rows]);
 
   if (!localRows.length) {
-    return <p className="text-sm text-muted">No products are available for the selected filters.</p>;
+    return <p className="text-sm text-muted">אין מוצרים זמינים עבור הסינון שנבחר.</p>;
   }
 
   const updateBoost = (productId: string, nextBoost: BoostLevel) => {
@@ -67,7 +67,7 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
 
         const payload = (await response.json()) as { error?: string };
         if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to save boost.");
+          throw new Error(payload.error ?? "לא ניתן לשמור את הבוסט.");
         }
 
         setRowState((current) => ({
@@ -86,7 +86,7 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
           [productId]: {
             status: "failed",
             value: previous,
-            error: error instanceof Error ? error.message : "Unable to save boost."
+            error: error instanceof Error ? error.message : "לא ניתן לשמור את הבוסט."
           }
         }));
       }
@@ -95,13 +95,13 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
 
   return (
     <div className="overflow-auto">
-      <table className="min-w-full border-separate border-spacing-y-2 text-left text-sm">
+      <table className="min-w-full border-separate border-spacing-y-2 text-right text-sm">
         <thead className="text-xs uppercase tracking-[0.18em] text-muted">
           <tr>
-            <th className="pb-2">Product</th>
-            <th className="pb-2">Category</th>
-            <th className="pb-2">Boost</th>
-            <th className="pb-2">Status</th>
+            <th className="pb-2">מוצר</th>
+            <th className="pb-2">קטגוריה</th>
+            <th className="pb-2">בוסט</th>
+            <th className="pb-2">סטטוס</th>
           </tr>
         </thead>
         <tbody>
@@ -110,7 +110,7 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
 
             return (
               <tr key={row.id} className="rounded-2xl bg-white shadow-[0_8px_24px_rgba(84,55,167,0.05)]">
-                <td className="rounded-l-2xl px-4 py-3">
+                <td className="rounded-r-2xl px-4 py-3">
                   <div className="flex items-center gap-3">
                     {row.imageUrl ? (
                       <img src={row.imageUrl} alt={row.name} className="h-11 w-11 rounded-xl object-cover" />
@@ -125,7 +125,7 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-muted">{row.category ?? "Uncategorized"}</td>
+                <td className="px-4 py-3 text-muted">{row.category ?? "ללא קטגוריה"}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     {BOOST_OPTIONS.map((option) => {
@@ -151,19 +151,19 @@ export function BoostProductsTable({ rows }: BoostProductsTableProps) {
                     })}
                   </div>
                 </td>
-                <td className="rounded-r-2xl px-4 py-3">
+                <td className="rounded-l-2xl px-4 py-3">
                   {state?.status === "saving" ? (
-                    <span className="text-xs font-semibold text-[#7c3aed]">Saving...</span>
+                    <span className="text-xs font-semibold text-[#7c3aed]">שומר...</span>
                   ) : null}
                   {state?.status === "saved" ? (
-                    <span className="text-xs font-semibold text-emerald-600">Saved</span>
+                    <span className="text-xs font-semibold text-emerald-600">נשמר</span>
                   ) : null}
                   {state?.status === "failed" ? (
-                    <span className="text-xs font-semibold text-danger">{state.error ?? "Failed"}</span>
+                    <span className="text-xs font-semibold text-danger">{state.error ?? "נכשל"}</span>
                   ) : null}
                   {!state || state.status === "idle" ? (
                     <span className="text-xs text-muted">
-                      {row.currentBoost > 0 ? `Boost ${row.currentBoost}` : "No boost"}
+                      {row.currentBoost > 0 ? `בוסט ${row.currentBoost}` : "ללא בוסט"}
                     </span>
                   ) : null}
                 </td>

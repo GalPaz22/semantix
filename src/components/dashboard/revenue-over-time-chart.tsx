@@ -16,7 +16,7 @@ import {
 
 export function RevenueOverTimeChart({ data }: { data: SearchRevenuePoint[] }) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No revenue timeline is available for this filter window.</p>;
+    return <p className="text-sm text-muted">אין כרגע ציר זמן להכנסות עבור טווח הסינון הזה.</p>;
   }
 
   return (
@@ -44,9 +44,9 @@ export function RevenueOverTimeChart({ data }: { data: SearchRevenuePoint[] }) {
               background: "rgba(255,255,255,0.98)",
               boxShadow: "0 10px 30px rgba(82, 52, 166, 0.12)"
             }}
-            formatter={(value: number) => [formatCompactCurrency(value), "Revenue"]}
+            formatter={(value: number) => [formatCompactCurrency(value), "הכנסות"]}
           />
-          <Area type="monotone" dataKey="revenue" fill="url(#semantixRevenue)" stroke="transparent" />
+          <Area type="monotone" dataKey="revenue" fill="url(#semantixRevenue)" stroke="transparent" name="הכנסות" />
           <Line
             type="monotone"
             dataKey="revenue"
@@ -54,8 +54,9 @@ export function RevenueOverTimeChart({ data }: { data: SearchRevenuePoint[] }) {
             strokeWidth={3}
             dot={{ r: 0 }}
             activeDot={{ r: 5, fill: "#6f42f5" }}
+            name="הכנסות"
           />
-          <Line type="monotone" dataKey="queries" stroke="#16131f" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="queries" stroke="#16131f" strokeWidth={2} dot={false} name="שאילתות" />
         </AreaChart>
       </ResponsiveContainer>
     </div>

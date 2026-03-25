@@ -108,8 +108,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       />
 
       <Panel
-        eyebrow="Query List"
-        title={`Search query log (${totalLogs.toLocaleString("en-US")})`}
+        eyebrow="יומן חיפוש"
+        title={`לוג שאילתות חיפוש (${totalLogs.toLocaleString("he-IL")})`}
       >
         <div className="mb-5">
           <FilterBar filters={listFilters} options={filterOptions.data} compact />
@@ -118,7 +118,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         {totalPages > 1 ? (
           <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4 md:flex-row md:items-center md:justify-between">
             <p className="text-sm text-muted">
-              Page <span className="font-semibold text-ink">{safePage}</span> of{" "}
+              עמוד <span className="font-semibold text-ink">{safePage}</span> מתוך{" "}
               <span className="font-semibold text-ink">{totalPages}</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
@@ -127,7 +127,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   href={buildPageHref(searchParams, safePage - 1)}
                   className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:bg-[#faf7ff]"
                 >
-                  Previous
+                  הקודם
                 </Link>
               ) : null}
               {getVisiblePages(safePage, totalPages).map((page) => (
@@ -148,7 +148,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   href={buildPageHref(searchParams, safePage + 1)}
                   className="rounded-xl bg-[#7c3aed] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#6d28d9]"
                 >
-                  Next
+                  הבא
                 </Link>
               ) : null}
             </div>

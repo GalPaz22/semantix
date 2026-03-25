@@ -2,7 +2,7 @@ import type { QueryTermStat } from "@/lib/dashboard/types";
 
 export function QueryTermCloud({ terms }: { terms: QueryTermStat[] }) {
   if (!terms.length) {
-    return <p className="text-sm text-muted">No popular query terms are available yet.</p>;
+    return <p className="text-sm text-muted">עדיין אין מונחי חיפוש פופולריים זמינים.</p>;
   }
 
   const maxValue = Math.max(...terms.map((term) => term.value), 1);

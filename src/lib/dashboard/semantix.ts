@@ -31,12 +31,12 @@ import type {
 const SOURCE_ORDER: AttributionSource[] = ["native", "zero-results", "inject", "rerank", "ai", "unknown"];
 
 const SOURCE_LABELS: Record<AttributionSource, string> = {
-  native: "Native",
-  "zero-results": "Zero Results",
-  inject: "Inject",
-  rerank: "ReRank",
+  native: "אורגני",
+  "zero-results": "אפס תוצאות",
+  inject: "הזרקה",
+  rerank: "רי-רנק",
   ai: "AI",
-  unknown: "Unknown"
+  unknown: "לא ידוע"
 };
 
 type QueryAggregate = {
@@ -69,25 +69,25 @@ type AttributionMatch = {
 type SourceTrendMetricKey = "native" | "zeroResults" | "inject" | "rerank" | "ai" | "unknown";
 
 const PROFILE_NAME_PREFIXES = [
-  "Atlas",
-  "Nova",
-  "Lumen",
-  "Milo",
-  "Orion",
-  "Sage",
-  "Ember",
-  "Cedar"
+  "אטלס",
+  "נובה",
+  "לומן",
+  "מיילו",
+  "אוריון",
+  "סייג'",
+  "אמבר",
+  "סידר"
 ] as const;
 
 const PROFILE_NAME_SUFFIXES = [
-  "Shopper",
-  "Buyer",
-  "Explorer",
-  "Collector",
-  "Seeker",
-  "Curator",
-  "Visitor",
-  "Scout"
+  "קונה",
+  "רוכש",
+  "מגלה",
+  "אספן",
+  "מחפש",
+  "אוצר",
+  "מבקר",
+  "סייר"
 ] as const;
 
 function deriveQuery(record: NormalizedRecord) {
@@ -360,7 +360,7 @@ function buildAttributedValueEvents(records: NormalizedRecord[], filters: Dashbo
   return matches
     .filter((match) => ["zero-results", "inject", "rerank"].includes(match.source))
     .map((match) => ({
-      product: match.cart.product ?? match.click.product ?? "Unknown product",
+      product: match.cart.product ?? match.click.product ?? "מוצר לא ידוע",
       query: match.cart.query ?? match.click.query,
       source: match.source,
       price: match.cart.revenue ?? 0,
@@ -731,11 +731,11 @@ function buildInsights(records: NormalizedRecord[], filters: DashboardFilters): 
         id: `low-match-${entry.query}`,
         severity: "warning",
         group: "search-gaps",
-        title: `Low match coverage for "${entry.query}"`,
-        text: `Users searched for "${entry.query}" ${entry.searches} times but only ${Math.max(1, Math.round(avgResults))} products match this query.`,
-        explanation: "Search demand exists, but catalog coverage or retrieval quality is too thin for this term.",
-        impactMetric: `${entry.searches} searches at risk`,
-        actionLabel: "Add products",
+        title: `כיסוי תוצאות נמוך עבור "${entry.query}"`,
+        text: `לקוחות חיפשו "${entry.query}" ${entry.searches.toLocaleString("he-IL")} פעמים, אבל רק ${Math.max(1, Math.round(avgResults)).toLocaleString("he-IL")} מוצרים מתאימים לשאילתה.`,
+        explanation: "יש ביקוש בחיפוש, אבל הכיסוי בקטלוג או איכות האחזור דקים מדי עבור הביטוי הזה.",
+        impactMetric: `${entry.searches.toLocaleString("he-IL")} חיפושים בסיכון`,
+        actionLabel: "הוסף מוצרים",
         contextLabel: entry.query,
         priorityScore: entry.searches
       });
@@ -746,11 +746,11 @@ function buildInsights(records: NormalizedRecord[], filters: DashboardFilters): 
         id: `no-click-${entry.query}`,
         severity: "critical",
         group: "low-conversion-queries",
-        title: `No click-through on "${entry.query}"`,
-        text: `${entry.searches} users searched for "${entry.query}" but left without clicking any result.`,
-        explanation: "The query is attracting demand but the result set is not compelling enough to create product discovery.",
-        impactMetric: `${entry.searches} missed discovery sessions`,
-        actionLabel: "Boost products",
+        title: `אין הקלקות על "${entry.query}"`,
+        text: `${entry.searches.toLocaleString("he-IL")} משתמשים חיפשו "${entry.query}" אבל יצאו בלי להקליק על אף תוצאה.`,
+        explanation: "השאילתה מייצרת ביקוש, אבל סט התוצאות לא מספיק משכנע כדי לייצר גילוי מוצרים.",
+        impactMetric: `${entry.searches.toLocaleString("he-IL")} סשנים אבודים`,
+        actionLabel: "קדם מוצרים",
         contextLabel: entry.query,
         priorityScore: entry.searches * 2
       });
@@ -761,11 +761,11 @@ function buildInsights(records: NormalizedRecord[], filters: DashboardFilters): 
         id: `high-conversion-${entry.query}`,
         severity: "info",
         group: "high-intent-wins",
-        title: `High-intent demand around "${entry.query}"`,
-        text: `Customers searching for "${entry.query}" convert ${(conversion * 100).toFixed(0)}%, well above the search average.`,
-        explanation: "This query already signals strong purchase intent and can support more deliberate merchandising.",
-        impactMetric: `${((conversion - baselineConversion) * 100).toFixed(0)}pt uplift`,
-        actionLabel: "Create category page",
+        title: `ביקוש עם כוונת רכישה גבוהה סביב "${entry.query}"`,
+        text: `לקוחות שמחפשים "${entry.query}" ממירים ${(conversion * 100).toFixed(0)}%, הרבה מעל ממוצע החיפוש.`,
+        explanation: "השאילתה הזו כבר מסמנת כוונת רכישה חזקה, ויכולה להצדיק מרצ'נדייזינג ממוקד יותר.",
+        impactMetric: `${((conversion - baselineConversion) * 100).toFixed(0)} נק' שיפור`,
+        actionLabel: "צור דף קטגוריה",
         contextLabel: entry.query,
         priorityScore: Math.round((conversion - baselineConversion) * 100)
       });
@@ -776,11 +776,11 @@ function buildInsights(records: NormalizedRecord[], filters: DashboardFilters): 
         id: `click-no-cart-${entry.query}`,
         severity: "warning",
         group: "revenue-opportunities",
-        title: `Clicks without cart progression for "${entry.query}"`,
-        text: `Searchers clicked ${entry.clicks} products for "${entry.query}" but did not move any of them into cart.`,
-        explanation: "Users are finding something relevant, but the product mix or landing experience is failing to convert interest into cart intent.",
-        impactMetric: `${entry.clicks} engaged clicks`,
-        actionLabel: "Tune assortment",
+        title: `קליקים בלי התקדמות לעגלה עבור "${entry.query}"`,
+        text: `מחפשים הקליקו על ${entry.clicks.toLocaleString("he-IL")} מוצרים עבור "${entry.query}" אבל לא העבירו אף אחד מהם לעגלה.`,
+        explanation: "הלקוחות מוצאים משהו רלוונטי, אבל תמהיל המוצרים או חוויית הנחיתה לא מצליחים להפוך עניין לכוונת קנייה.",
+        impactMetric: `${entry.clicks.toLocaleString("he-IL")} קליקים מעורבים`,
+        actionLabel: "כוון את המבחר",
         contextLabel: entry.query,
         priorityScore: entry.clicks
       });
@@ -792,11 +792,11 @@ function buildInsights(records: NormalizedRecord[], filters: DashboardFilters): 
       id: "baseline-tuning",
       severity: "info",
       group: "high-intent-wins",
-      title: "Semantix is capturing stable demand",
-      text: "Semantix is capturing stable demand. Add synonyms and merchandising rules to improve long-tail coverage.",
-      explanation: "No critical gaps were detected in the current window, so the best next step is baseline tuning and coverage expansion.",
-      impactMetric: "Always-on optimization",
-      actionLabel: "Add synonyms",
+      title: "סמנטיקס לוכדת ביקוש יציב",
+      text: "סמנטיקס לוכדת ביקוש יציב. כדאי להוסיף מילים נרדפות וכללי מרצ'נדייזינג כדי לשפר את כיסוי הזנב הארוך.",
+      explanation: "לא זוהו פערים קריטיים בחלון הזמן הנוכחי, ולכן הצעד הבא הוא כיוון בסיסי והרחבת כיסוי.",
+      impactMetric: "אופטימיזציה שוטפת",
+      actionLabel: "הוסף מילים נרדפות",
       priorityScore: 1
     });
   }
@@ -834,10 +834,10 @@ function buildInsightsSummary(cards: SearchInsightCard[]): InsightsSummary {
 
 function buildGroupedInsights(cards: SearchInsightCard[]): InsightGroup[] {
   const config: Array<{ id: InsightGroup["id"]; title: string }> = [
-    { id: "revenue-opportunities", title: "Revenue Opportunities" },
-    { id: "search-gaps", title: "Search Gaps" },
-    { id: "high-intent-wins", title: "High-Intent Wins" },
-    { id: "low-conversion-queries", title: "Low-Conversion Queries" }
+    { id: "revenue-opportunities", title: "הזדמנויות הכנסה" },
+    { id: "search-gaps", title: "פערי חיפוש" },
+    { id: "high-intent-wins", title: "ניצחונות עם כוונת רכישה גבוהה" },
+    { id: "low-conversion-queries", title: "שאילתות עם המרה נמוכה" }
   ];
 
   return config
@@ -911,7 +911,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
         steps.push({
           id: `${event.id}-implicit-search`,
           type: "search",
-          label: `Search: "${event.query}"`,
+          label: `חיפוש: "${event.query}"`,
           timestamp: event.timestamp?.toISOString()
         });
       }
@@ -920,7 +920,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
         steps.push({
           id: `${event.id}-search`,
           type: "search",
-          label: `Search: "${classified.query}"`,
+          label: `חיפוש: "${classified.query}"`,
           timestamp: event.timestamp?.toISOString()
         });
       }
@@ -929,7 +929,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
         steps.push({
           id: `${event.id}-click`,
           type: "click",
-          label: `Click: ${event.product ?? "Search result"}`,
+          label: `קליק: ${event.product ?? "תוצאת חיפוש"}`,
           product: event.product,
           timestamp: event.timestamp?.toISOString()
         });
@@ -939,7 +939,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
         steps.push({
           id: `${event.id}-cart`,
           type: "cart",
-          label: `Add to Cart: ${event.product ?? "Product"}`,
+          label: `הוספה לעגלה: ${event.product ?? "מוצר"}`,
           product: event.product,
           value: event.revenue,
           timestamp: event.timestamp?.toISOString()
@@ -950,7 +950,7 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
         steps.push({
           id: `${event.id}-purchase`,
           type: "purchase",
-          label: `Purchase: ${event.product ?? "Order"}`,
+          label: `רכישה: ${event.product ?? "הזמנה"}`,
           product: event.product,
           value: classified.revenue,
           timestamp: event.timestamp?.toISOString()
@@ -964,9 +964,9 @@ function buildProfiles(records: NormalizedRecord[], filters: DashboardFilters): 
       id: key,
       label: buildProfileLabel(key),
       identifier,
-      identifierType: sorted[0]?.userId ? "user" : sorted[0]?.sessionId ? "session" : "ip",
+      identifierType: sorted[0]?.userId ? "משתמש" : sorted[0]?.sessionId ? "סשן" : "IP",
       sessionId: sorted[0]?.sessionId ?? key,
-      ipAddress: sorted[0]?.ipAddress ?? "Unknown",
+      ipAddress: sorted[0]?.ipAddress ?? "לא ידוע",
       userId: sorted[0]?.userId,
       totalSessionValue,
       totalAddToCarts,

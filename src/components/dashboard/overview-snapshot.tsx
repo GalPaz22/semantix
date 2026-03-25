@@ -28,7 +28,7 @@ function SnapshotList({
 export function OverviewSnapshot({ insights, queries, products }: OverviewSnapshotProps) {
   return (
     <div className="grid gap-4 xl:grid-cols-3">
-      <SnapshotList title="Insights Snapshot">
+      <SnapshotList title="תקציר תובנות">
         <div className="grid gap-3">
           {insights.slice(0, 2).map((insight) => (
             <article key={insight.id} className="rounded-2xl bg-[#faf7ff] px-4 py-3">
@@ -38,21 +38,21 @@ export function OverviewSnapshot({ insights, queries, products }: OverviewSnapsh
         </div>
       </SnapshotList>
 
-      <SnapshotList title="Top Queries">
+      <SnapshotList title="השאילתות המובילות">
         <div className="grid gap-3">
           {queries.slice(0, 5).map((query) => (
             <div key={query.query} className="flex items-center justify-between gap-4 rounded-2xl bg-[#faf7ff] px-4 py-3">
               <div>
                 <p className="font-semibold text-ink">{query.query}</p>
-                <p className="text-sm text-muted">{query.clicks} clicks</p>
+                <p className="text-sm text-muted">{query.clicks.toLocaleString("he-IL")} קליקים</p>
               </div>
-              <span className="text-sm font-semibold text-[#5d44ef]">{query.searches} searches</span>
+              <span className="text-sm font-semibold text-[#5d44ef]">{query.searches.toLocaleString("he-IL")} חיפושים</span>
             </div>
           ))}
         </div>
       </SnapshotList>
 
-      <SnapshotList title="Top Products">
+      <SnapshotList title="המוצרים המובילים">
         <div className="grid gap-3">
           {products.slice(0, 5).map((product) => (
             <div
@@ -61,7 +61,7 @@ export function OverviewSnapshot({ insights, queries, products }: OverviewSnapsh
             >
               <div>
                 <p className="font-semibold text-ink">{product.product}</p>
-                <p className="text-sm text-muted">{product.clicks} clicks · {product.addToCart} carts</p>
+                <p className="text-sm text-muted">{product.clicks.toLocaleString("he-IL")} קליקים · {product.addToCart.toLocaleString("he-IL")} עגלות</p>
               </div>
               <span className="text-sm font-semibold text-[#5d44ef]">{formatCompactCurrency(product.revenue)}</span>
             </div>

@@ -3,20 +3,20 @@
 import { usePathname } from "next/navigation";
 
 const labels: Record<string, string> = {
-  "/dashboard": "Overview",
-  "/dashboard/attribution": "Attribution",
-  "/dashboard/insights": "Insights",
-  "/dashboard/customers": "Customers",
-  "/dashboard/products": "Products",
-  "/dashboard/boost": "Products",
+  "/dashboard": "סקירה כללית",
+  "/dashboard/attribution": "אטריביושן",
+  "/dashboard/insights": "תובנות",
+  "/dashboard/customers": "לקוחות",
+  "/dashboard/products": "מוצרים",
+  "/dashboard/boost": "מוצרים",
 };
 
 export function DashboardHeader() {
   const pathname = usePathname();
-  const title = labels[pathname] ?? "Dashboard";
+  const title = labels[pathname] ?? "דאשבורד";
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-40 border-b border-line bg-white/90 backdrop-blur-md lg:left-72">
+    <header className="fixed left-0 right-0 top-0 z-40 border-b border-line bg-white/90 backdrop-blur-md lg:right-72">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
@@ -33,7 +33,7 @@ export function DashboardHeader() {
         </div>
         <div className="hidden items-center gap-2 sm:flex">
           <span className="rounded-full border border-[#ddd6fe] bg-[#f5f3ff] px-3 py-1 text-xs font-medium text-[#6d28d9]">
-            Mendelson live
+            Mendelson בזמן אמת
           </span>
         </div>
       </div>

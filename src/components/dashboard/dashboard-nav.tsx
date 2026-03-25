@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils/cn";
 const items = [
   {
     href: "/dashboard",
-    label: "Overview",
+    label: "סקירה כללית",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M5 19V10" />
@@ -18,7 +18,7 @@ const items = [
   },
   {
     href: "/dashboard/attribution",
-    label: "Attribution",
+    label: "אטריביושן",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M4 18 10 12l4 4 6-8" />
@@ -28,7 +28,7 @@ const items = [
   },
   {
     href: "/dashboard/insights",
-    label: "Insights",
+    label: "תובנות",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
         <circle cx="11" cy="11" r="6" />
@@ -38,7 +38,7 @@ const items = [
   },
   {
     href: "/dashboard/customers",
-    label: "Customers",
+    label: "לקוחות",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
@@ -50,7 +50,7 @@ const items = [
   },
   {
     href: "/dashboard/boost",
-    label: "Products",
+    label: "מוצרים",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path d="m12 3 8 4.5-8 4.5L4 7.5 12 3Z" />
@@ -90,7 +90,7 @@ export function DashboardNav() {
               </span>
               <span>{item.label}</span>
             </span>
-            <span className={cn("text-xs", active ? "text-[#6d28d9]" : "text-[#d1d5db]")}>›</span>
+            <span className={cn("text-xs", active ? "text-[#6d28d9]" : "text-[#d1d5db]")}>‹</span>
           </a>
         );
       })}

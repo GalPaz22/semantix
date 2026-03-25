@@ -25,26 +25,26 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
       />
       <FilterBar filters={filters} options={filterOptions.data} />
       <div className="grid gap-6 xl:grid-cols-3">
-        <Panel eyebrow="Backlog" title={operations.data.backlogCount.toString()}>
+        <Panel eyebrow="בק-לוג" title={operations.data.backlogCount.toString()}>
           <p className="text-sm text-muted">
-            Open records not yet marked closed or complete across the filtered dataset.
+            רשומות פתוחות שעדיין לא סומנו כסגורות או הושלמו בתוך הדאטה המסונן.
           </p>
         </Panel>
-        <Panel eyebrow="Exception rate" title={`${(operations.data.exceptionRate * 100).toFixed(1)}%`}>
+        <Panel eyebrow="שיעור חריגות" title={`${(operations.data.exceptionRate * 100).toFixed(1)}%`}>
           <p className="text-sm text-muted">
-            Share of records tagged as failed, blocked, cancelled, or exceptional.
+            שיעור הרשומות שסומנו כנכשלות, חסומות, מבוטלות או חריגות.
           </p>
         </Panel>
-        <Panel eyebrow="Status spread" title={`${operations.data.statusBreakdown.length} active states`}>
+        <Panel eyebrow="פיזור סטטוסים" title={`${operations.data.statusBreakdown.length} סטטוסים פעילים`}>
           <p className="text-sm text-muted">
-            Top detected statuses across configured collections in the current view.
+            הסטטוסים הנפוצים ביותר בכל הקולקציות המוגדרות בתצוגה הנוכחית.
           </p>
         </Panel>
       </div>
       <Panel
-        eyebrow="Status mix"
-        title="Operational state distribution"
-        description="A quick cut of the most common statuses or workflow stages surfaced from your records."
+        eyebrow="תמהיל סטטוסים"
+        title="התפלגות המצב התפעולי"
+        description="מבט מהיר על הסטטוסים או שלבי העבודה הנפוצים ביותר שעולים מהרשומות שלך."
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {operations.data.statusBreakdown.map((status) => (
@@ -56,9 +56,9 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
         </div>
       </Panel>
       <Panel
-        eyebrow="Recent records"
-        title="Operational detail"
-        description="Most recent normalized records in the current filter scope."
+        eyebrow="רשומות אחרונות"
+        title="פירוט תפעולי"
+        description="הרשומות המנורמלות האחרונות ביותר בתוך תחום הסינון הנוכחי."
       >
         <DataTable records={operations.data.records} />
       </Panel>

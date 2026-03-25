@@ -8,7 +8,7 @@ type SimpleTrendChartProps = {
 
 export function SimpleTrendChart({ data }: SimpleTrendChartProps) {
   if (!data.length) {
-    return <p className="text-sm text-muted">No trend data available for the selected filters.</p>;
+    return <p className="text-sm text-muted">אין כרגע נתוני מגמה זמינים עבור הסינון שנבחר.</p>;
   }
 
   const width = 720;
@@ -38,11 +38,11 @@ export function SimpleTrendChart({ data }: SimpleTrendChartProps) {
       <div className="flex flex-wrap items-center gap-4 text-sm text-muted">
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-accent" />
-          Revenue
+          הכנסות
         </span>
         <span className="inline-flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-success" />
-          Records
+          רשומות
         </span>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
@@ -74,7 +74,7 @@ export function SimpleTrendChart({ data }: SimpleTrendChartProps) {
           <div key={point.date} className="rounded-2xl border border-[#e4dbff] bg-[#faf7ff] p-3">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">{point.label}</p>
             <p className="mt-2 text-lg font-bold text-ink">{formatCompactNumber(point.revenue)}</p>
-            <p className="text-xs text-muted">{point.orders} records</p>
+            <p className="text-xs text-muted">{point.orders.toLocaleString("he-IL")} רשומות</p>
           </div>
         ))}
       </div>

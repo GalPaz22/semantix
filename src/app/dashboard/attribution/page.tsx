@@ -50,31 +50,31 @@ export default async function AttributionPage({ searchParams }: AttributionPageP
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <Panel
-          eyebrow="Recovered Demand"
-          title="How matched value splits across sources"
+          eyebrow="ביקוש משוחזר"
+          title="איך השווי המיוחס מתחלק בין המקורות"
         >
           <SourceBreakdownTable
             rows={attribution.data.clickSourceBreakdown}
             labels={attribution.data.sourceLabels}
           />
           <p className="mt-4 text-sm text-muted">
-            Unattributed carts outside the strict match policy:{" "}
+            עגלות שלא יוחסו לפי מדיניות ההתאמה המחמירה:{" "}
             <span className="font-semibold text-ink">
-              {attribution.data.unattributedCartCount.toLocaleString("en-US")}
+              {attribution.data.unattributedCartCount.toLocaleString("he-IL")}
             </span>
           </p>
         </Panel>
         <Panel
-          eyebrow="Trend"
-          title="Source activity across the selected window"
+          eyebrow="מגמה"
+          title="פעילות מקורות בטווח הזמן שנבחר"
         >
           <SourceTrendChart data={attribution.data.sourceTrend} />
         </Panel>
       </div>
 
       <Panel
-        eyebrow="Query Attribution"
-        title="Queries that generate matched cart value"
+        eyebrow="אטריביושן לשאילתות"
+        title="שאילתות שמייצרות שווי עגלה מיוחס"
       >
         <QueryAttributionTable
           rows={attribution.data.queryAttribution}
