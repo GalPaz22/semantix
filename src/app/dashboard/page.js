@@ -8,14 +8,9 @@ import ProductsPanel from '../components/ProductsPanel';
 import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
 import AdminPanel from '../components/AdminPanel';
 import DemoPanel from '../components/DemoPanel';
-
-// ===============================
-// Add this to your existing dashboard file
-// ===============================
-
 // Import the subscription-related components at the top
-import { useUserDetails } from '../hooks/useUserDetails'; // Make sure this path is correct
-import { SUBSCRIPTION_TIERS } from '/lib/paddle-config'; // Make sure this path is correct
+import { useUserDetails } from '../hooks/useUserDetails';
+import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
 import CancellationModal from '../components/CancellationModal';
 
 // Charts
@@ -52,7 +47,8 @@ import {
   Monitor,
   MousePointer2,
   Zap,
-  Star
+  Star,
+  Activity
 } from "lucide-react";
 
 
@@ -1603,7 +1599,7 @@ function AnalyticsPanel({ session, onboarding }) {
 
       // Calculate revenue if price is available
       if (item.product_price) {
-        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        const price = parseFloat(String(item.product_price).replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
           addToCartGroups[item.search_query].revenue += price * (item.quantity || 1);
         }
@@ -1636,7 +1632,7 @@ function AnalyticsPanel({ session, onboarding }) {
         }
       } else if (item.product_price) {
         // Fallback for cart items
-        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        const price = parseFloat(String(item.product_price).replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
           checkoutGroups[item.search_query].revenue += price * (item.quantity || 1);
         }
@@ -1766,7 +1762,7 @@ function AnalyticsPanel({ session, onboarding }) {
     // Calculate totals for each category
     const totalRevenueFromAddToCart = finalAddToCartItems.reduce((sum, item) => {
       if (item.product_price) {
-        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        const price = parseFloat(String(item.product_price).replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
           return sum + (price * (item.quantity || 1));
         }
@@ -1783,7 +1779,7 @@ function AnalyticsPanel({ session, onboarding }) {
         }
       } else if (item.product_price) {
         // Fallback for cart items
-        const price = parseFloat(item.product_price.replace(/[^0-9.]/g, ''));
+        const price = parseFloat(String(item.product_price).replace(/[^0-9.]/g, ''));
         if (!isNaN(price)) {
           return sum + (price * (item.quantity || 1));
         }
@@ -2403,43 +2399,83 @@ function AnalyticsPanel({ session, onboarding }) {
 
           {/* Hero Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 px-6 pb-6 pt-2">
-            {/* Total Revenue - Hero Stat */}
-            <div className="col-span-2 lg:col-span-1 p-4 sm:p-5 bg-white/15 backdrop-blur-sm rounded-xl border border-white/20">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="h-4 w-4 text-green-300" />
-                <p className="text-white/80 text-xs sm:text-sm font-medium">הכנסות דרך Semantix</p>
+            {/* Total Revenue */}
+            <div className="col-span-2 lg:col-span-1 relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-emerald-500/30 to-green-600/20 backdrop-blur-sm rounded-2xl border border-white/25 shadow-lg">
+              <div className="absolute -top-4 -left-4 w-20 h-20 bg-emerald-400/20 rounded-full blur-xl" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 bg-emerald-400/30 rounded-lg flex items-center justify-center">
+                    <DollarSign className="h-3.5 w-3.5 text-emerald-200" />
+                  </div>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">הכנסות Semantix</p>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  ₪{(checkoutEvents.length === 0
+                    ? (zeroResultsCart.value + injectCart.value)
+                    : ((cartMetrics?.addToCartMetrics?.revenue || 0) + (cartMetrics?.checkoutMetrics?.revenue || 0))
+                  ).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-emerald-300/90 text-xs font-semibold">
+                    {checkoutEvents.length === 0 ? 'ATC (Zero + Inject)' : 'עגלה + רכישות'}
+                  </span>
+                </div>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">
-                ₪{((cartMetrics?.addToCartMetrics?.revenue || 0) + (cartMetrics?.checkoutMetrics?.revenue || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </p>
-              <p className="text-green-300/80 text-xs mt-2 font-medium">
-                עגלה + רכישות
-              </p>
             </div>
 
-            {/* AI Searches Processed */}
-            <div className="p-4 sm:p-5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <Search className="h-4 w-4 text-blue-300" />
-                <p className="text-white/80 text-xs sm:text-sm font-medium">חיפושי AI</p>
+            {/* AI Searches */}
+            <div className="relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
+              <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-blue-400/20 rounded-full blur-xl" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 bg-blue-400/30 rounded-lg flex items-center justify-center">
+                    <Search className="h-3.5 w-3.5 text-blue-200" />
+                  </div>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">חיפושי AI</p>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{filteredCount.toLocaleString()}</p>
+                <p className="text-white/50 text-xs mt-2">{getCurrentTimePeriodLabel()}</p>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{filteredCount.toLocaleString()}</p>
-              <p className="text-white/60 text-xs mt-2">{getCurrentTimePeriodLabel()}</p>
             </div>
 
-            {/* Product Discovery - Expanded */}
-            <div className="p-4 sm:p-5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10 col-span-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Package className="h-4 w-4 text-cyan-300" />
-                <p className="text-white/80 text-xs sm:text-sm font-medium">גילוי מוצרים</p>
+            {/* Product Discovery */}
+            <div className="relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-cyan-500/20 to-teal-600/20 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
+              <div className="absolute -top-4 -right-4 w-16 h-16 bg-cyan-400/20 rounded-full blur-xl" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 bg-cyan-400/30 rounded-lg flex items-center justify-center">
+                    <Package className="h-3.5 w-3.5 text-cyan-200" />
+                  </div>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">גילוי מוצרים</p>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  {((cartMetrics?.clickMetrics?.items || 0) + (cartMetrics?.addToCartMetrics?.items || 0)).toLocaleString()}
+                </p>
+                <p className="text-white/50 text-xs mt-2">
+                  {(cartMetrics?.clickMetrics?.items || 0).toLocaleString()} לחיצות · {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString()} עגלה
+                </p>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-white">
-                {((cartMetrics?.clickMetrics?.items || 0) + (cartMetrics?.addToCartMetrics?.items || 0)).toLocaleString()}
-              </p>
-              <p className="text-white/60 text-xs mt-2">
-                {(cartMetrics?.clickMetrics?.items || 0).toLocaleString()} לחיצות + {(cartMetrics?.addToCartMetrics?.items || 0).toLocaleString()} עגלה
-              </p>
             </div>
+
+            {/* Conversion Rate */}
+            <div className="relative overflow-hidden p-4 sm:p-5 bg-gradient-to-br from-purple-500/20 to-violet-600/20 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg">
+              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-purple-400/20 rounded-full blur-xl" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 bg-purple-400/30 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="h-3.5 w-3.5 text-purple-200" />
+                  </div>
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">שיעור המרה</p>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  {filteredCount > 0
+                    ? ((( cartMetrics?.addToCartMetrics?.items || 0) / filteredCount) * 100).toFixed(1)
+                    : '0.0'}%
+                </p>
+                <p className="text-white/50 text-xs mt-2">חיפוש → עגלה</p>
+              </div>
+            </div>
+
           </div>
         </div>
       </header>
@@ -2658,14 +2694,24 @@ function AnalyticsPanel({ session, onboarding }) {
       {(cartAnalytics.length > 0 || checkoutEvents.length > 0 || clickEvents.length > 0 || loadingCart || loadingCheckout || loadingClicks) && (
         <section className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 mb-8">
           <div className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-white" />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <DollarSign className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">הכנסות שנוצרו דרך Semantix</h2>
+                  <p className="text-xs text-gray-500">ייחוס הכנסות לחיפוש חכם</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">הכנסות שנוצרו דרך Semantix</h2>
-                <p className="text-xs text-gray-500">ייחוס הכנסות לחיפוש חכם</p>
-              </div>
+              {checkoutEvents.length === 0 && (zeroResultsCart.value > 0 || injectCart.value > 0) && (
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-gray-900">
+                    ₪{(zeroResultsCart.value + injectCart.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">סה"כ הכנסות (ATC)</p>
+                </div>
+              )}
             </div>
             {(loadingCart || loadingCheckout || loadingClicks) ? (
               <div className="flex justify-center items-center h-40">
@@ -2759,9 +2805,9 @@ function AnalyticsPanel({ session, onboarding }) {
                               )}
                             </div>
                             <div className="text-right flex-shrink-0 ml-4">
-                              {item.price != null && item.price !== "" && (
+                              {(item.product_price != null || item.price != null) && (
                                 <p className="font-semibold text-gray-700">
-                                  ₪{parseFloat(String(item.price).replace(/[^0-9.]/g, "")).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  ₪{parseFloat(String(item.product_price ?? item.price ?? "").replace(/[^0-9.]/g, "")).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                 </p>
                               )}
                               {item.cartTime && (
@@ -4616,6 +4662,7 @@ function AnalyticsPanel({ session, onboarding }) {
           </div>
         )}
       </section>
+
     </div>
   );
 }
@@ -5962,7 +6009,6 @@ function ApiKeyPanel({ session, onboarding }) {
 /* -------- tiny helper so sidebar labels & panels stay together ---- */
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
-  { id: "insights", label: "תובנות עסקיות", link: "/analytics", icon: TrendingUp, external: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },

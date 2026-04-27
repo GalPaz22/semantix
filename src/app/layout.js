@@ -157,38 +157,36 @@ export default function RootLayout({ children }) {
         <title>{metadata.title}</title>
       </head>
       <body className={`${inter.className} min-h-screen flex flex-col bg-white`}>
-        {/* Professional Navigation Bar */}
-        <nav className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-lg z-50 border-b border-gray-100 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              {/* Logo and Main Nav Links */}
-              <div className="flex items-center space-x-8">
-                <Link href="/" className="flex items-center">
-                  <img src="/main-logo.svg" alt="Semantix - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך" className="h-12 w-auto [&>path]:fill-purple-600" style={{ filter: "none" }} />
-                </Link>
-              </div>
+        {/* Single SessionProvider wrapping the entire app */}
+        <Providers>
+          {/* Professional Navigation Bar */}
+          <nav className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-lg z-50 border-b border-gray-100 shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-16">
+                {/* Logo */}
+                <div className="flex items-center space-x-8">
+                  <Link href="/" className="flex items-center">
+                    <img src="/main-logo.svg" alt="Semantix - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך" className="h-12 w-auto [&>path]:fill-purple-600" style={{ filter: "none" }} />
+                  </Link>
+                </div>
 
-              {/* Right Side Actions */}
-              <div className="flex items-center space-x-4">
-                <Providers>
+                {/* Right Side Actions */}
+                <div className="flex items-center space-x-4">
                   <HeaderAuthButton />
-                </Providers>
-                <Providers>
                   <GetStartedButton />
-                </Providers>
+                </div>
               </div>
             </div>
+          </nav>
+
+          {/* Main Content with padding for fixed nav */}
+          <div className="flex-grow relative overflow-hidden pt-16">
+            <main className="flex-grow relative z-10">
+              {children}
+            </main>
+            <ConditionalFooter />
           </div>
-        </nav>
-
-        {/* Main Content with padding for fixed nav */}
-        <div className="flex-grow relative overflow-hidden pt-16">
-          <main className="flex-grow relative z-10">
-            <Providers>{children}</Providers>
-          </main>
-
-          <ConditionalFooter />
-        </div>
+        </Providers>
       </body>
     </html>
   );

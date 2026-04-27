@@ -215,8 +215,64 @@ export default function AdminPanel({ session }) {
   const [rawCardHtml, setRawCardHtml] = useState('');
   const [convertedTemplate, setConvertedTemplate] = useState('');
 
+  // Client analytics state
+  const [analyticsDbName, setAnalyticsDbName] = useState('');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Shadow user creation state
+  const [shadowForm, setShadowForm] = useState({
+    name: '',
+    dbName: '',
+    platform: 'shopify',
+    shopifyDomain: '',
+    shopifyToken: '',
+    wooUrl: '',
+    wooKey: '',
+    wooSecret: '',
+  });
+  const [shadowStatus, setShadowStatus] = useState('idle'); // idle | loading | success | error
+  const [shadowResult, setShadowResult] = useState(null);
+  const [shadowError, setShadowError] = useState('');
+
   const userEmail = session?.user?.email;
   const isAdmin = userEmail === 'galpaz2210@gmail.com';
+
+  const handleFetchAnalytics = async () => {
+    if (!analyticsDbName.trim()) return;
+    setLoadingAnalytics(true);
+    setAnalyticsData(null);
+    try {
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const res = await fetch('/api/analytics/performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dbName: analyticsDbName.trim(), startDate, endDate })
+      });
+      const data = await res.json();
+      const hasCheckout = (data.checkout || []).length > 0;
+      const checkoutValue = (data.checkout || []).reduce((sum, e) => {
+        const v = parseFloat(String(e.cart_total ?? '').replace(/[^0-9.]/g, '')) || 0;
+        return sum + v;
+      }, 0);
+      setAnalyticsData({
+        hasCheckout,
+        zeroValue: data.zeroResultsCartValue || 0,
+        injectValue: data.injectCartValue || 0,
+        zeroCount: data.zeroResultsCartCount || 0,
+        injectCount: data.injectCartCount || 0,
+        checkoutValue,
+        checkoutCount: (data.checkout || []).length,
+        cartCount: (data.cart || []).length,
+        semantixRevenue: (data.zeroResultsCartValue || 0) + (data.injectCartValue || 0),
+      });
+    } catch (e) {
+      setAnalyticsData({ error: true });
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
 
   const handleFetchUserData = async () => {
     if (!isAdmin || !searchName) return;
@@ -1624,6 +1680,33 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  const handleCreateShadowUser = async () => {
+    if (!isAdmin) return;
+    const { name, dbName, platform, shopifyDomain, shopifyToken, wooUrl, wooKey, wooSecret } = shadowForm;
+    if (!name.trim() || !dbName.trim()) { setShadowError('Name and DB Name are required'); return; }
+    if (platform === 'shopify' && (!shopifyDomain.trim() || !shopifyToken.trim())) { setShadowError('Shopify domain and token are required'); return; }
+    if (platform === 'woocommerce' && (!wooUrl.trim() || !wooKey.trim() || !wooSecret.trim())) { setShadowError('WooCommerce URL, key, and secret are required'); return; }
+
+    setShadowStatus('loading');
+    setShadowError('');
+    setShadowResult(null);
+    try {
+      const res = await fetch('/api/admin/create-shadow-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shadowForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create shadow user');
+      setShadowResult(data.user);
+      setShadowStatus('success');
+      setShadowForm({ name: '', dbName: '', platform: 'shopify', shopifyDomain: '', shopifyToken: '', wooUrl: '', wooKey: '', wooSecret: '' });
+    } catch (err) {
+      setShadowError(err.message);
+      setShadowStatus('error');
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1634,6 +1717,265 @@ export default function AdminPanel({ session }) {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-4">
+      {/* Client Analytics */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <div className="border-b border-gray-100 p-5">
+          <h2 className="text-lg font-semibold text-gray-800">אנליטיקות לקוח</h2>
+          <p className="text-sm text-gray-500 mt-1">הכנסות שנוצרו דרך Semantix</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={analyticsDbName}
+              onChange={(e) => setAnalyticsDbName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleFetchAnalytics()}
+              placeholder="הכנס dbName של הלקוח"
+              className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm text-sm"
+              dir="ltr"
+            />
+            <button
+              onClick={handleFetchAnalytics}
+              disabled={loadingAnalytics || !analyticsDbName.trim()}
+              className="px-5 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+              {loadingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              משוך
+            </button>
+          </div>
+
+          {analyticsData?.error && (
+            <p className="text-red-500 text-sm text-center">שגיאה בטעינת הנתונים</p>
+          )}
+
+          {analyticsData && !analyticsData.error && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              {/* Main revenue */}
+              <div className="col-span-2 bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-emerald-700">הכנסות Semantix</p>
+                  <p className="text-xs text-emerald-500 mt-0.5">הכנסות שנשמרו — Zero + Inject ATC</p>
+                </div>
+                <p className="text-2xl font-bold text-emerald-600">
+                  ₪{analyticsData.semantixRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+
+              {/* Zero results */}
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                <p className="text-xs text-orange-600 font-medium">Zero Results ATC</p>
+                <p className="text-lg font-bold text-orange-700 mt-1">
+                  ₪{analyticsData.zeroValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-orange-400 mt-0.5">{analyticsData.zeroCount} הוספות</p>
+              </div>
+
+              {/* Inject */}
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                <p className="text-xs text-purple-600 font-medium">Inject ATC</p>
+                <p className="text-lg font-bold text-purple-700 mt-1">
+                  ₪{analyticsData.injectValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-purple-400 mt-0.5">{analyticsData.injectCount} הוספות</p>
+              </div>
+
+              {/* Checkout */}
+              {analyticsData.hasCheckout && (
+                <div className="col-span-2 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-blue-600 font-medium">Checkout</p>
+                    <p className="text-xs text-blue-400 mt-0.5">{analyticsData.checkoutCount} רכישות</p>
+                  </div>
+                  <p className="text-lg font-bold text-blue-700">
+                    ₪{analyticsData.checkoutValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+
+              {/* Cart events count */}
+              <div className="col-span-2 flex items-center justify-between px-1 text-xs text-gray-400">
+                <span>{analyticsData.cartCount} סה"כ הוספות לעגלה</span>
+                <span>{analyticsData.hasCheckout ? `${analyticsData.checkoutCount} checkout events` : 'אין נתוני Checkout'}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Create Shadow User ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <div className="border-b border-gray-100 p-5 flex items-center gap-3">
+          <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-violet-600 text-sm">👤</span>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Create Shadow User</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Add a store for shadow-mode data gathering. Creates user record + product DB with all indexes.</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+
+          {/* Name + DB Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Store Label / Name</label>
+              <input
+                type="text"
+                value={shadowForm.name}
+                onChange={e => setShadowForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Wine Shop Shadow"
+                className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">DB Name <span className="font-normal text-gray-400">(must be unique)</span></label>
+              <input
+                type="text"
+                value={shadowForm.dbName}
+                onChange={e => setShadowForm(f => ({ ...f, dbName: e.target.value.replace(/\s/g, '-') }))}
+                placeholder="e.g. wine-shop-shadow"
+                className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-all text-sm font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Platform selector */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Platform</label>
+            <div className="flex gap-2">
+              {['shopify', 'woocommerce'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setShadowForm(f => ({ ...f, platform: p }))}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                    shadowForm.platform === p
+                      ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300'
+                  }`}
+                >
+                  {p === 'shopify' ? '🛍 Shopify' : '🔧 WooCommerce'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Shopify credentials */}
+          {shadowForm.platform === 'shopify' && (
+            <div className="grid grid-cols-2 gap-3 p-4 bg-green-50 rounded-lg border border-green-100">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Shopify Domain</label>
+                <input
+                  type="text"
+                  value={shadowForm.shopifyDomain}
+                  onChange={e => setShadowForm(f => ({ ...f, shopifyDomain: e.target.value }))}
+                  placeholder="mystore.myshopify.com"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Access Token</label>
+                <input
+                  type="password"
+                  value={shadowForm.shopifyToken}
+                  onChange={e => setShadowForm(f => ({ ...f, shopifyToken: e.target.value }))}
+                  placeholder="shpat_..."
+                  className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* WooCommerce credentials */}
+          {shadowForm.platform === 'woocommerce' && (
+            <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Store URL</label>
+                <input
+                  type="text"
+                  value={shadowForm.wooUrl}
+                  onChange={e => setShadowForm(f => ({ ...f, wooUrl: e.target.value }))}
+                  placeholder="https://mystore.com"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Consumer Key</label>
+                  <input
+                    type="password"
+                    value={shadowForm.wooKey}
+                    onChange={e => setShadowForm(f => ({ ...f, wooKey: e.target.value }))}
+                    placeholder="ck_..."
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Consumer Secret</label>
+                  <input
+                    type="password"
+                    value={shadowForm.wooSecret}
+                    onChange={e => setShadowForm(f => ({ ...f, wooSecret: e.target.value }))}
+                    placeholder="cs_..."
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {shadowStatus === 'error' && shadowError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              {shadowError}
+            </div>
+          )}
+
+          {/* Success result */}
+          {shadowStatus === 'success' && shadowResult && (
+            <div className="p-4 bg-violet-50 border border-violet-200 rounded-lg space-y-2">
+              <div className="flex items-center gap-2 text-violet-700 font-semibold text-sm">
+                <CheckCircle className="h-4 w-4" />
+                Shadow user created successfully!
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-700 mt-2">
+                <span className="text-gray-400">Name</span><span className="font-medium">{shadowResult.name}</span>
+                <span className="text-gray-400">DB Name</span><span className="font-mono font-medium">{shadowResult.dbName}</span>
+                <span className="text-gray-400">Platform</span><span className="font-medium">{shadowResult.platform}</span>
+              </div>
+              <div className="mt-2">
+                <span className="text-xs text-gray-400 block mb-1">API Key</span>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 font-mono text-xs bg-white border border-violet-200 rounded px-3 py-2 text-violet-800 break-all">
+                    {shadowResult.apiKey}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(shadowResult.apiKey)}
+                    className="p-2 text-violet-600 hover:text-violet-800 transition-colors flex-shrink-0"
+                    title="Copy API key"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Submit button */}
+          <button
+            onClick={handleCreateShadowUser}
+            disabled={shadowStatus === 'loading'}
+            className="w-full py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+          >
+            {shadowStatus === 'loading' ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</>
+            ) : (
+              '+ Create Shadow User'
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* User Lookup Section */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-5">

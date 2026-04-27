@@ -26,9 +26,14 @@ export async function POST(request) {
     // Build filter query
     const filter = {};
     
-    // Search filter - use text index for better performance
+    // Search filter - regex fallback (no text index required)
     if (search) {
-      filter.$text = { $search: search };
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { name: { $regex: escaped, $options: 'i' } },
+        { description: { $regex: escaped, $options: 'i' } },
+        { sku: { $regex: escaped, $options: 'i' } }
+      ];
     }
     
     // Category filter

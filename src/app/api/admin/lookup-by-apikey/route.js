@@ -61,7 +61,13 @@ export async function GET(request) {
       explain = false,
       createdAt,
       onboardingComplete,
-      active
+      active,
+      // Public app OAuth fields (set when merchant installs via Shopify app store)
+      shopifyAccessToken,
+      shopifyShop,
+      shopifyConnected,
+      shopifyConnectedAt,
+      shopifyScope
     } = user;
 
     const {
@@ -72,6 +78,7 @@ export async function GET(request) {
       colors: userColors = [],
       softCategoryBoosts = {},
       shopifyDomain,
+      shopifyToken: credentialsShopifyToken,
       wooUrl,
       siteConfig
     } = credentials;
@@ -100,13 +107,27 @@ export async function GET(request) {
       credentials: {
         siteConfig: siteConfig || null
       },
+      // Public app OAuth connection (populated when merchant installs via app store)
+      shopifyAppConnection: shopifyConnected ? {
+        connected: true,
+        shop: shopifyShop,
+        accessToken: shopifyAccessToken,
+        scope: shopifyScope || "",
+        connectedAt: shopifyConnectedAt || null,
+        // credentials.shopifyToken is the manually-entered private-app token (onboarding)
+        manualToken: credentialsShopifyToken || null
+      } : {
+        connected: false,
+        // Still expose manually-entered token from onboarding if present
+        manualToken: credentialsShopifyToken || null
+      },
       configuration: {
         dbName,
         platform,
         syncMode,
         context: context || '',
         explain: explain || false,
-        storeUrl: platform === "shopify" ? shopifyDomain : wooUrl,
+        storeUrl: platform === "shopify" ? (shopifyShop || shopifyDomain) : wooUrl,
         categories: {
           count: categories.length,
           list: categories
