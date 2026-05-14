@@ -79,6 +79,9 @@ export async function GET(request) {
       softCategoryBoosts = {},
       shopifyDomain,
       shopifyToken: credentialsShopifyToken,
+      shopifyClientId,
+      shopifyClientSecret,
+      platform: credentialsPlatform,
       wooUrl,
       siteConfig
     } = credentials;
@@ -105,7 +108,12 @@ export async function GET(request) {
         active: active !== false
       },
       credentials: {
-        siteConfig: siteConfig || null
+        siteConfig: siteConfig || null,
+        // Shopify auth fields (2026 client credentials + legacy)
+        shopifyDomain:       shopifyDomain       || null,
+        shopifyClientId:     shopifyClientId     || null,
+        shopifyClientSecret: shopifyClientSecret || null,
+        shopifyToken:        credentialsShopifyToken || null,
       },
       // Public app OAuth connection (populated when merchant installs via app store)
       shopifyAppConnection: shopifyConnected ? {
@@ -123,7 +131,7 @@ export async function GET(request) {
       },
       configuration: {
         dbName,
-        platform,
+        platform: platform || credentialsPlatform,
         syncMode,
         context: context || '',
         explain: explain || false,

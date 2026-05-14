@@ -54,10 +54,16 @@ export async function POST(request) {
         let zeroResultsCartSessions = 0;
         let zeroResultsCartValue = 0;
         let zeroResultsItems = [];
+        let zeroResultsCheckoutCount = 0;
+        let zeroResultsCheckoutValue = 0;
+        let zeroResultsCheckoutItems = [];
         let injectCartCount = 0;
         let injectCartSessions = 0;
         let injectCartValue = 0;
         let injectItems = [];
+        let injectCheckoutCount = 0;
+        let injectCheckoutValue = 0;
+        let injectCheckoutItems = [];
         try {
             function toMs(val) {
                 if (!val) return null;
@@ -220,7 +226,48 @@ export async function POST(request) {
             zeroResultsCartValue = sumPrices(zeroResultsItems);
             injectCartValue = sumPrices(injectItems);
 
-            console.log(`[inject] zero-results: ${zeroResultsCartCount} (₪${zeroResultsCartValue.toFixed(2)}), inject: ${injectCartCount} (₪${injectCartValue.toFixed(2)})`);
+            // ── Checkout cross-reference ────────────────────────────────────────
+            // For each inject/zero-results cart item, check if the same session
+            // also produced a checkout event for the same product.
+            const checkoutBySession = {};
+            for (const co of checkout) {
+                const sid = co.session_id;
+                if (!sid) continue;
+                if (!checkoutBySession[sid]) checkoutBySession[sid] = [];
+                checkoutBySession[sid].push(co);
+            }
+
+            const tagCheckout = (items) => {
+                const checkoutItems = [];
+                for (const item of items) {
+                    const sid = item.sessionId;
+                    if (!sid || !checkoutBySession[sid]) continue;
+                    const coEvents = checkoutBySession[sid];
+                    const matched = coEvents.find(co => {
+                        const coId   = co.product_id  ? String(co.product_id)  : null;
+                        const coName = co.product_name || co.name || null;
+                        const idHit  = item.productId  && coId   && item.productId  === coId;
+                        const nameHit= item.productName && coName && item.productName === coName;
+                        return idHit || nameHit;
+                    });
+                    if (matched) {
+                        const rawPrice = matched.price ?? matched.product_price ?? item.price ?? null;
+                        const p = parseFloat(String(rawPrice ?? "").replace(/[^0-9.]/g, "")) || item.price || 0;
+                        checkoutItems.push({ ...item, checkoutTime: matched.timestamp || matched.created_at || null, checkoutPrice: p });
+                    }
+                }
+                return checkoutItems;
+            };
+
+            zeroResultsCheckoutItems = tagCheckout(zeroResultsItems);
+            injectCheckoutItems      = tagCheckout(injectItems);
+            zeroResultsCheckoutCount = zeroResultsCheckoutItems.length;
+            injectCheckoutCount      = injectCheckoutItems.length;
+            zeroResultsCheckoutValue = sumPrices(zeroResultsCheckoutItems.map(i => ({ price: i.checkoutPrice })));
+            injectCheckoutValue      = sumPrices(injectCheckoutItems.map(i => ({ price: i.checkoutPrice })));
+
+            console.log(`[inject] zero-results: ${zeroResultsCartCount} ATC (₪${zeroResultsCartValue.toFixed(2)}), ${zeroResultsCheckoutCount} checkout (₪${zeroResultsCheckoutValue.toFixed(2)})`);
+            console.log(`[inject] inject:        ${injectCartCount} ATC (₪${injectCartValue.toFixed(2)}), ${injectCheckoutCount} checkout (₪${injectCheckoutValue.toFixed(2)})`);
         } catch (e) {
             console.log("[performance] inject cross-reference skipped:", e.message);
         }
@@ -305,10 +352,16 @@ export async function POST(request) {
             zeroResultsCartSessions,
             zeroResultsCartValue,
             zeroResultsItems,
+            zeroResultsCheckoutCount,
+            zeroResultsCheckoutValue,
+            zeroResultsCheckoutItems,
             injectCartCount,
             injectCartSessions,
             injectCartValue,
             injectItems,
+            injectCheckoutCount,
+            injectCheckoutValue,
+            injectCheckoutItems,
             meta: {
                 filters: { cart: cartFilter, checkout: checkoutFilter },
                 counts: { cart: cart.length, checkout: checkout.length }

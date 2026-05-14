@@ -132,7 +132,8 @@ export default function AdminPanel({ session }) {
     branding: {
       logoUrl: 'https://semantix-ai.com/powered.png',
       loadingText: 'Semantix AI מחפש עבורך...',
-      logoSize: 120
+      logoSize: 120,
+      showLogo: false
     },
     autocompleteFooter: {
       enabled: true,
@@ -206,6 +207,12 @@ export default function AdminPanel({ session }) {
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [userPlatform, setUserPlatform] = useState('');
 
+  // Edit Shopify credentials
+  const [editCredOpen, setEditCredOpen] = useState(false);
+  const [editCredForm, setEditCredForm] = useState({ shopifyDomain: '', shopifyClientId: '', shopifyClientSecret: '' });
+  const [editCredStatus, setEditCredStatus] = useState('idle'); // idle | loading | success | error
+  const [editCredError, setEditCredError] = useState('');
+
   // JSON Import state
   const [showJsonImport, setShowJsonImport] = useState(false);
   const [jsonImportText, setJsonImportText] = useState('');
@@ -226,7 +233,8 @@ export default function AdminPanel({ session }) {
     dbName: '',
     platform: 'shopify',
     shopifyDomain: '',
-    shopifyToken: '',
+    shopifyClientId: '',      // 2026 client credentials
+    shopifyClientSecret: '',  // 2026 client credentials
     wooUrl: '',
     wooKey: '',
     wooSecret: '',
@@ -303,6 +311,17 @@ export default function AdminPanel({ session }) {
         const platform = config.platform || data.credentials?.platform || 'woocommerce';
         setUserPlatform(platform);
         console.log('🔧 User platform:', platform);
+
+        // Pre-populate Shopify credential edit form
+        if (platform === 'shopify') {
+          setEditCredForm({
+            shopifyDomain:       data.credentials?.shopifyDomain       || '',
+            shopifyClientId:     data.credentials?.shopifyClientId     || '',
+            shopifyClientSecret: data.credentials?.shopifyClientSecret || '',
+          });
+        }
+        setEditCredOpen(false);
+        setEditCredStatus('idle');
 
         // Load siteConfig if it exists
         if (data.credentials?.siteConfig) {
@@ -420,7 +439,8 @@ export default function AdminPanel({ session }) {
             branding: {
               logoUrl: safeGet(savedConfig, 'branding.logoUrl', 'https://semantix-ai.com/powered.png'),
               loadingText: safeGet(savedConfig, 'branding.loadingText', 'Semantix AI מחפש עבורך...'),
-              logoSize: safeGet(savedConfig, 'branding.logoSize', 120)
+              logoSize: safeGet(savedConfig, 'branding.logoSize', 120),
+              showLogo: safeGet(savedConfig, 'branding.showLogo', false)
             },
             autocompleteFooter: {
               enabled: safeGet(savedConfig, 'autocompleteFooter.enabled', true),
@@ -482,6 +502,35 @@ export default function AdminPanel({ session }) {
     } catch (error) {
       console.error('Failed to set active:', error);
       setUserActive(!newValue); // revert on error
+    }
+  };
+
+  const handleSaveShopifyCreds = async () => {
+    if (!isAdmin || !apiKey) return;
+    const { shopifyDomain, shopifyClientId, shopifyClientSecret } = editCredForm;
+    if (!shopifyDomain.trim() || !shopifyClientId.trim() || !shopifyClientSecret.trim()) {
+      setEditCredError('All three fields are required');
+      return;
+    }
+    setEditCredStatus('loading');
+    setEditCredError('');
+    try {
+      const res = await fetch('/api/admin/update-user-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, shopifyCreds: { shopifyDomain, shopifyClientId, shopifyClientSecret } }),
+      });
+      if (res.ok) {
+        setEditCredStatus('success');
+        setTimeout(() => { setEditCredStatus('idle'); setEditCredOpen(false); }, 2000);
+      } else {
+        const d = await res.json();
+        setEditCredError(d.error || 'Save failed');
+        setEditCredStatus('error');
+      }
+    } catch (e) {
+      setEditCredError(e.message);
+      setEditCredStatus('error');
     }
   };
 
@@ -859,18 +908,27 @@ export default function AdminPanel({ session }) {
     setSyncStatus('loading');
     setSyncLogs([]);
     try {
+      // For Shopify users, pass the current editCredForm values as credential override
+      const shopifyCredsOverride = userPlatform === 'shopify' && editCredForm.shopifyClientId && editCredForm.shopifyClientSecret
+        ? {
+            shopifyDomain:       editCredForm.shopifyDomain.trim(),
+            shopifyClientId:     editCredForm.shopifyClientId.trim(),
+            shopifyClientSecret: editCredForm.shopifyClientSecret.trim(),
+          }
+        : undefined;
+
       const response = await fetch('/api/admin/sync-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey: apiKey,
-          dbName: dbName
+          apiKey,
+          dbName,
+          ...(shopifyCredsOverride && { shopifyCredsOverride }),
         }),
       });
       if (response.ok) {
         const data = await response.json();
         console.log('Sync started:', data);
-        // Start polling for real-time progress
         pollSyncStatus(data.dbName || dbName);
       } else {
         const errorData = await response.json();
@@ -1001,6 +1059,9 @@ export default function AdminPanel({ session }) {
       texts: {
         loader: "טוען תוצאות חכמות"
       },
+      branding: {
+        showLogo: false
+      },
       debug: {
         enabled: false
       }
@@ -1099,6 +1160,9 @@ export default function AdminPanel({ session }) {
       },
       texts: {
         loader: "Loading smart results..."
+      },
+      branding: {
+        showLogo: false
       },
       debug: {
         enabled: false
@@ -1682,9 +1746,11 @@ export default function AdminPanel({ session }) {
 
   const handleCreateShadowUser = async () => {
     if (!isAdmin) return;
-    const { name, dbName, platform, shopifyDomain, shopifyToken, wooUrl, wooKey, wooSecret } = shadowForm;
+    const { name, dbName, platform, shopifyDomain, shopifyClientId, shopifyClientSecret, wooUrl, wooKey, wooSecret } = shadowForm;
     if (!name.trim() || !dbName.trim()) { setShadowError('Name and DB Name are required'); return; }
-    if (platform === 'shopify' && (!shopifyDomain.trim() || !shopifyToken.trim())) { setShadowError('Shopify domain and token are required'); return; }
+    if (platform === 'shopify' && (!shopifyDomain.trim() || !shopifyClientId.trim() || !shopifyClientSecret.trim())) {
+      setShadowError('Shopify domain, client ID, and client secret are required'); return;
+    }
     if (platform === 'woocommerce' && (!wooUrl.trim() || !wooKey.trim() || !wooSecret.trim())) { setShadowError('WooCommerce URL, key, and secret are required'); return; }
 
     setShadowStatus('loading');
@@ -1859,9 +1925,9 @@ export default function AdminPanel({ session }) {
             </div>
           </div>
 
-          {/* Shopify credentials */}
+          {/* Shopify credentials — 2026 client credentials grant */}
           {shadowForm.platform === 'shopify' && (
-            <div className="grid grid-cols-2 gap-3 p-4 bg-green-50 rounded-lg border border-green-100">
+            <div className="grid grid-cols-1 gap-3 p-4 bg-green-50 rounded-lg border border-green-100">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Shopify Domain</label>
                 <input
@@ -1872,16 +1938,29 @@ export default function AdminPanel({ session }) {
                   className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Access Token</label>
-                <input
-                  type="password"
-                  value={shadowForm.shopifyToken}
-                  onChange={e => setShadowForm(f => ({ ...f, shopifyToken: e.target.value }))}
-                  placeholder="shpat_..."
-                  className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
+                  <input
+                    type="text"
+                    value={shadowForm.shopifyClientId}
+                    onChange={e => setShadowForm(f => ({ ...f, shopifyClientId: e.target.value }))}
+                    placeholder="Dev Dashboard client ID"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Client Secret</label>
+                  <input
+                    type="password"
+                    value={shadowForm.shopifyClientSecret}
+                    onChange={e => setShadowForm(f => ({ ...f, shopifyClientSecret: e.target.value }))}
+                    placeholder="Dev Dashboard client secret"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 text-sm font-mono"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-gray-500">Get credentials from <span className="font-semibold">Shopify Dev Dashboard → Apps → Settings</span></p>
             </div>
           )}
 
@@ -2058,6 +2137,61 @@ export default function AdminPanel({ session }) {
                     ✓ Configured
                   </span>
                 </p>
+              )}
+
+              {/* Edit Shopify Credentials */}
+              {userPlatform === 'shopify' && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => { setEditCredOpen(v => !v); setEditCredStatus('idle'); setEditCredError(''); }}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                  >
+                    🔑 {editCredOpen ? 'Hide' : 'Edit Shopify Credentials (Client ID / Secret)'}
+                  </button>
+
+                  {editCredOpen && (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Shopify Domain</label>
+                        <input
+                          type="text"
+                          value={editCredForm.shopifyDomain}
+                          onChange={e => setEditCredForm(f => ({ ...f, shopifyDomain: e.target.value }))}
+                          placeholder="mystore.myshopify.com"
+                          className="w-full p-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
+                        <input
+                          type="text"
+                          value={editCredForm.shopifyClientId}
+                          onChange={e => setEditCredForm(f => ({ ...f, shopifyClientId: e.target.value }))}
+                          placeholder="Dev Dashboard client ID"
+                          className="w-full p-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Client Secret</label>
+                        <input
+                          type="password"
+                          value={editCredForm.shopifyClientSecret}
+                          onChange={e => setEditCredForm(f => ({ ...f, shopifyClientSecret: e.target.value }))}
+                          placeholder="Dev Dashboard client secret"
+                          className="w-full p-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      {editCredError && <p className="text-xs text-red-600">{editCredError}</p>}
+                      <button
+                        onClick={handleSaveShopifyCreds}
+                        disabled={editCredStatus === 'loading'}
+                        className="w-full px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        {editCredStatus === 'loading' ? 'Saving…' : editCredStatus === 'success' ? '✓ Saved!' : 'Save Credentials'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -4107,6 +4241,25 @@ export default function AdminPanel({ session }) {
                     className="w-full p-2 border border-purple-200 rounded text-sm"
                   />
                 </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="brandingShowLogo"
+                    checked={siteConfig.branding?.showLogo === true}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      branding: {
+                        ...siteConfig.branding,
+                        showLogo: e.target.checked
+                      }
+                    })}
+                    className="w-4 h-4 text-purple-600 rounded"
+                  />
+                  <label htmlFor="brandingShowLogo" className="text-xs font-medium text-purple-700">
+                    Show Logo (branding.showLogo)
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -4563,9 +4716,58 @@ export default function AdminPanel({ session }) {
                 </div>
               </div>
 
+              {/* Shopify credential editor for sync */}
+              {userPlatform === 'shopify' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                  <p className="text-xs font-semibold text-green-800 flex items-center gap-1">
+                    🔑 Shopify Credentials <span className="font-normal text-green-700">(used for this sync — save separately to persist)</span>
+                  </p>
+                  <div>
+                    <label className="block text-xs font-medium text-green-700 mb-1">Domain</label>
+                    <input
+                      type="text"
+                      value={editCredForm.shopifyDomain}
+                      onChange={e => setEditCredForm(f => ({ ...f, shopifyDomain: e.target.value }))}
+                      placeholder="mystore.myshopify.com"
+                      className="w-full p-2 border border-green-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500 bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">Client ID</label>
+                      <input
+                        type="text"
+                        value={editCredForm.shopifyClientId}
+                        onChange={e => setEditCredForm(f => ({ ...f, shopifyClientId: e.target.value }))}
+                        placeholder="Dev Dashboard client ID"
+                        className="w-full p-2 border border-green-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">Client Secret</label>
+                      <input
+                        type="password"
+                        value={editCredForm.shopifyClientSecret}
+                        onChange={e => setEditCredForm(f => ({ ...f, shopifyClientSecret: e.target.value }))}
+                        placeholder="Dev Dashboard secret"
+                        className="w-full p-2 border border-green-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSaveShopifyCreds}
+                    disabled={editCredStatus === 'loading'}
+                    className="px-3 py-1.5 bg-green-700 text-white text-xs rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+                  >
+                    {editCredStatus === 'loading' ? 'Saving…' : editCredStatus === 'success' ? '✓ Saved!' : '💾 Save Credentials to DB'}
+                  </button>
+                  {editCredError && <p className="text-xs text-red-600">{editCredError}</p>}
+                </div>
+              )}
+
               <button
                 onClick={handleSyncProducts}
-                disabled={syncStatus === 'loading' || !userData || !apiKey}
+                disabled={syncStatus === 'loading' || !userData || !apiKey || (userPlatform === 'shopify' && (!editCredForm.shopifyDomain || !editCredForm.shopifyClientId || !editCredForm.shopifyClientSecret))}
                 className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
               >
                 {syncStatus === 'loading' ? (
@@ -4577,7 +4779,7 @@ export default function AdminPanel({ session }) {
                 ) : (
                   <RefreshCw className="mr-2 h-4 w-4" />
                 )}
-                {syncStatus === 'loading' ? 'Syncing Products...' : 'Sync Products from Store'}
+                {syncStatus === 'loading' ? 'Syncing Products…' : userPlatform === 'shopify' ? '🛍️ Sync via Client Credentials' : 'Sync Products from Store'}
               </button>
               {syncStatus === 'success' && (
                 <p className="text-green-600 text-sm text-center">✓ Product sync completed successfully!</p>

@@ -102,6 +102,7 @@ export async function POST(request) {
     // If incremental mode, merge new categories with existing ones and update user document
     let finalSoftCategories = softCategories || [];
     let finalCategories = categories || [];
+    let finalColors = colors || [];
     if (incrementalMode && incrementalSoftCategories && incrementalSoftCategories.length > 0) {
       // Merge and remove duplicates
       const mergedCategories = [...new Set([...finalSoftCategories, ...incrementalSoftCategories])];

@@ -44,13 +44,16 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active } = body;
+    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active, shopifyCreds } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
     }
 
-    if (!Array.isArray(categories) || !Array.isArray(types) || !Array.isArray(softCategories)) {
+    // Allow credential-only updates (shopifyCreds patch) without requiring categories
+    const categoriesOnlyUpdate = !categories && !types && !softCategories && shopifyCreds;
+
+    if (!categoriesOnlyUpdate && (!Array.isArray(categories) || !Array.isArray(types) || !Array.isArray(softCategories))) {
       return NextResponse.json({
         error: "categories, types, and softCategories must be arrays"
       }, { status: 400 });
@@ -78,14 +81,22 @@ export async function POST(request) {
     }
 
     // Prepare update object
-    const updateFields = {
-      "credentials.categories": categories,
-      "credentials.type": types,
-      "credentials.softCategories": softCategories,
-      "credentials.colors": Array.isArray(colors) ? colors : [],
-      "credentials.softCategoryBoosts": boosts,
-      updatedAt: new Date()
-    };
+    const updateFields = { updatedAt: new Date() };
+
+    if (!categoriesOnlyUpdate) {
+      updateFields["credentials.categories"] = categories;
+      updateFields["credentials.type"] = types;
+      updateFields["credentials.softCategories"] = softCategories;
+      updateFields["credentials.colors"] = Array.isArray(colors) ? colors : [];
+      updateFields["credentials.softCategoryBoosts"] = boosts;
+    }
+
+    // Shopify client credentials patch
+    if (shopifyCreds) {
+      if (shopifyCreds.shopifyDomain)       updateFields["credentials.shopifyDomain"]       = shopifyCreds.shopifyDomain.trim();
+      if (shopifyCreds.shopifyClientId)     updateFields["credentials.shopifyClientId"]     = shopifyCreds.shopifyClientId.trim();
+      if (shopifyCreds.shopifyClientSecret) updateFields["credentials.shopifyClientSecret"] = shopifyCreds.shopifyClientSecret.trim();
+    }
 
     // Add siteConfig if provided
     if (siteConfig) {

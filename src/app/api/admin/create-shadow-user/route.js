@@ -102,15 +102,18 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, dbName, platform, shopifyDomain, shopifyToken, wooUrl, wooKey, wooSecret } = body;
+  const { name, dbName, platform, shopifyDomain, shopifyClientId, shopifyClientSecret, wooUrl, wooKey, wooSecret } = body;
 
   if (!name?.trim())    return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (!dbName?.trim())  return NextResponse.json({ error: "dbName is required" }, { status: 400 });
   if (!["shopify", "woocommerce"].includes(platform))
     return NextResponse.json({ error: "platform must be 'shopify' or 'woocommerce'" }, { status: 400 });
 
-  if (platform === "shopify" && (!shopifyDomain?.trim() || !shopifyToken?.trim()))
-    return NextResponse.json({ error: "shopifyDomain and shopifyToken are required for Shopify" }, { status: 400 });
+  if (platform === "shopify") {
+    const hasClientCreds = shopifyClientId?.trim() && shopifyClientSecret?.trim();
+    if (!shopifyDomain?.trim() || !hasClientCreds)
+      return NextResponse.json({ error: "shopifyDomain, shopifyClientId, and shopifyClientSecret are required for Shopify" }, { status: 400 });
+  }
   if (platform === "woocommerce" && (!wooUrl?.trim() || !wooKey?.trim() || !wooSecret?.trim()))
     return NextResponse.json({ error: "wooUrl, wooKey, and wooSecret are required for WooCommerce" }, { status: 400 });
 
@@ -140,8 +143,8 @@ export async function POST(request) {
 
   const credentials =
     platform === "shopify"
-      ? { shopifyDomain: shopifyDomain.trim(), shopifyToken: shopifyToken.trim(), dbName: dbName.trim(),
-          categories: [], type: [], softCategories: [], colors: [], softCategoryBoosts: {},
+      ? { shopifyDomain: shopifyDomain.trim(), shopifyClientId: shopifyClientId.trim(), shopifyClientSecret: shopifyClientSecret.trim(),
+          dbName: dbName.trim(), categories: [], type: [], softCategories: [], colors: [], softCategoryBoosts: {},
           siteConfig: defaultSiteConfig }
       : { wooUrl: wooUrl.trim(), wooKey: wooKey.trim(), wooSecret: wooSecret.trim(), dbName: dbName.trim(),
           categories: [], type: [], softCategories: [], colors: [], softCategoryBoosts: {},

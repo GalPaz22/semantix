@@ -89,6 +89,34 @@ async function validateShopifyCredentials(domain, token) {
   }
 }
 
+/** Validate 2026 client credentials by exchanging them for a token */
+async function validateShopifyClientCredentials(domain, clientId, clientSecret) {
+  try {
+    let cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!cleanDomain.includes('.myshopify.com')) cleanDomain = `${cleanDomain}.myshopify.com`;
+
+    const res = await fetch(`https://${cleanDomain}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error('Shopify client credentials validation failed:', res.status, body);
+      return false;
+    }
+    const { access_token } = await res.json();
+    return !!access_token;
+  } catch (err) {
+    console.error('Shopify client credentials validation error:', err.message);
+    return false;
+  }
+}
+
 async function validateWooCredentials(wooUrl, wooKey, wooSecret) {
   try {
     const cleanUrl = wooUrl.replace(/\/$/, '');
@@ -373,19 +401,20 @@ export async function POST(req) {
     const {
       platform,
       shopifyDomain,
-      shopifyToken,
+      shopifyToken,         // legacy: static admin token
+      shopifyClientId,      // 2026: client credentials grant
+      shopifyClientSecret,  // 2026: client credentials grant
       wooUrl,
       wooKey,
       wooSecret,
       dbName,
       categories,
       syncMode,
-      type, 
+      type,
       context,
       explain,
       softCategories,
       colors
-      // "text" | "image"
     } = await req.json();
 
     // Validate dbName is present
@@ -409,13 +438,19 @@ export async function POST(req) {
     let isValidCredentials = false;
     
     if (platform === "shopify") {
-      if (!shopifyDomain || !shopifyToken) {
-        return Response.json({ 
-          error: "Invalid credentials", 
-          message: "Shopify domain and access token are required" 
+      const hasLegacyToken = !!shopifyToken;
+      const hasClientCreds = !!(shopifyClientId && shopifyClientSecret);
+      if (!shopifyDomain || (!hasLegacyToken && !hasClientCreds)) {
+        return Response.json({
+          error: "Invalid credentials",
+          message: "Shopify domain plus either an access token or client ID & secret are required"
         }, { status: 401 });
       }
-      isValidCredentials = await validateShopifyCredentials(shopifyDomain, shopifyToken);
+      if (hasClientCreds) {
+        isValidCredentials = await validateShopifyClientCredentials(shopifyDomain, shopifyClientId, shopifyClientSecret);
+      } else {
+        isValidCredentials = await validateShopifyCredentials(shopifyDomain, shopifyToken);
+      }
     } else if (platform === "woocommerce") {
       if (!wooUrl || !wooKey || !wooSecret) {
         return Response.json({ 
@@ -459,9 +494,13 @@ export async function POST(req) {
 
     const safeColors = Array.isArray(colors) ? colors : [];
 
+    const shopifyCreds = shopifyClientId && shopifyClientSecret
+      ? { shopifyDomain, shopifyClientId, shopifyClientSecret }   // 2026 client credentials
+      : { shopifyDomain, shopifyToken };                           // legacy static token
+
     const credentials =
       platform === "shopify"
-        ? { shopifyDomain, shopifyToken, categories, dbName, type, softCategories, softCategoryBoosts, colors: safeColors }
+        ? { ...shopifyCreds, categories, dbName, type, softCategories, softCategoryBoosts, colors: safeColors }
         : { wooUrl, wooKey, wooSecret, categories, dbName, type, softCategories, softCategoryBoosts, colors: safeColors };
 
     // Update the user record with credentials and trial information
@@ -513,13 +552,14 @@ export async function POST(req) {
           logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, colors: safeColors, dbName });
         }
       } else if (platform === "shopify") {
-        console.log("🔍 [Onboarding API] Calling Shopify processing...");
+        console.log("🔍 [Onboarding API] Calling Shopify processing...", shopifyClientId ? "client_credentials" : "legacy_token");
+        const shopifyAuthArgs = shopifyClientId && shopifyClientSecret
+          ? { shopifyDomain, shopifyClientId, shopifyClientSecret }
+          : { shopifyDomain, shopifyToken };
         if (syncMode === "image") {
-          console.log("🔍 [Onboarding API] processShopifyImages parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, colors: safeColors, context });
-          logs = await processShopifyImages({ shopifyDomain, shopifyToken, dbName, categories, userTypes: type, softCategories, colors: safeColors, context });
+          logs = await processShopifyImages({ ...shopifyAuthArgs, dbName, categories, userTypes: type, softCategories, colors: safeColors, context });
         } else {
-          console.log("🔍 [Onboarding API] processShopify parameters:", { shopifyDomain: !!shopifyDomain, shopifyToken: !!shopifyToken, dbName, categories, type, softCategories, colors: safeColors });
-          logs = await processShopify({ shopifyDomain, shopifyToken, dbName, categories, type: type, softCategories, colors: safeColors });
+          logs = await processShopify({ ...shopifyAuthArgs, dbName, categories, type, softCategories, colors: safeColors });
         }
       }
       await setJobState(dbName, "done");

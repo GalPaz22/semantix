@@ -76,6 +76,8 @@ export async function POST(request) {
       // Platform-specific credentials
       shopifyDomain,
       shopifyToken,
+      shopifyClientId,
+      shopifyClientSecret,
       wooUrl,
       wooKey,
       wooSecret
@@ -97,10 +99,10 @@ export async function POST(request) {
     }
 
     // Validate platform-specific credentials
-    if (platform === "shopify" && (!shopifyDomain || !shopifyToken)) {
-      return NextResponse.json({ 
-        error: "User configuration incomplete - missing Shopify credentials",
-        userEmail 
+    if (platform === "shopify" && (!shopifyDomain || (!shopifyToken && !(shopifyClientId && shopifyClientSecret)))) {
+      return NextResponse.json({
+        error: "User configuration incomplete - missing Shopify credentials (need domain + token or client ID/secret)",
+        userEmail
       }, { status: 400 });
     }
 

@@ -16,7 +16,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
-    const { apiKey, dbName } = await request.json();
+    const { apiKey, dbName, shopifyCredsOverride } = await request.json();
 
     if (!apiKey && !dbName) {
       return NextResponse.json({ error: 'API key or dbName is required' }, { status: 400 });
@@ -121,23 +121,36 @@ export async function POST(request) {
           });
         }
       } else if (platform === "shopify") {
-        const { shopifyDomain, shopifyToken } = credentials;
-        if (!shopifyDomain || !shopifyToken) {
-          throw new Error('Shopify credentials are missing');
+        // Allow credential override from admin panel (new 2026 client credentials flow)
+        const effectiveCreds = shopifyCredsOverride
+          ? { ...credentials, ...shopifyCredsOverride }
+          : credentials;
+
+        const { shopifyDomain, shopifyToken, shopifyClientId, shopifyClientSecret } = effectiveCreds;
+        const hasClientCreds = shopifyClientId && shopifyClientSecret;
+        if (!shopifyDomain || (!shopifyToken && !hasClientCreds)) {
+          throw new Error('Shopify credentials are missing (need domain + token or client ID/secret)');
         }
 
-        console.log(`🛍️ [Admin Sync] Calling Shopify ${syncMode} processor...`);
+        const shopifyAuthArgs = hasClientCreds
+          ? { shopifyDomain, shopifyClientId, shopifyClientSecret }
+          : { shopifyDomain, shopifyToken };
+
+        if (shopifyCredsOverride) {
+          console.log(`🔑 [Admin Sync] Using credential override from request`);
+        }
+        console.log(`🛍️ [Admin Sync] Calling Shopify ${syncMode} processor (${hasClientCreds ? 'client_credentials' : 'legacy_token'})...`);
 
         if (syncMode === "image") {
-          logs = await processShopifyImages({ 
-            shopifyDomain, shopifyToken, 
-            dbName: userDbName, 
-            categories, userTypes, softCategories, colors, context 
+          logs = await processShopifyImages({
+            ...shopifyAuthArgs,
+            dbName: userDbName,
+            categories, userTypes, softCategories, colors, context
           });
         } else {
-          logs = await processShopify({ 
-            shopifyDomain, shopifyToken, 
-            dbName: userDbName, 
+          logs = await processShopify({
+            ...shopifyAuthArgs,
+            dbName: userDbName,
             categories, type: userTypes, softCategories, colors
           });
         }
