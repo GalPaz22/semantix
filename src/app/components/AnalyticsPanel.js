@@ -559,6 +559,7 @@ export default function AnalyticsPanel({ session, onboarding }) {
       weekly:Array.from(weeklyMap.entries()).sort((a,b)=>new Date(a[0])-new Date(b[0])).map(([,e])=>({period:e.period,semantix_revenue:e.revenue,semantix_orders:e.orders.size,semantix_items:e.items})),
       daily:Array.from(dailyMap.entries()).sort((a,b)=>new Date(a[0])-new Date(b[0])).map(([,e])=>({period:e.period,semantix_revenue:e.revenue,semantix_orders:e.orders.size,semantix_items:e.items})),
       byQueryProduct:Array.from(detailMap.values()).map(e=>({search_query:e.search_query,product_name:e.product_name,orders:e.orders.size,items:e.items,revenue:e.revenue})).sort((a,b)=>b.revenue-a.revenue),
+      events: complexPurchases.slice().sort((a,b)=>(b.eventDate?.getTime()||0)-(a.eventDate?.getTime()||0)),
       hasData:true,mode,
     };
   }, [checkoutEvents, cartAnalytics]);
@@ -1053,18 +1054,31 @@ export default function AnalyticsPanel({ session, onboarding }) {
                           </ResponsiveContainer>
                         </div>
                       )}
-                      <p className="text-xs font-semibold text-gray-500 mb-2">שאילתות מובילות</p>
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                        {(() => {
-                          const qm=new Map();
-                          semantixFunnel.byQueryProduct.forEach(item=>{const e=qm.get(item.search_query)||{orders:0,revenue:0};qm.set(item.search_query,{orders:e.orders+item.orders,revenue:e.revenue+item.revenue});});
-                          return Array.from(qm.entries()).map(([q,d])=>({query:q,...d})).sort((a,b)=>b.revenue-a.revenue).slice(0,10).map((item,i)=>(
-                            <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-white rounded-lg border border-gray-100">
-                              <span className="text-sm text-gray-700 font-medium">{item.query}</span>
-                              <span className="text-xs font-bold text-purple-700">₪{item.revenue.toFixed(2)}</span>
+                      <p className="text-xs font-semibold text-gray-500 mb-2">פירוט עסקאות</p>
+                      <div className="overflow-hidden rounded-lg border border-gray-100">
+                        {/* header row */}
+                        <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-3 px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 text-right">
+                          <span>מוצר</span>
+                          <span>שאילתה</span>
+                          <span>תאריך ושעה</span>
+                          <span>מחיר</span>
+                        </div>
+                        <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                          {(semantixFunnel.events||[]).map((item,i) => (
+                            <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-3 items-center px-3 py-2.5 hover:bg-purple-50/30 transition-colors text-right">
+                              <span className="text-sm font-medium text-gray-800 truncate">{item.productName || '—'}</span>
+                              <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full truncate w-fit">{item.searchQuery || '—'}</span>
+                              <span className="text-xs text-gray-400 whitespace-nowrap">
+                                {item.eventDate
+                                  ? item.eventDate.toLocaleString('he-IL', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+                                  : '—'}
+                              </span>
+                              <span className="text-sm font-bold text-purple-700 whitespace-nowrap">
+                                {item.revenue > 0 ? `₪${item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}` : '—'}
+                              </span>
                             </div>
-                          ));
-                        })()}
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </MetricBlock>
@@ -1075,32 +1089,103 @@ export default function AnalyticsPanel({ session, onboarding }) {
         </section>
       )}
 
-      {/* ── INJECT & ZERO-RESULTS CLICKED PRODUCTS — trigger button ─────── */}
+      {/* ── INJECT & ZERO-RESULTS CLICKED PRODUCTS ───────────────────────── */}
       {(() => {
         const injClicks  = clickEvents.filter(e => e.source === "inject");
         const zeroClicks = clickEvents.filter(e => e.source === "zero-results");
         if (injClicks.length === 0 && zeroClicks.length === 0) return null;
+
+        const buildMap = (clicks) => {
+          const map = {};
+          clicks.forEach(e => {
+            const k = e.product_name || String(e.product_id) || "?";
+            if (!map[k]) map[k] = { name: k, queries: new Set(), clicks: 0 };
+            map[k].clicks++;
+            if (e.search_query) map[k].queries.add(e.search_query);
+          });
+          return Object.values(map)
+            .sort((a,b) => b.clicks - a.clicks)
+            .slice(0, 50)
+            .map(r => ({...r, queries: [...r.queries].slice(0, 3)}));
+        };
+
+        const topInj  = buildMap(injClicks);
+        const topZero = buildMap(zeroClicks);
+
+        const ProductRow = ({ item, badgeColor, queryColor }) => (
+          <div className="flex items-start justify-between gap-3 py-3 px-4 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-gray-800">{item.name}</p>
+              {item.queries.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {item.queries.map((q,qi) => (
+                    <span key={qi} className={`text-xs px-2 py-0.5 rounded-full ${queryColor}`}>"{q}"</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${badgeColor}`}>
+              {item.clicks} {item.clicks === 1 ? "לחיצה" : "לחיצות"}
+            </span>
+          </div>
+        );
+
         return (
           <section className="mb-6" dir="rtl">
-            <button
-              onClick={() => setClickedProductsDrawerOpen(true)}
-              className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-teal-200 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-gradient-to-br from-teal-500 to-orange-500 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                  <MousePointer2 className="h-4 w-4 text-white" />
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Header / trigger */}
+              <button
+                onClick={() => setClickedProductsDrawerOpen(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50/40 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-teal-500 to-orange-500 rounded-xl flex items-center justify-center shadow-sm">
+                    <MousePointer2 className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-gray-900">מוצרים שנלחצו — Inject &amp; Zero-Results</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {injClicks.length > 0 && <span className="text-teal-600 font-medium">⊕ {injClicks.length} Inject</span>}
+                      {injClicks.length > 0 && zeroClicks.length > 0 && <span className="mx-1 text-gray-300">·</span>}
+                      {zeroClicks.length > 0 && <span className="text-orange-500 font-medium">◎ {zeroClicks.length} Zero-Results</span>}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">מוצרים שנלחצו — Inject &amp; Zero-Results</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {injClicks.length > 0 && <span className="text-teal-600 font-medium">⊕ {injClicks.length} Inject</span>}
-                    {injClicks.length > 0 && zeroClicks.length > 0 && <span className="text-gray-300 mx-1">·</span>}
-                    {zeroClicks.length > 0 && <span className="text-orange-500 font-medium">◎ {zeroClicks.length} Zero-Results</span>}
-                  </p>
+                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${clickedProductsDrawerOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {/* Expandable body */}
+              {clickedProductsDrawerOpen && (
+                <div className={`border-t border-gray-100 grid ${topInj.length > 0 && topZero.length > 0 ? "md:grid-cols-2" : "grid-cols-1"} divide-x divide-x-reverse divide-gray-100`}>
+                  {topInj.length > 0 && (
+                    <div>
+                      <div className="px-4 py-2.5 bg-teal-50/60 border-b border-teal-100 flex items-center gap-2">
+                        <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2.5 py-0.5 rounded-full">⊕ Inject</span>
+                        <span className="text-xs text-teal-600">{topInj.length} מוצרים · {injClicks.length} לחיצות</span>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {topInj.map((item, i) => (
+                          <ProductRow key={i} item={item} badgeColor="bg-teal-100 text-teal-800" queryColor="bg-teal-50 text-teal-600" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {topZero.length > 0 && (
+                    <div>
+                      <div className="px-4 py-2.5 bg-orange-50/60 border-b border-orange-100 flex items-center gap-2">
+                        <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2.5 py-0.5 rounded-full">◎ Zero-Results</span>
+                        <span className="text-xs text-orange-600">{topZero.length} מוצרים · {zeroClicks.length} לחיצות</span>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {topZero.map((item, i) => (
+                          <ProductRow key={i} item={item} badgeColor="bg-orange-100 text-orange-800" queryColor="bg-orange-50 text-orange-600" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <ChevronDown className="h-4 w-4 text-gray-400 -rotate-90 group-hover:text-teal-500 transition-colors" />
-            </button>
+              )}
+            </div>
           </section>
         );
       })()}
@@ -1434,113 +1519,6 @@ export default function AnalyticsPanel({ session, onboarding }) {
         )}
       </section>
 
-      {/* ── CLICKED PRODUCTS DRAWER ──────────────────────────────────────── */}
-      {(() => {
-        const injClicks  = clickEvents.filter(e => e.source === "inject");
-        const zeroClicks = clickEvents.filter(e => e.source === "zero-results");
-        if (injClicks.length === 0 && zeroClicks.length === 0) return null;
-
-        const buildMap = (clicks) => {
-          const map = {};
-          clicks.forEach(e => {
-            const k = e.product_name || String(e.product_id) || "?";
-            if (!map[k]) map[k] = { name: k, queries: new Set(), clicks: 0 };
-            map[k].clicks++;
-            if (e.search_query) map[k].queries.add(e.search_query);
-          });
-          return Object.values(map)
-            .sort((a,b) => b.clicks - a.clicks)
-            .slice(0, 50)
-            .map(r => ({...r, queries: [...r.queries].slice(0, 3)}));
-        };
-
-        const topInj  = buildMap(injClicks);
-        const topZero = buildMap(zeroClicks);
-
-        const ProductRow = ({ item, badgeColor, queryColor }) => (
-          <div className="flex items-start justify-between gap-3 py-3 px-5 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-800">{item.name}</p>
-              {item.queries.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {item.queries.map((q,qi) => (
-                    <span key={qi} className={`text-xs px-2 py-0.5 rounded-full ${queryColor}`}>"{q}"</span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${badgeColor}`}>
-              {item.clicks} {item.clicks === 1 ? "לחיצה" : "לחיצות"}
-            </span>
-          </div>
-        );
-
-        return (
-          <>
-            {/* Backdrop */}
-            <div
-              className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${clickedProductsDrawerOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-              onClick={() => setClickedProductsDrawerOpen(false)}
-            />
-
-            {/* Drawer panel */}
-            <div
-              dir="rtl"
-              className={`fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${clickedProductsDrawerOpen ? "translate-x-0" : "translate-x-full"}`}
-            >
-              {/* Drawer header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-l from-teal-50/60 to-orange-50/40 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-orange-500 rounded-xl flex items-center justify-center shadow-sm">
-                    <MousePointer2 className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">מוצרים שנלחצו</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {injClicks.length > 0 && <span className="text-teal-600 font-medium">⊕ {injClicks.length} Inject</span>}
-                      {injClicks.length > 0 && zeroClicks.length > 0 && <span className="mx-1 text-gray-300">·</span>}
-                      {zeroClicks.length > 0 && <span className="text-orange-500 font-medium">◎ {zeroClicks.length} Zero-Results</span>}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setClickedProductsDrawerOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg font-light"
-                >✕</button>
-              </div>
-
-              {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto">
-                {/* Inject section */}
-                {topInj.length > 0 && (
-                  <div>
-                    <div className="sticky top-0 px-5 py-2.5 bg-teal-50 border-b border-teal-100 flex items-center gap-2 z-10">
-                      <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2.5 py-0.5 rounded-full">⊕ Inject</span>
-                      <span className="text-xs text-teal-600">{topInj.length} מוצרים · {injClicks.length} לחיצות סה״כ</span>
-                    </div>
-                    {topInj.map((item, i) => (
-                      <ProductRow key={i} item={item} badgeColor="bg-teal-100 text-teal-800" queryColor="bg-teal-50 text-teal-600" />
-                    ))}
-                  </div>
-                )}
-
-                {/* Zero-results section */}
-                {topZero.length > 0 && (
-                  <div>
-                    <div className="sticky top-0 px-5 py-2.5 bg-orange-50 border-b border-orange-100 flex items-center gap-2 z-10">
-                      <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2.5 py-0.5 rounded-full">◎ Zero-Results</span>
-                      <span className="text-xs text-orange-600">{topZero.length} מוצרים · {zeroClicks.length} לחיצות סה״כ</span>
-                    </div>
-                    {topZero.map((item, i) => (
-                      <ProductRow key={i} item={item} badgeColor="bg-orange-100 text-orange-800" queryColor="bg-orange-50 text-orange-600" />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        );
-      })()}
     </div>
   );
 }
