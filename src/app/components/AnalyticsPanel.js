@@ -466,12 +466,30 @@ export default function AnalyticsPanel({ session, onboarding }) {
       addToCartGroups[item.search_query].count+=1; addToCartGroups[item.search_query].products.add(item.product_id);
       if (item.product_price) { const p=parseFloat(String(item.product_price).replace(/[^0-9.]/g,'')); if(!isNaN(p)) addToCartGroups[item.search_query].revenue+=p*(item.quantity||1); }
     });
+    const checkoutProductGroups={};
+    function addToCheckoutProducts(name, price, qty) {
+      if (!name) return;
+      if (!checkoutProductGroups[name]) checkoutProductGroups[name]={name,count:0,revenue:0};
+      checkoutProductGroups[name].count+=1;
+      const p=parseFloat(String(price||'0').replace(/[^0-9.]/g,''));
+      if(!isNaN(p) && p>0) checkoutProductGroups[name].revenue+=p*(qty||1);
+    }
     checkoutEvents.forEach(item => {
-      if (!item.search_query) return;
-      if (!checkoutGroups[item.search_query]) checkoutGroups[item.search_query]={query:item.search_query,count:0,products:new Set(),revenue:0};
-      checkoutGroups[item.search_query].count+=1; checkoutGroups[item.search_query].products.add(item.product_id);
-      if (item.cart_total) { const p=parseFloat(item.cart_total.toString().replace(/[^0-9.]/g,'')); if(!isNaN(p)) checkoutGroups[item.search_query].revenue+=p; }
-      else if (item.product_price) { const p=parseFloat(String(item.product_price).replace(/[^0-9.]/g,'')); if(!isNaN(p)) checkoutGroups[item.search_query].revenue+=p*(item.quantity||1); }
+      if (item.search_query) {
+        if (!checkoutGroups[item.search_query]) checkoutGroups[item.search_query]={query:item.search_query,count:0,products:new Set(),revenue:0};
+        checkoutGroups[item.search_query].count+=1; checkoutGroups[item.search_query].products.add(item.product_id);
+        if (item.cart_total) { const p=parseFloat(item.cart_total.toString().replace(/[^0-9.]/g,'')); if(!isNaN(p)) checkoutGroups[item.search_query].revenue+=p; }
+        else if (item.product_price) { const p=parseFloat(String(item.product_price).replace(/[^0-9.]/g,'')); if(!isNaN(p)) checkoutGroups[item.search_query].revenue+=p*(item.quantity||1); }
+      }
+      // Group by product name — handle top-level or nested arrays
+      const topName = item.product_name || item.name || item.product || null;
+      if (topName) {
+        const rev = item.cart_total || item.product_price || 0;
+        addToCheckoutProducts(topName, rev, item.quantity||1);
+      } else {
+        const subItems = (Array.isArray(item.products)?item.products:[]).concat(Array.isArray(item.cart_items)?item.cart_items:[]);
+        subItems.forEach(p => addToCheckoutProducts(p.product_name||p.name||p.title||null, p.price||p.product_price||0, p.quantity||1));
+      }
     });
     clickEvents.forEach(item => {
       if (!item.search_query) return;
@@ -508,6 +526,29 @@ export default function AnalyticsPanel({ session, onboarding }) {
     const topAddToCartQueries=Object.values(addToCartGroups).map(g=>({...g,products:Array.from(g.products).length})).sort((a,b)=>b.count-a.count).slice(0,10);
     const topCheckoutQueries=Object.values(checkoutGroups).map(g=>({...g,products:Array.from(g.products).length})).sort((a,b)=>b.count-a.count).slice(0,10);
     const topClickQueries=Object.values(clickGroups).map(g=>({...g,products:Array.from(g.products).length})).sort((a,b)=>b.count-a.count).slice(0,10);
+
+    // AI-only cart cross-reference: cart items whose session+product had an AI click
+    const aiClickKeys = new Set(
+      clickEvents.filter(e=>(e.source||'').toLowerCase()==='ai' && e.session_id && e.product_id)
+        .map(e=>`${e.session_id}:${String(e.product_id)}`)
+    );
+    const aiCartItems = cartAnalytics.filter(i =>
+      i.session_id && i.product_id && aiClickKeys.has(`${i.session_id}:${String(i.product_id)}`)
+    );
+    const aiCartRevenue = aiCartItems.reduce((s,i)=>{
+      const p=parseFloat(String(i.product_price||i.price||'0').replace(/[^0-9.]/g,''));
+      return s+(isNaN(p)?0:p*(i.quantity||1));
+    },0);
+    const aiCartQueryGroups={};
+    aiCartItems.forEach(i=>{
+      if(!i.search_query) return;
+      if(!aiCartQueryGroups[i.search_query]) aiCartQueryGroups[i.search_query]={query:i.search_query,count:0,revenue:0};
+      aiCartQueryGroups[i.search_query].count++;
+      const p=parseFloat(String(i.product_price||i.price||'0').replace(/[^0-9.]/g,''));
+      if(!isNaN(p)) aiCartQueryGroups[i.search_query].revenue+=p*(i.quantity||1);
+    });
+    const topAiCartQueries=Object.values(aiCartQueryGroups).sort((a,b)=>b.count-a.count).slice(0,10);
+
     const totalRevenueFromAddToCart=cartAnalytics.reduce((s,i)=>{if(i.product_price){const p=parseFloat(String(i.product_price).replace(/[^0-9.]/g,''));if(!isNaN(p))return s+p*(i.quantity||1);}return s;},0);
     const totalRevenueFromCheckout=checkoutEvents.reduce((s,i)=>{if(i.cart_total){const p=parseFloat(i.cart_total.toString().replace(/[^0-9.]/g,''));if(!isNaN(p))return s+p;}else if(i.product_price){const p=parseFloat(String(i.product_price).replace(/[^0-9.]/g,''));if(!isNaN(p))return s+p*(i.quantity||1);}return s;},0);
     const totalRevenue=topAddToCartQueries.reduce((s,q)=>s+q.revenue,0);
@@ -517,7 +558,8 @@ export default function AnalyticsPanel({ session, onboarding }) {
     return {
       conversionRate,totalCartItems,topQueries:topAddToCartQueries,totalRevenue,totalRevenueFromCart,totalConversions,uniqueProducts:allUniqueProducts.size,boostedExposure,topClickedProducts,
       addToCartMetrics:{items:cartAnalytics.length,revenue:totalRevenueFromAddToCart,queries:topAddToCartQueries,uniqueProducts:new Set(cartAnalytics.map(i=>i.product_id)).size},
-      checkoutMetrics:{items:checkoutEvents.length,revenue:totalRevenueFromCheckout,queries:topCheckoutQueries,uniqueProducts:new Set(checkoutEvents.map(i=>i.product_id)).size},
+      aiCartMetrics:{items:aiCartItems.length,revenue:aiCartRevenue,queries:topAiCartQueries,uniqueProducts:new Set(aiCartItems.map(i=>i.product_id)).size},
+      checkoutMetrics:{items:checkoutEvents.length,revenue:totalRevenueFromCheckout,queries:topCheckoutQueries,uniqueProducts:new Set(checkoutEvents.map(i=>i.product_id)).size,topProducts:Object.values(checkoutProductGroups).sort((a,b)=>b.count-a.count).slice(0,15)},
       clickMetrics:{items:clickEvents.length,aiClicks:aiClicksTotal,zeroResultsClicks:zeroResultsClicksTotal,rerankClicks:rerankClicksTotal,injectClicks:injectClicksTotal,queries:topClickQueries,uniqueProducts:new Set(clickEvents.map(i=>i.product_id)).size,topClickedProducts},
     };
   }, [cartAnalytics, checkoutEvents, clickEvents, queries, boostedProducts]);
@@ -527,19 +569,64 @@ export default function AnalyticsPanel({ session, onboarding }) {
     const useCheckout=checkoutEvents&&checkoutEvents.length>0;
     const dataSource=useCheckout?checkoutEvents:cartAnalytics, mode=useCheckout?'checkout':'cart';
     if (!dataSource||dataSource.length===0) return {totals:{revenue:0,orders:0,items:0},weekly:[],daily:[],byQueryProduct:[],hasData:false,mode};
-    const complexPurchases=dataSource.filter(e=>{if(Array.isArray(e.products)&&e.products.length>3) return false; return isComplex(e.search_query||"");}).map(e=>{
-      const qty=e.quantity||1;
-      let rev; if(mode==='checkout'){const ct=normalizePrice(e.cart_total??0);rev=ct>0?ct:normalizePrice(e.product_price??0)*qty;}else{rev=normalizePrice(e.product_price??0)*qty;}
-      let pn="לא ידוע";
-      if(e.product_name)pn=e.product_name; else if(e.product)pn=e.product; else if(e.name)pn=e.name; else if(Array.isArray(e.products)&&e.products.length>0)pn=e.products.map(p=>p.product_name||p.name||"").filter(Boolean).join(", ")||"לא ידוע";
+    // Helper: extract flat product entries from a checkout event
+    function expandEvent(e) {
+      if (!isComplex(e.search_query||"")) return [];
       const ts=parseEventTime(e.timestamp||e.created_at);
-      return {searchQuery:e.search_query,productName:pn,quantity:qty,orderId:e.order_id||null,eventDate:ts?new Date(ts):null,revenue:rev};
-    });
+      const eventDate=ts?new Date(ts):null;
+      const base={searchQuery:e.search_query,orderId:e.order_id||null,eventDate};
+      // Top-level single product
+      if(e.product_name||e.product||e.name) {
+        const qty=e.quantity||1;
+        let rev; if(mode==='checkout'){const ct=normalizePrice(e.cart_total??0);rev=ct>0?ct:normalizePrice(e.product_price??0)*qty;}else{rev=normalizePrice(e.product_price??0)*qty;}
+        return [{...base,productName:e.product_name||e.product||e.name,quantity:qty,revenue:rev}];
+      }
+      // Nested products array
+      const subItems=(Array.isArray(e.products)&&e.products.length>0?e.products:null)||(Array.isArray(e.cart_items)&&e.cart_items.length>0?e.cart_items:null);
+      if(subItems&&subItems.length>0&&subItems.length<=6) {
+        return subItems.map(p=>{
+          const pn=p.product_name||p.name||p.title||"לא ידוע";
+          const qty=p.quantity||1;
+          const rev=normalizePrice(p.price??p.product_price??0)*qty;
+          return {...base,productName:pn,quantity:qty,revenue:rev};
+        });
+      }
+      return [];
+    }
+    const complexPurchases=dataSource.flatMap(expandEvent);
     if (!complexPurchases.length) return {totals:{revenue:0,orders:0,items:0},weekly:[],daily:[],byQueryProduct:[],hasData:false,mode};
+
+    // Deduplicate: same product in the same order (checkout_initiated + completed both fire)
+    // Key: orderId+productName when orderId exists, else productName+query+30-min bucket
+    const deduped = [];
+    const seen = new Map();
+    for (const e of complexPurchases) {
+      let key;
+      if (e.orderId) {
+        key = `order:${e.orderId}__${e.productName}`;
+      } else {
+        const bucket = e.eventDate ? Math.floor(e.eventDate.getTime() / (30 * 60 * 1000)) : 'x';
+        key = `noorder:${e.searchQuery}__${e.productName}__${bucket}`;
+      }
+      if (!seen.has(key)) {
+        seen.set(key, e);
+        deduped.push(e);
+      } else {
+        // Keep the one with the higher revenue (completed > initiated)
+        const existing = seen.get(key);
+        if (e.revenue > existing.revenue) {
+          const idx = deduped.indexOf(existing);
+          deduped[idx] = e;
+          seen.set(key, e);
+        }
+      }
+    }
+    const uniquePurchases = deduped;
+
     const orderSet=new Set(); let totalRevenue=0,totalItems=0,totalOrders=0;
-    complexPurchases.forEach(e=>{totalOrders+=1;if(e.orderId)orderSet.add(e.orderId);totalRevenue+=e.revenue;totalItems+=e.quantity;});
+    uniquePurchases.forEach(e=>{totalOrders+=1;if(e.orderId)orderSet.add(e.orderId);totalRevenue+=e.revenue;totalItems+=e.quantity;});
     const weeklyMap=new Map(),dailyMap=new Map(),detailMap=new Map();
-    complexPurchases.forEach(e=>{
+    uniquePurchases.forEach(e=>{
       if(e.eventDate instanceof Date&&!isNaN(e.eventDate)){
         const dd=new Date(e.eventDate);dd.setHours(0,0,0,0);const dk=dd.toISOString();
         const dl=e.eventDate.toLocaleDateString("he-IL",{weekday:"long",year:"numeric",month:"2-digit",day:"2-digit"});
@@ -559,7 +646,7 @@ export default function AnalyticsPanel({ session, onboarding }) {
       weekly:Array.from(weeklyMap.entries()).sort((a,b)=>new Date(a[0])-new Date(b[0])).map(([,e])=>({period:e.period,semantix_revenue:e.revenue,semantix_orders:e.orders.size,semantix_items:e.items})),
       daily:Array.from(dailyMap.entries()).sort((a,b)=>new Date(a[0])-new Date(b[0])).map(([,e])=>({period:e.period,semantix_revenue:e.revenue,semantix_orders:e.orders.size,semantix_items:e.items})),
       byQueryProduct:Array.from(detailMap.values()).map(e=>({search_query:e.search_query,product_name:e.product_name,orders:e.orders.size,items:e.items,revenue:e.revenue})).sort((a,b)=>b.revenue-a.revenue),
-      events: complexPurchases.slice().sort((a,b)=>(b.eventDate?.getTime()||0)-(a.eventDate?.getTime()||0)),
+      events: uniquePurchases.slice().sort((a,b)=>(b.eventDate?.getTime()||0)-(a.eventDate?.getTime()||0)),
       hasData:true,mode,
     };
   }, [checkoutEvents, cartAnalytics]);
@@ -796,21 +883,21 @@ export default function AnalyticsPanel({ session, onboarding }) {
               </div>
             ) : (
               <div className="space-y-3">
-                {/* Cart */}
-                {(cartMetrics?.addToCartMetrics?.revenue||0) >= 1000 && (
-                  <MetricBlock color="indigo" label="הוספות לעגלה"
-                    value={formatCurrency(cartMetrics.addToCartMetrics.revenue)}
-                    badge={[`${(cartMetrics.addToCartMetrics.items||0).toLocaleString()} הוספות`,`${(cartMetrics.addToCartMetrics.uniqueProducts||0).toLocaleString()} מוצרים`]}
+                {/* Cart — AI-attributed only */}
+                {(cartMetrics?.aiCartMetrics?.items||0) > 0 && (
+                  <MetricBlock color="indigo" label="הוספות לעגלה דרך AI"
+                    value={cartMetrics.aiCartMetrics.revenue >= 100 ? formatCurrency(cartMetrics.aiCartMetrics.revenue) : `${cartMetrics.aiCartMetrics.items} הוספות`}
+                    badge={[`✦ ${(cartMetrics.aiCartMetrics.items||0).toLocaleString()} AI`,`${(cartMetrics.aiCartMetrics.uniqueProducts||0).toLocaleString()} מוצרים`]}
                     expanded={cartDetailsExpanded} onToggle={()=>setCartDetailsExpanded(!cartDetailsExpanded)}>
                     <div className="p-4">
-                      <p className="text-xs font-semibold text-gray-500 mb-3">שאילתות מובילות להוספה לעגלה</p>
+                      <p className="text-xs font-semibold text-gray-500 mb-3">שאילתות AI מובילות לעגלה</p>
                       <div className="space-y-1.5">
-                        {(cartMetrics.addToCartMetrics?.queries||[]).map((item,i)=>(
+                        {(cartMetrics.aiCartMetrics?.queries||[]).map((item,i)=>(
                           <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-white rounded-lg border border-gray-100">
                             <span className="text-sm text-gray-700 font-medium">{item.query}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">{item.count} הוספות</span>
-                              <span className="text-xs font-bold text-indigo-800">₪{item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}</span>
+                              {item.revenue > 0 && <span className="text-xs font-bold text-indigo-800">₪{item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}</span>}
                             </div>
                           </div>
                         ))}
@@ -965,33 +1052,49 @@ export default function AnalyticsPanel({ session, onboarding }) {
                     value={formatCurrency(cartMetrics.checkoutMetrics.revenue)}
                     badge={[`${(cartMetrics.checkoutMetrics.items||0).toLocaleString()} רכישות`,`${(cartMetrics.checkoutMetrics.uniqueProducts||0).toLocaleString()} מוצרים`]}
                     expanded={checkoutDetailsExpanded} onToggle={()=>setCheckoutDetailsExpanded(!checkoutDetailsExpanded)}>
-                    <div className="p-4">
-                      <p className="text-xs font-semibold text-gray-500 mb-3">שאילתות מובילות לרכישות</p>
-                      <div className="space-y-1.5">
-                        {(cartMetrics.checkoutMetrics?.queries||[]).map((item,i)=>(
-                          <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-white rounded-lg border border-gray-100">
-                            <span className="text-sm text-gray-700 font-medium">{item.query}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">{item.count} רכישות</span>
-                              <span className="text-xs font-bold text-emerald-800">₪{item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}</span>
-                            </div>
+                    <div className="p-4 space-y-4">
+                      {(cartMetrics.checkoutMetrics?.topProducts||[]).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 mb-2">מוצרים שנרכשו</p>
+                          <div className="space-y-1.5">
+                            {(cartMetrics.checkoutMetrics.topProducts||[]).map((item,i)=>(
+                              <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-white rounded-lg border border-gray-100">
+                                <span className="text-sm text-gray-700 font-medium">{item.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">{item.count} רכישות</span>
+                                  {item.revenue > 0 && <span className="text-xs font-bold text-emerald-800">₪{item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}</span>}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
+                      {(cartMetrics.checkoutMetrics?.queries||[]).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 mb-2">שאילתות מובילות לרכישות</p>
+                          <div className="space-y-1.5">
+                            {(cartMetrics.checkoutMetrics.queries||[]).map((item,i)=>(
+                              <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-white rounded-lg border border-gray-100">
+                                <span className="text-sm text-gray-700 font-medium">{item.query}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">{item.count} רכישות</span>
+                                  {item.revenue > 0 && <span className="text-xs font-bold text-emerald-800">₪{item.revenue.toLocaleString('he-IL',{maximumFractionDigits:0})}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </MetricBlock>
                 )}
 
-                {/* Clicks */}
-                {clickEvents.length > 0 && (
-                  <MetricBlock color="blue" label="לחיצות על מוצרים"
-                    value={`${(cartMetrics?.clickMetrics?.items||0).toLocaleString('he-IL')} לחיצות`}
+                {/* Clicks — AI only */}
+                {(cartMetrics?.clickMetrics?.aiClicks||0) > 0 && (
+                  <MetricBlock color="blue" label="לחיצות AI על מוצרים"
+                    value={`${(cartMetrics.clickMetrics.aiClicks).toLocaleString('he-IL')} לחיצות ✦ AI`}
                     badge={[
                       `${(cartMetrics?.clickMetrics?.uniqueProducts||0)} מוצרים`,
-                      ...(cartMetrics?.clickMetrics?.aiClicks>0?[`✦ ${cartMetrics.clickMetrics.aiClicks} AI`]:[]),
-                      ...(cartMetrics?.clickMetrics?.zeroResultsClicks>0?[`◎ ${cartMetrics.clickMetrics.zeroResultsClicks} Zero`]:[]),
-                      ...(cartMetrics?.clickMetrics?.rerankClicks>0?[`↑ ${cartMetrics.clickMetrics.rerankClicks} Rerank`]:[]),
-                      ...(cartMetrics?.clickMetrics?.injectClicks>0?[`⊕ ${cartMetrics.clickMetrics.injectClicks} Inject`]:[]),
                     ]}
                     expanded={clickDetailsExpanded} onToggle={()=>setClickDetailsExpanded(!clickDetailsExpanded)}>
                     <div className="p-4 space-y-4">

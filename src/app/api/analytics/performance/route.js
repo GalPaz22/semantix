@@ -243,17 +243,39 @@ export async function POST(request) {
                     const sid = item.sessionId;
                     if (!sid || !checkoutBySession[sid]) continue;
                     const coEvents = checkoutBySession[sid];
-                    const matched = coEvents.find(co => {
+
+                    let matchedCo = null;
+                    let matchedSubItem = null;
+
+                    for (const co of coEvents) {
+                        // Top-level product fields
                         const coId   = co.product_id  ? String(co.product_id)  : null;
                         const coName = co.product_name || co.name || null;
-                        const idHit  = item.productId  && coId   && item.productId  === coId;
-                        const nameHit= item.productName && coName && item.productName === coName;
-                        return idHit || nameHit;
-                    });
-                    if (matched) {
-                        const rawPrice = matched.price ?? matched.product_price ?? item.price ?? null;
+                        if ((item.productId && coId && item.productId === coId) ||
+                            (item.productName && coName && item.productName === coName)) {
+                            matchedCo = co;
+                            break;
+                        }
+                        // Nested products / cart_items arrays
+                        const subItems = [
+                            ...(Array.isArray(co.products)   ? co.products   : []),
+                            ...(Array.isArray(co.cart_items) ? co.cart_items : []),
+                        ];
+                        const sub = subItems.find(si => {
+                            const siId   = si.product_id ? String(si.product_id) : null;
+                            const siName = si.product_name || si.name || null;
+                            return (item.productId && siId && item.productId === siId) ||
+                                   (item.productName && siName && item.productName === siName);
+                        });
+                        if (sub) { matchedCo = co; matchedSubItem = sub; break; }
+                    }
+
+                    if (matchedCo) {
+                        // Price preference: sub-item price → cart_total → top-level price → fallback
+                        const rawPrice = (matchedSubItem?.price ?? matchedSubItem?.product_price) ??
+                                         matchedCo.cart_total ?? matchedCo.price ?? matchedCo.product_price ?? item.price ?? null;
                         const p = parseFloat(String(rawPrice ?? "").replace(/[^0-9.]/g, "")) || item.price || 0;
-                        checkoutItems.push({ ...item, checkoutTime: matched.timestamp || matched.created_at || null, checkoutPrice: p });
+                        checkoutItems.push({ ...item, checkoutTime: matchedCo.timestamp || matchedCo.created_at || null, checkoutPrice: p });
                     }
                 }
                 return checkoutItems;
