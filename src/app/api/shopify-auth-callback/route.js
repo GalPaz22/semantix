@@ -5,72 +5,103 @@ import clientPromise from "/lib/mongodb";
 import { exchangeCodeForToken, WEBHOOK_TOPICS, APP_URL } from "/lib/shopify-app-config";
 import crypto from "crypto";
 
-export async function GET(request) {
-  // Get user session
-  const session = await getServerSession(authOptions);
-  
-  if (!session) {
-    return NextResponse.redirect(new URL("/login", request.url));
+/**
+ * Decode and verify the signed state produced by /api/shopify-install-url.
+ * Returns the user email embedded in the state, or null if verification fails.
+ */
+function decodeState(state) {
+  try {
+    const { payload, hmac } = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+    const expected = crypto
+      .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+      .update(payload)
+      .digest("hex");
+    if (!crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(expected, "hex"))) {
+      return null;
+    }
+    // payload = "email:timestamp"
+    const colonIdx = payload.indexOf(":");
+    return colonIdx !== -1 ? payload.slice(0, colonIdx) : null;
+  } catch {
+    return null;
   }
-  
-  // Extract the authorization code and shop from the URL
+}
+
+export async function GET(request) {
   const searchParams = new URL(request.url).searchParams;
   const code = searchParams.get("code");
   const shop = searchParams.get("shop");
   const state = searchParams.get("state");
-  
+
   if (!code || !shop) {
     return NextResponse.redirect(new URL("/dashboard?error=missing_params", request.url));
   }
-  
+
   try {
-    // Verify state to prevent CSRF attacks
-    const expectedState = session.user.email || "anonymous";
-    if (state !== expectedState) {
-      throw new Error("Invalid state parameter");
+    // Resolve who the installing user is.
+    // Primary path: extract email from the HMAC-signed state (works even if the
+    // session cookie was lost during the cross-site Shopify redirect).
+    // Fallback: read from the live server session (old-style plain-email state).
+    let userEmail = state ? decodeState(state) : null;
+
+    if (!userEmail) {
+      // Fallback to session — covers the legacy plain-email state format
+      const session = await getServerSession(authOptions);
+      if (!session) {
+        return NextResponse.redirect(new URL("/login?callbackUrl=/install-shopify-app", request.url));
+      }
+      // Old state was just the raw email
+      if (state && state !== session.user.email) {
+        throw new Error("Invalid state parameter");
+      }
+      userEmail = session.user.email;
     }
-    
-    // Exchange the code for a permanent access token
+
+    // Exchange the authorization code for a permanent access token
     const tokenData = await exchangeCodeForToken(shop, code);
     const accessToken = tokenData.access_token;
-    
-    // Update user record with the Shopify access token
+
     const client = await clientPromise;
     const db = client.db("users");
+
+    // Persist token on the user record so existing dashboard logic keeps working
     await db.collection("users").updateOne(
-      { email: session.user.email },
-      { 
-        $set: { 
+      { email: userEmail },
+      {
+        $set: {
           shopifyAccessToken: accessToken,
           shopifyShop: shop,
           shopifyConnected: true,
           shopifyConnectedAt: new Date(),
           shopifyScope: tokenData.scope || "",
-          shopifyTokenType: tokenData.token_type || "bearer"
-        } 
+          shopifyTokenType: tokenData.token_type || "bearer",
+        },
       }
     );
-    
-    // Create a new installation record
-    const installationId = crypto.randomUUID();
-    await db.collection("shopify_installations").insertOne({
-      installationId,
-      shop,
-      accessToken,
-      userId: session.user.id,
-      userEmail: session.user.email,
-      installedAt: new Date(),
-      scope: tokenData.scope || "",
-      active: true
-    });
-    
-    // Register webhooks
-    const webhookResults = await registerWebhooks(shop, accessToken, db, session.user);
-    
-    console.log(`Successfully connected Shopify store: ${shop}`);
-    console.log(`Registered ${webhookResults.registered} webhooks`);
-    
-    // Redirect back to the dashboard with success message
+
+    // Upsert the installation record (idempotent on re-installs)
+    await db.collection("shopify_installations").updateOne(
+      { shop, userEmail },
+      {
+        $set: {
+          accessToken,
+          scope: tokenData.scope || "",
+          active: true,
+          installedAt: new Date(),
+        },
+        $setOnInsert: {
+          installationId: crypto.randomUUID(),
+          shop,
+          userEmail,
+        },
+      },
+      { upsert: true }
+    );
+
+    // Register webhooks (best-effort — don't fail the install if this errors)
+    const webhookResults = await registerWebhooks(shop, accessToken, db, { email: userEmail });
+    console.log(`Shopify install complete: ${shop} (${userEmail}), webhooks: ${webhookResults.registered} ok / ${webhookResults.failed} failed`);
+
     return NextResponse.redirect(new URL("/dashboard?shopify_connected=true", request.url));
   } catch (error) {
     console.error("Shopify auth callback error:", error);
