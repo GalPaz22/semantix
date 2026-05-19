@@ -1,227 +1,91 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
-import { exchangeCodeForToken, WEBHOOK_TOPICS, APP_URL } from "/lib/shopify-app-config";
 import crypto from "crypto";
 
-/**
- * Decode and verify the signed state produced by /api/shopify-install-url.
- * Returns the user email embedded in the state, or null if verification fails.
- */
-function decodeState(state) {
-  try {
-    const { payload, hmac } = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
-    const expected = crypto
-      .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
-      .update(payload)
-      .digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(expected, "hex"))) {
-      return null;
-    }
-    // payload = "email:timestamp"
-    const colonIdx = payload.indexOf(":");
-    return colonIdx !== -1 ? payload.slice(0, colonIdx) : null;
-  } catch {
-    return null;
-  }
+const SHOPIFY_API_KEY = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
+const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
+
+function verifyShopifyHmac(searchParams) {
+  const hmac = searchParams.get("hmac");
+  if (!hmac) return false;
+
+  const params = {};
+  searchParams.forEach((value, key) => {
+    if (key !== "hmac") params[key] = value;
+  });
+
+  const message = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+
+  const expected = crypto
+    .createHmac("sha256", SHOPIFY_API_SECRET)
+    .update(message)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expected));
 }
 
 export async function GET(request) {
   const searchParams = new URL(request.url).searchParams;
   const code = searchParams.get("code");
   const shop = searchParams.get("shop");
-  const state = searchParams.get("state");
 
   if (!code || !shop) {
-    return NextResponse.redirect(new URL("/dashboard?error=missing_params", request.url));
+    return new Response("Missing code or shop", { status: 400 });
+  }
+
+  // Verify request is genuinely from Shopify
+  if (!verifyShopifyHmac(searchParams)) {
+    return new Response("Invalid HMAC", { status: 401 });
   }
 
   try {
-    // Exchange the authorization code for a permanent access token first —
-    // we need the token regardless of whether we can identify the user yet.
-    const tokenData = await exchangeCodeForToken(shop, code);
-    const accessToken = tokenData.access_token;
+    // Exchange code for access token
+    const formattedShop = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    const tokenRes = await fetch(`https://${formattedShop}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: SHOPIFY_API_KEY,
+        client_secret: SHOPIFY_API_SECRET,
+        code,
+      }),
+    });
 
+    if (!tokenRes.ok) {
+      throw new Error(`Token exchange failed: ${tokenRes.statusText}`);
+    }
+
+    const { access_token, scope } = await tokenRes.json();
+
+    // Save to MongoDB — no user association needed
     const client = await clientPromise;
     const db = client.db("users");
-
-    // Resolve who the installing user is.
-    // Path 1: signed state from our own install page (most reliable)
-    // Path 2: live server session fallback
-    // Path 3: no user identified — store as pending, let them log in to claim it
-    let userEmail = state ? decodeState(state) : null;
-
-    if (!userEmail) {
-      const session = await getServerSession(authOptions);
-      if (session) {
-        userEmail = session.user.email;
-      }
-    }
-
-    if (!userEmail) {
-      // Store token as a pending installation keyed by shop.
-      // The merchant will claim it after logging in via /onboard.
-      await db.collection("pending_installations").updateOne(
-        { shop },
-        {
-          $set: {
-            accessToken,
-            scope: tokenData.scope || "",
-            installedAt: new Date(),
-          },
-          $setOnInsert: {
-            installationId: crypto.randomUUID(),
-            shop,
-          },
+    await db.collection("shopify_installations").updateOne(
+      { shop: formattedShop },
+      {
+        $set: {
+          shop: formattedShop,
+          accessToken: access_token,
+          scope: scope || "",
+          installedAt: new Date(),
+          active: true,
         },
-        { upsert: true }
-      );
-      console.log(`Shopify install pending claim: ${shop}`);
-      return NextResponse.redirect(new URL(`/onboard?shop=${encodeURIComponent(shop)}`, request.url));
-    }
-
-    // User is identified — save immediately
-    await saveInstallation(db, shop, accessToken, tokenData, userEmail);
-    const webhookResults = await registerWebhooks(shop, accessToken, db, { email: userEmail });
-    console.log(`Shopify install complete: ${shop} (${userEmail}), webhooks: ${webhookResults.registered} ok / ${webhookResults.failed} failed`);
-
-    return NextResponse.redirect(new URL("/dashboard?shopify_connected=true", request.url));
-  } catch (error) {
-    console.error("Shopify auth callback error:", error);
-    return NextResponse.redirect(new URL(`/dashboard?error=${encodeURIComponent(error.message)}`, request.url));
-  }
-}
-
-/**
- * Register webhooks for the shop
- * @param {string} shop - The shop domain
- * @param {string} accessToken - The access token
- * @param {Object} db - MongoDB database connection
- * @param {Object} user - The user object
- * @returns {Promise<Object>} - The results of webhook registration
- */
-async function saveInstallation(db, shop, accessToken, tokenData, userEmail) {
-  await db.collection("users").updateOne(
-    { email: userEmail },
-    {
-      $set: {
-        shopifyAccessToken: accessToken,
-        shopifyShop: shop,
-        shopifyConnected: true,
-        shopifyConnectedAt: new Date(),
-        shopifyScope: tokenData.scope || "",
-        shopifyTokenType: tokenData.token_type || "bearer",
+        $setOnInsert: {
+          installationId: crypto.randomUUID(),
+        },
       },
-    }
-  );
-
-  await db.collection("shopify_installations").updateOne(
-    { shop, userEmail },
-    {
-      $set: {
-        accessToken,
-        scope: tokenData.scope || "",
-        active: true,
-        installedAt: new Date(),
-      },
-      $setOnInsert: {
-        installationId: crypto.randomUUID(),
-        shop,
-        userEmail,
-      },
-    },
-    { upsert: true }
-  );
-}
-
-async function registerWebhooks(shop, accessToken, db, user) {
-  try {
-    // Register webhooks for each topic
-    const results = await Promise.all(
-      WEBHOOK_TOPICS.map(topic => registerWebhook(shop, accessToken, topic))
+      { upsert: true }
     );
-    
-    // Save webhook registrations to the database
-    const successfulWebhooks = results
-      .filter(result => result.success)
-      .map(result => ({
-        topic: result.topic,
-        webhookId: result.webhookId,
-        shop,
-        createdAt: new Date(),
-        userId: user.id,
-        userEmail: user.email
-      }));
-    
-    if (successfulWebhooks.length > 0) {
-      await db.collection("shopify_webhook_registrations").insertMany(successfulWebhooks);
-    }
-    
-    return {
-      registered: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      results
-    };
+
+    console.log(`✅ Shopify installed: ${formattedShop} | token: ${access_token}`);
+
+    // Redirect to a simple success page
+    return NextResponse.redirect(new URL("/install-success", request.url));
   } catch (error) {
-    console.error("Error registering webhooks:", error);
-    return {
-      registered: 0,
-      failed: WEBHOOK_TOPICS.length,
-      error: error.message
-    };
+    console.error("Shopify callback error:", error);
+    return new Response(`Installation failed: ${error.message}`, { status: 500 });
   }
 }
-
-/**
- * Register a webhook for a specific topic
- * @param {string} shop - The shop domain
- * @param {string} accessToken - The access token
- * @param {string} topic - The webhook topic
- * @returns {Promise<Object>} - The result of the registration
- */
-async function registerWebhook(shop, accessToken, topic) {
-  try {
-    const formattedShop = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
-    const apiVersion = '2023-10'; // Update this to the latest stable version
-    
-    const response = await fetch(`https://${formattedShop}/admin/api/${apiVersion}/webhooks.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken
-      },
-      body: JSON.stringify({
-        webhook: {
-          topic,
-          address: `${APP_URL}/api/webhooks/shopify`,
-          format: 'json'
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Failed to register webhook for ${topic}:`, errorText);
-      return {
-        topic,
-        success: false,
-        error: `HTTP ${response.status}: ${errorText}`
-      };
-    }
-    
-    const data = await response.json();
-    return {
-      topic,
-      success: true,
-      webhookId: data.webhook.id
-    };
-  } catch (error) {
-    console.error(`Error registering webhook for ${topic}:`, error);
-    return {
-      topic,
-      success: false,
-      error: error.message
-    };
-  }
-} 
