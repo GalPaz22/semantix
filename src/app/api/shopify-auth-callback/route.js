@@ -38,67 +38,51 @@ export async function GET(request) {
   }
 
   try {
-    // Resolve who the installing user is.
-    // Primary path: extract email from the HMAC-signed state (works even if the
-    // session cookie was lost during the cross-site Shopify redirect).
-    // Fallback: read from the live server session (old-style plain-email state).
-    let userEmail = state ? decodeState(state) : null;
-
-    if (!userEmail) {
-      // Fallback to session — covers the legacy plain-email state format
-      const session = await getServerSession(authOptions);
-      if (!session) {
-        return NextResponse.redirect(new URL("/login?callbackUrl=/install-shopify-app", request.url));
-      }
-      // Old state was just the raw email
-      if (state && state !== session.user.email) {
-        throw new Error("Invalid state parameter");
-      }
-      userEmail = session.user.email;
-    }
-
-    // Exchange the authorization code for a permanent access token
+    // Exchange the authorization code for a permanent access token first —
+    // we need the token regardless of whether we can identify the user yet.
     const tokenData = await exchangeCodeForToken(shop, code);
     const accessToken = tokenData.access_token;
 
     const client = await clientPromise;
     const db = client.db("users");
 
-    // Persist token on the user record so existing dashboard logic keeps working
-    await db.collection("users").updateOne(
-      { email: userEmail },
-      {
-        $set: {
-          shopifyAccessToken: accessToken,
-          shopifyShop: shop,
-          shopifyConnected: true,
-          shopifyConnectedAt: new Date(),
-          shopifyScope: tokenData.scope || "",
-          shopifyTokenType: tokenData.token_type || "bearer",
-        },
+    // Resolve who the installing user is.
+    // Path 1: signed state from our own install page (most reliable)
+    // Path 2: live server session fallback
+    // Path 3: no user identified — store as pending, let them log in to claim it
+    let userEmail = state ? decodeState(state) : null;
+
+    if (!userEmail) {
+      const session = await getServerSession(authOptions);
+      if (session) {
+        userEmail = session.user.email;
       }
-    );
+    }
 
-    // Upsert the installation record (idempotent on re-installs)
-    await db.collection("shopify_installations").updateOne(
-      { shop, userEmail },
-      {
-        $set: {
-          accessToken,
-          scope: tokenData.scope || "",
-          active: true,
-          installedAt: new Date(),
+    if (!userEmail) {
+      // Store token as a pending installation keyed by shop.
+      // The merchant will claim it after logging in via /onboard.
+      await db.collection("pending_installations").updateOne(
+        { shop },
+        {
+          $set: {
+            accessToken,
+            scope: tokenData.scope || "",
+            installedAt: new Date(),
+          },
+          $setOnInsert: {
+            installationId: crypto.randomUUID(),
+            shop,
+          },
         },
-        $setOnInsert: {
-          installationId: crypto.randomUUID(),
-          shop,
-          userEmail,
-        },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+      console.log(`Shopify install pending claim: ${shop}`);
+      return NextResponse.redirect(new URL(`/onboard?shop=${encodeURIComponent(shop)}`, request.url));
+    }
 
-    // Register webhooks (best-effort — don't fail the install if this errors)
+    // User is identified — save immediately
+    await saveInstallation(db, shop, accessToken, tokenData, userEmail);
     const webhookResults = await registerWebhooks(shop, accessToken, db, { email: userEmail });
     console.log(`Shopify install complete: ${shop} (${userEmail}), webhooks: ${webhookResults.registered} ok / ${webhookResults.failed} failed`);
 
@@ -117,6 +101,40 @@ export async function GET(request) {
  * @param {Object} user - The user object
  * @returns {Promise<Object>} - The results of webhook registration
  */
+async function saveInstallation(db, shop, accessToken, tokenData, userEmail) {
+  await db.collection("users").updateOne(
+    { email: userEmail },
+    {
+      $set: {
+        shopifyAccessToken: accessToken,
+        shopifyShop: shop,
+        shopifyConnected: true,
+        shopifyConnectedAt: new Date(),
+        shopifyScope: tokenData.scope || "",
+        shopifyTokenType: tokenData.token_type || "bearer",
+      },
+    }
+  );
+
+  await db.collection("shopify_installations").updateOne(
+    { shop, userEmail },
+    {
+      $set: {
+        accessToken,
+        scope: tokenData.scope || "",
+        active: true,
+        installedAt: new Date(),
+      },
+      $setOnInsert: {
+        installationId: crypto.randomUUID(),
+        shop,
+        userEmail,
+      },
+    },
+    { upsert: true }
+  );
+}
+
 async function registerWebhooks(shop, accessToken, db, user) {
   try {
     // Register webhooks for each topic
