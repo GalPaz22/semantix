@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "f8055961672a7af4560f5cbd619c7b1d"
+client_id = "b03189708a0d005bea3a4f4171557974"
 name = "lisa Leonard"
-application_url = "https://example.com"
+application_url = "https://www.semantix.co.il/"
 embedded = true
 
 [webhooks]
@@ -15,4 +15,4 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ ]
+redirect_urls = [ "https://www.semantix.co.il/api/shopify-auth-callback" ]
