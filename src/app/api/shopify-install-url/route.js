@@ -18,8 +18,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Shop domain required" }, { status: 400 });
     }
 
-    // Build a signed state so the callback can identify the user without a live session.
-    // payload = email:timestamp, signed with SHOPIFY_API_SECRET via HMAC-SHA256.
+    // Build a self-verifying state: encodes user email + timestamp, signed with HMAC.
+    // The callback can re-verify this without needing server-side session storage.
     const payload = `${session.user.email}:${Date.now()}`;
     const hmac = crypto
       .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
@@ -30,7 +30,17 @@ export async function POST(request) {
     const redirectUri = `${APP_URL}${AUTH_CALLBACK_URL}`;
     const url = generateAuthUrl(shop, state, redirectUri);
 
-    return NextResponse.json({ url });
+    // Also save state in a cookie as a second CSRF layer.
+    const response = NextResponse.json({ url });
+    response.cookies.set("shopify_oauth_state", state, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 10,
+    });
+
+    return response;
   } catch (error) {
     console.error("Error generating Shopify installation URL:", error);
     return NextResponse.json({ error: "Failed to generate installation URL" }, { status: 500 });
