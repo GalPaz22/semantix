@@ -34,6 +34,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [selectedSoftCategory, setSelectedSoftCategory] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, instock, outofstock
   const [processedFilter, setProcessedFilter] = useState('all'); // all, processed, unprocessed
+  const [boostedFilter, setBoostedFilter] = useState(false); // only boosted products
   const [currentPage, setCurrentPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -98,7 +99,8 @@ export default function ProductsPanel({ session, onboarding }) {
           type: selectedType,
           softCategory: selectedSoftCategory,
           status: statusFilter,
-          processed: processedFilter
+          processed: processedFilter,
+          boosted: boostedFilter
         })
       });
 
@@ -150,7 +152,7 @@ export default function ProductsPanel({ session, onboarding }) {
       setCurrentPage(1);
       fetchProducts(true);
     }
-  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter, processedFilter]);
+  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter, processedFilter, boostedFilter]);
 
 
 
@@ -407,6 +409,19 @@ export default function ProductsPanel({ session, onboarding }) {
               <option value="processed">Processed</option>
               <option value="unprocessed">Unprocessed</option>
             </select>
+          </div>
+
+          <div className="flex items-end">
+            <div className="flex items-center h-full">
+              <input
+                type="checkbox"
+                id="boostedFilter"
+                checked={boostedFilter}
+                onChange={(e) => setBoostedFilter(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="boostedFilter" className="ml-2 block text-sm font-medium text-gray-700">Show Boosted Products Only</label>
+            </div>
           </div>
 
           <div className="flex items-end">

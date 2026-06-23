@@ -257,39 +257,57 @@
 
   /**
    * Track Checkout Completed
-   * Note: This runs on the thank-you page
+   * Runs on the thank-you / order-status page.
+   * Tries multiple data sources in priority order.
    */
   function trackCheckoutCompleted() {
-    // Shopify exposes order data on thank-you page
-    if (!window.Shopify || !window.Shopify.checkout) {
-      log('No checkout data available');
+    // Source 1: modern Shopify order-status page global
+    const checkout = window.Shopify?.checkout || window.Shopify?.order || null;
+
+    // Source 2: meta tag injected by Shopify on order-status pages
+    let orderMeta = null;
+    try {
+      const metaEl = document.querySelector('meta[name="shopify:order-id"]') ||
+                     document.querySelector('[data-order-id]');
+      if (metaEl) {
+        orderMeta = {
+          order_id: metaEl.getAttribute('content') || metaEl.getAttribute('data-order-id')
+        };
+      }
+    } catch (_) {}
+
+    // Source 3: URL — /orders/:token/thank_you or /checkouts/:id/thank_you
+    let urlOrderId = null;
+    const orderMatch = window.location.pathname.match(/\/orders\/([^/]+)/);
+    if (orderMatch) urlOrderId = orderMatch[1];
+
+    if (!checkout && !orderMeta && !urlOrderId) {
+      log('No checkout data available on this page');
       return;
     }
 
-    const checkout = window.Shopify.checkout;
-    
     const eventData = {
       event_type: 'checkout_completed',
       search_query: getLastSearchQuery(),
       session_id: getSessionId(),
-      order_id: String(checkout.order_id || checkout.id),
-      order_total: parseFloat(checkout.total_price),
-      cart_count: checkout.line_items?.length || 0,
-      cart_items: checkout.line_items?.map(item => ({
+      order_id: checkout ? String(checkout.order_id || checkout.id || '') :
+                orderMeta?.order_id || urlOrderId || null,
+      order_total: checkout ? parseFloat(checkout.total_price || 0) : null,
+      cart_count: checkout?.line_items?.length || 0,
+      cart_items: (checkout?.line_items || []).map(item => ({
         product_id: String(item.product_id),
         product_name: item.title,
         variant_id: String(item.variant_id),
         variant_title: item.variant_title,
         quantity: item.quantity,
         price: parseFloat(item.price)
-      })) || [],
-      payment_method: checkout.payment_method?.type
+      }))
     };
 
     log('✅ Checkout Completed:', eventData);
     sendTrackingEvent(eventData);
 
-    // Clear search data after successful purchase
+    // Clear search attribution data after successful purchase
     localStorage.removeItem(TRACKING_CONFIG.searchQueryKey);
     localStorage.removeItem(TRACKING_CONFIG.searchResultsKey);
   }
@@ -461,13 +479,19 @@
    * Track on thank-you page
    */
   function initThankYouTracking() {
-    // Check if we're on thank-you page
-    if (
-      window.location.pathname.includes('/thank') ||
-      window.location.pathname.includes('/orders/') ||
-      (window.Shopify && window.Shopify.Checkout && window.Shopify.checkout)
-    ) {
-      log('Thank-you page detected');
+    const path = window.location.pathname;
+    // Shopify thank-you pages:
+    //   /checkouts/<token>/thank_you
+    //   /orders/<name>   (order-status page)
+    //   /orders/<token>/thank_you
+    const isThankYouPage =
+      path.includes('/thank_you') ||
+      path.match(/\/orders\/[^/]+$/) ||
+      (window.Shopify?.Checkout?.step === 'thank_you') ||
+      (window.Shopify?.checkout != null);
+
+    if (isThankYouPage) {
+      log('Thank-you page detected:', path);
       trackCheckoutCompleted();
     }
   }
@@ -478,9 +502,10 @@
   function initProductClickTracking() {
     console.group('🔧 [Semantix Tracking] Init Product Click Tracking');
     
-    // Guard: Check if already attached
-    if (window.__semantix_tracking_listeners_attached) {
-      console.warn('⚠️ Product click listeners already attached, skipping');
+    // Use a dedicated flag — NOT the shared __semantix_tracking_listeners_attached
+    // which is set by initTracking() before this function is even called.
+    if (window.__semantix_click_listener_attached) {
+      console.warn('⚠️ Product click listener already attached, skipping');
       console.groupEnd();
       return;
     }
@@ -535,8 +560,8 @@
     // Add listener with { once: false, capture: true }
     document.addEventListener('click', clickHandler, { capture: true });
     
-    // Mark as attached
-    window.__semantix_tracking_listeners_attached = true;
+    // Mark click listener as attached (own flag, separate from shared init flag)
+    window.__semantix_click_listener_attached = true;
 
     log('✅ Product click tracking initialized');
     log('📊 Listener attached in capture phase');
@@ -579,33 +604,19 @@
   function init() {
     console.group('🚀 [Semantix Tracking] Initialization');
     
-    // Guard: prevent double initialization
-    if (window.__semantix_tracking_initialized) {
-      console.warn('⚠️ Tracking already initialized, skipping');
-      console.groupEnd();
-      return;
-    }
-    window.__semantix_tracking_initialized = true;
-    
-    log('📋 SemantixSettings:', window.SemantixSettings);
-    log('🪪 Session ID:', getSessionId());
-
-    log('🎯 Initializing Semantix Tracking...');
-
     // Enable debug if Semantix is in debug mode
     if (window.SemantixSettings?.debug) {
       TRACKING_CONFIG.debug = true;
-      log('🐛 Debug mode enabled');
     }
 
-    // Wait for DOM ready
+    log('📋 SemantixSettings:', window.SemantixSettings);
+    log('🪪 Session ID:', getSessionId());
     log(`📄 Document ready state: ${document.readyState}`);
-    
+
+    // initTracking() has its own guard — safe to call via both paths
     if (document.readyState === 'loading') {
-      log('⏳ Waiting for DOMContentLoaded...');
       document.addEventListener('DOMContentLoaded', initTracking);
     } else {
-      log('✅ DOM already ready, initializing now...');
       initTracking();
     }
     
@@ -615,15 +626,12 @@
   function initTracking() {
     console.group('🎬 [Semantix Tracking] Init Tracking Functions');
     
-    // Double-check guard inside initTracking too
-    if (window.__semantix_tracking_listeners_attached) {
-      console.warn('⚠️ Event listeners already attached, skipping');
+    if (window.__semantix_tracking_initialized) {
+      console.warn('⚠️ initTracking already ran, skipping');
       console.groupEnd();
       return;
     }
-    
-    log('🔒 Setting listeners attached flag...');
-    window.__semantix_tracking_listeners_attached = true;
+    window.__semantix_tracking_initialized = true;
 
     log('🛒 Initializing Add to Cart tracking...');
     initAddToCartTracking();
@@ -631,6 +639,8 @@
     log('💳 Initializing Checkout tracking...');
     initCheckoutTracking();
     
+    // initProductClickTracking uses its own guard (__semantix_click_listener_attached)
+    // so it must be called AFTER the shared flag is no longer blocking it.
     log('👆 Initializing Product Click tracking...');
     initProductClickTracking();
     

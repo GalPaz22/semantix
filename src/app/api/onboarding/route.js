@@ -7,25 +7,38 @@ import { processWooProducts } from "../../../../lib/processWoo.js";
 import processWooImages      from "../../../../lib/processWooImages.js";
 import processShopifyImages from "../../../../lib/processShopifyImages.js";
 import { setJobState } from "../../../../lib/syncStatus.js";
+import { normalizeShopifyStorefrontDomain } from "../../../../lib/shared/shopifyPublicProducts.js";
 
 /* ---------- credential validation helpers ----------------------- */
 async function validateShopifyCredentials(domain, token) {
   try {
-    if (!domain || !token) {
-      console.error('Missing Shopify credentials:', { domain: !!domain, token: !!token });
+    if (!domain) {
+      console.error('Missing Shopify domain');
       return false;
     }
 
-    // Remove any protocol and trailing slashes, ensure .myshopify.com is present
-    let cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    if (!cleanDomain.includes('.myshopify.com')) {
-      cleanDomain = `${cleanDomain}.myshopify.com`;
-    }
+    const cleanDomain = normalizeShopifyStorefrontDomain(domain);
 
-    // Validate domain format
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(cleanDomain)) {
-      console.error('Invalid Shopify domain format:', cleanDomain);
-      return false;
+    if (!token) {
+      console.log('Attempting to validate public Shopify products endpoint:', { cleanDomain });
+      const publicUrl = `https://${cleanDomain}/products.json?page=1&limit=1`;
+      const response = await fetch(publicUrl, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Semantix/1.1'
+        },
+        cache: 'no-store'
+      });
+
+      if (!response.ok) {
+        console.error('Public Shopify products validation failed:', response.status, response.statusText);
+        return false;
+      }
+
+      const data = await response.json();
+      const valid = Array.isArray(data.products);
+      console.log('Public Shopify validation result:', valid ? 'success' : 'invalid products payload');
+      return valid;
     }
 
     console.log('Attempting to validate Shopify credentials:', { cleanDomain });
@@ -92,8 +105,7 @@ async function validateShopifyCredentials(domain, token) {
 /** Validate 2026 client credentials by exchanging them for a token */
 async function validateShopifyClientCredentials(domain, clientId, clientSecret) {
   try {
-    let cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    if (!cleanDomain.includes('.myshopify.com')) cleanDomain = `${cleanDomain}.myshopify.com`;
+    const cleanDomain = normalizeShopifyStorefrontDomain(domain);
 
     const res = await fetch(`https://${cleanDomain}/admin/oauth/access_token`, {
       method: 'POST',
@@ -440,16 +452,16 @@ export async function POST(req) {
     if (platform === "shopify") {
       const hasLegacyToken = !!shopifyToken;
       const hasClientCreds = !!(shopifyClientId && shopifyClientSecret);
-      if (!shopifyDomain || (!hasLegacyToken && !hasClientCreds)) {
+      if (!shopifyDomain) {
         return Response.json({
           error: "Invalid credentials",
-          message: "Shopify domain plus either an access token or client ID & secret are required"
+          message: "Shopify domain is required"
         }, { status: 401 });
       }
       if (hasClientCreds) {
         isValidCredentials = await validateShopifyClientCredentials(shopifyDomain, shopifyClientId, shopifyClientSecret);
       } else {
-        isValidCredentials = await validateShopifyCredentials(shopifyDomain, shopifyToken);
+        isValidCredentials = await validateShopifyCredentials(shopifyDomain, hasLegacyToken ? shopifyToken : null);
       }
     } else if (platform === "woocommerce") {
       if (!wooUrl || !wooKey || !wooSecret) {
@@ -470,7 +482,7 @@ export async function POST(req) {
       return Response.json({ 
         error: "Invalid credentials", 
         message: platform === "shopify" 
-          ? "Unable to connect to Shopify. Please check your domain and access token." 
+          ? "Unable to connect to Shopify. Please check your domain or public products endpoint." 
           : "Unable to connect to WooCommerce. Please check your URL, consumer key, and consumer secret."
       }, { status: 401 });
     }
@@ -496,7 +508,7 @@ export async function POST(req) {
 
     const shopifyCreds = shopifyClientId && shopifyClientSecret
       ? { shopifyDomain, shopifyClientId, shopifyClientSecret }   // 2026 client credentials
-      : { shopifyDomain, shopifyToken };                           // legacy static token
+      : { shopifyDomain, ...(shopifyToken ? { shopifyToken } : {}) }; // public products.json or legacy static token
 
     const credentials =
       platform === "shopify"
@@ -552,10 +564,10 @@ export async function POST(req) {
           logs = await processWooProducts({ wooUrl, wooKey, wooSecret, userEmail, categories, userTypes: type, softCategories, colors: safeColors, dbName });
         }
       } else if (platform === "shopify") {
-        console.log("🔍 [Onboarding API] Calling Shopify processing...", shopifyClientId ? "client_credentials" : "legacy_token");
+        console.log("🔍 [Onboarding API] Calling Shopify processing...", shopifyClientId ? "client_credentials" : (shopifyToken ? "legacy_token" : "public_products_json"));
         const shopifyAuthArgs = shopifyClientId && shopifyClientSecret
           ? { shopifyDomain, shopifyClientId, shopifyClientSecret }
-          : { shopifyDomain, shopifyToken };
+          : { shopifyDomain, ...(shopifyToken ? { shopifyToken } : {}) };
         if (syncMode === "image") {
           logs = await processShopifyImages({ ...shopifyAuthArgs, dbName, categories, userTypes: type, softCategories, colors: safeColors, context });
         } else {

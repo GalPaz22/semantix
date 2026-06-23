@@ -1,12 +1,12 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "47de1adc7a6c6c94b90816ae08d552bc"
+client_id = "fa7f9038d5ed450b38b49be06f18cf8a"
 name = "test"
 application_url = "https://example.com"
 embedded = true
 
 [webhooks]
-api_version = "2026-01"
+api_version = "2026-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

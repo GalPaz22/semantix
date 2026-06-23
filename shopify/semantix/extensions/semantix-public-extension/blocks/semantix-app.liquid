@@ -208,7 +208,8 @@
     try {
       const sessionId = getOrCreateSession();
       
-      // Set up global configuration
+      // Always set up global configuration — tracking.js needs SemantixSettings
+      // regardless of which page type we're on.
       window.SemantixSettings = {
         apiKey: CONFIG.apiKey,
         apiBase: CONFIG.apiBase,
@@ -225,8 +226,6 @@
           theme: CONFIG.theme
         },
 
-        // Direct API calls (no proxy in Shopify)
-        // Note: endpoints are paths only, engine will prepend apiBase
         endpoints: {
           siteConfig: '/site-config',
           search: '/search',
@@ -235,7 +234,6 @@
           searchToCart: '/search-to-cart'
         },
 
-        // Session helpers
         getSessionId: () => sessionId,
         getCookie: getCookie,
         setCookie: setCookie
@@ -243,17 +241,20 @@
 
       log('🚀 Configuration ready:', window.SemantixSettings);
 
-      // Load the loader script from CDN
-      const loaderUrl = `${CONFIG.cdnBase}/semantix-loader.min.js`;
-      await loadScript(loaderUrl);
-
-      log('✅ Semantix loader initialized');
-
-      // Load tracking script if enabled
+      // Tracking loads on EVERY page (ATC, checkout, product clicks happen everywhere)
       if (CONFIG.enableTracking) {
         const trackingUrl = '{{ "semantix-tracking.js" | asset_url }}';
         await loadScript(trackingUrl);
         log('✅ Tracking initialized');
+      }
+
+      // CDN search engine only loads on search/collection pages
+      if (shouldLoad()) {
+        const loaderUrl = `${CONFIG.cdnBase}/semantix-loader.min.js`;
+        await loadScript(loaderUrl);
+        log('✅ Semantix search engine initialized');
+      } else {
+        log('⏭️ Search engine skipped (not a search/collection page)');
       }
 
       log('✅ Semantix initialized successfully');
@@ -267,10 +268,6 @@
   function init() {
     log('Semantix CDN Extension v2.0');
     log('Config:', CONFIG);
-
-    if (!shouldLoad()) {
-      return;
-    }
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initSemantics);

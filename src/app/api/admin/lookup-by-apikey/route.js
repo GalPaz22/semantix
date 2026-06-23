@@ -28,9 +28,10 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const searchName = searchParams.get('name');
     const apiKey = searchParams.get('apiKey');
+    const dbNameParam = searchParams.get('dbName');
 
-    if (!searchName && !apiKey) {
-      return NextResponse.json({ error: "name or apiKey parameter is required" }, { status: 400 });
+    if (!searchName && !apiKey && !dbNameParam) {
+      return NextResponse.json({ error: "name, dbName, or apiKey parameter is required" }, { status: 400 });
     }
 
     // Connect to database
@@ -38,10 +39,17 @@ export async function GET(request) {
     const db = client.db("users");
     const users = db.collection("users");
 
-    // Find user by name (case-insensitive) or apiKey fallback
-    const query = searchName
-      ? { name: { $regex: searchName, $options: 'i' } }
-      : { apiKey };
+    // Find user by dbName, name (case-insensitive), or apiKey
+    const query = dbNameParam
+      ? {
+          $or: [
+            { 'credentials.dbName': dbNameParam.trim() },
+            { dbName: dbNameParam.trim() }
+          ]
+        }
+      : searchName
+        ? { name: { $regex: searchName, $options: 'i' } }
+        : { apiKey };
 
     const user = await users.findOne(query, { projection: { password: 0 } });
 

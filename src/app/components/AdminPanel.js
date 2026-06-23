@@ -10,6 +10,28 @@ export default function AdminPanel({ session }) {
   const [fetchStatus, setFetchStatus] = useState('idle');
   const [saveCredentialsStatus, setSaveCredentialsStatus] = useState('idle');
   const [syncStatus, setSyncStatus] = useState('idle');
+  const [publicImportStatus, setPublicImportStatus] = useState('idle');
+  const [publicImportError, setPublicImportError] = useState('');
+  const [publicImportResult, setPublicImportResult] = useState(null);
+  const [publicImportLogs, setPublicImportLogs] = useState([]);
+  const [publicImportForm, setPublicImportForm] = useState({
+    platform: 'shopify',
+    fetchType: 'default',
+    url: '',
+    dbName: '',
+    username: '',
+    password: '',
+  });
+  const [newClientDiscoveryForm, setNewClientDiscoveryForm] = useState({
+    platform: 'shopify',
+    url: '',
+    dbName: ''
+  });
+  const [newClientDiscoveryStatus, setNewClientDiscoveryStatus] = useState('idle');
+  const [newClientDiscoverySaveStatus, setNewClientDiscoverySaveStatus] = useState('idle');
+  const [newClientDiscoveryError, setNewClientDiscoveryError] = useState('');
+  const [newClientDiscoverySaveError, setNewClientDiscoverySaveError] = useState('');
+  const [newClientDiscoveryResult, setNewClientDiscoveryResult] = useState(null);
 
   // User data fetched from API key
   const [userData, setUserData] = useState(null);
@@ -135,6 +157,9 @@ export default function AdminPanel({ session }) {
       logoSize: 120,
       showLogo: false
     },
+    skeleton: {
+      loadingText: 'Loading AI recommendations...'
+    },
     autocompleteFooter: {
       enabled: true,
       text: 'מופעל על ידי Semantix AI ✨',
@@ -175,7 +200,8 @@ export default function AdminPanel({ session }) {
     reprocessVariants: true,
     reprocessEmbeddings: true,
     reprocessDescriptions: true,
-    translateBeforeEmbedding: true
+    translateBeforeEmbedding: true,
+    appendTranslatedNameToName: false
   });
 
   // Filter option: only reprocess products without soft categories
@@ -441,6 +467,9 @@ export default function AdminPanel({ session }) {
               loadingText: safeGet(savedConfig, 'branding.loadingText', 'Semantix AI מחפש עבורך...'),
               logoSize: safeGet(savedConfig, 'branding.logoSize', 120),
               showLogo: safeGet(savedConfig, 'branding.showLogo', false)
+            },
+            skeleton: {
+              loadingText: safeGet(savedConfig, 'skeleton.loadingText', 'Loading AI recommendations...')
             },
             autocompleteFooter: {
               enabled: safeGet(savedConfig, 'autocompleteFooter.enabled', true),
@@ -943,6 +972,220 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  const handlePublicCatalogImport = async () => {
+    if (!isAdmin) return;
+    const payload = {
+      platform: publicImportForm.platform,
+      url: publicImportForm.url.trim(),
+      dbName: publicImportForm.dbName.trim()
+    };
+
+    if (!payload.url || !payload.dbName) {
+      setPublicImportError('URL and dbName are required');
+      setPublicImportStatus('error');
+      return;
+    }
+
+    setPublicImportStatus('loading');
+    setPublicImportError('');
+    setPublicImportResult(null);
+    setPublicImportLogs([]);
+
+    let pollCount = 0;
+    const maxPolls = 600;
+    const pollPublicImportLogs = async () => {
+      try {
+        const res = await fetch(`/api/admin/sync-status?dbName=${encodeURIComponent(payload.dbName)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPublicImportLogs(data.logs || []);
+
+          if (data.state === 'done') {
+            setPublicImportStatus('success');
+            setPublicImportResult(result => result || {
+              dbName: payload.dbName,
+              saved: data.done || data.total || 0,
+              total: data.total || data.done || 0,
+              inserted: data.inserted ?? 0,
+              modified: data.modified ?? 0,
+              matched: data.matched ?? 0,
+              platform: payload.platform
+            });
+            return;
+          }
+
+          if (data.state === 'error') {
+            setPublicImportStatus('error');
+            setPublicImportError(data.error || 'Public catalog import failed');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Public import log polling failed:', error);
+      }
+
+      pollCount += 1;
+      if (pollCount < maxPolls) {
+        setTimeout(pollPublicImportLogs, 1000);
+      }
+    };
+
+    try {
+      const requestPromise = fetch('/api/admin/public-catalog-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      setTimeout(pollPublicImportLogs, 500);
+
+      const response = await requestPromise;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import catalog');
+      }
+
+      if (data.state === 'running') {
+        pollPublicImportLogs();
+        return;
+      }
+
+      setPublicImportResult(data);
+      setPublicImportStatus('success');
+      pollPublicImportLogs();
+    } catch (error) {
+      console.error('Public catalog import failed:', error);
+      setPublicImportError(error.message);
+      setPublicImportStatus('error');
+    }
+  };
+
+  const formatDiscoveryList = (values) => Array.isArray(values) ? values.join(', ') : '';
+
+  const applyDiscoveryToCredentialFields = (discovery) => {
+    if (!discovery) return;
+    setCategories(formatDiscoveryList(discovery.categories));
+    setProductTypes(formatDiscoveryList(discovery.type || discovery.productTypes));
+    setSoftCategories(formatDiscoveryList(discovery.softCategories));
+  };
+
+  const loadUserContextByDbName = async (targetDbName) => {
+    const response = await fetch(`/api/admin/lookup-by-apikey?dbName=${encodeURIComponent(targetDbName)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to load user by dbName');
+
+    setUserData(data);
+    if (data.user?.apiKey) setApiKey(data.user.apiKey);
+    if (data.user?.name) setSearchName(data.user.name);
+    setUserActive(data.user?.active !== false);
+
+    const config = data.configuration || {};
+    setDbName(config.dbName || targetDbName);
+    const platform = config.platform || 'woocommerce';
+    setUserPlatform(platform);
+
+    if (platform === 'shopify') {
+      setEditCredForm({
+        shopifyDomain: data.credentials?.shopifyDomain || '',
+        shopifyClientId: data.credentials?.shopifyClientId || '',
+        shopifyClientSecret: data.credentials?.shopifyClientSecret || '',
+      });
+    }
+
+    return data;
+  };
+
+  const handleDiscoverNewClientTaxonomy = async () => {
+    if (!isAdmin) return;
+    const url = newClientDiscoveryForm.url.trim();
+    if (!url) {
+      setNewClientDiscoveryError('Store URL is required');
+      setNewClientDiscoveryStatus('error');
+      return;
+    }
+
+    setNewClientDiscoveryStatus('loading');
+    setNewClientDiscoveryError('');
+    setNewClientDiscoverySaveError('');
+    setNewClientDiscoveryResult(null);
+
+    try {
+      const response = await fetch('/api/admin/discover-client-taxonomy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: newClientDiscoveryForm.platform,
+          url,
+          dbName: newClientDiscoveryForm.dbName.trim() || undefined
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to discover client filters');
+
+      setNewClientDiscoveryResult(data);
+      setNewClientDiscoveryStatus('success');
+
+      if (data.platform) {
+        setNewClientDiscoveryForm(form => ({ ...form, platform: data.platform }));
+      }
+      if (data.url) {
+        setNewClientDiscoveryForm(form => ({ ...form, url: data.url }));
+      }
+    } catch (error) {
+      console.error('New client discovery failed:', error);
+      setNewClientDiscoveryError(error.message);
+      setNewClientDiscoveryStatus('error');
+    }
+  };
+
+  const handleSaveNewClientTaxonomy = async () => {
+    if (!isAdmin) return;
+    const dbName = newClientDiscoveryForm.dbName.trim();
+    const url = newClientDiscoveryResult?.url || newClientDiscoveryForm.url.trim();
+    const discovery = newClientDiscoveryResult?.discovery;
+
+    if (!dbName) {
+      setNewClientDiscoverySaveError('dbName is required to save');
+      setNewClientDiscoverySaveStatus('error');
+      return;
+    }
+    if (!discovery) {
+      setNewClientDiscoverySaveError('Run discovery first to preview filters');
+      setNewClientDiscoverySaveStatus('error');
+      return;
+    }
+
+    setNewClientDiscoverySaveStatus('loading');
+    setNewClientDiscoverySaveError('');
+
+    try {
+      const response = await fetch('/api/admin/save-client-taxonomy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbName,
+          platform: newClientDiscoveryResult?.platform || newClientDiscoveryForm.platform,
+          url,
+          discovery
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to save filters');
+
+      setNewClientDiscoverySaveStatus('success');
+      await loadUserContextByDbName(dbName);
+      applyDiscoveryToCredentialFields(discovery);
+    } catch (error) {
+      console.error('Save client taxonomy failed:', error);
+      setNewClientDiscoverySaveError(error.message);
+      setNewClientDiscoverySaveStatus('error');
+    }
+  };
+
+  const handleApplyNewClientDiscovery = () => {
+    applyDiscoveryToCredentialFields(newClientDiscoveryResult?.discovery);
+  };
+
   const toggleOption = (option) => {
     setReprocessOptions(prev => ({
       ...prev,
@@ -957,10 +1200,12 @@ export default function AdminPanel({ session }) {
       reprocessHardCategories: newState,
       reprocessSoftCategories: newState,
       reprocessTypes: newState,
+      reprocessColors: newState,
       reprocessVariants: newState,
       reprocessEmbeddings: newState,
       reprocessDescriptions: newState,
-      translateBeforeEmbedding: newState
+      translateBeforeEmbedding: newState,
+      appendTranslatedNameToName: newState
     });
   };
 
@@ -1766,7 +2011,7 @@ export default function AdminPanel({ session }) {
       if (!res.ok) throw new Error(data.error || 'Failed to create shadow user');
       setShadowResult(data.user);
       setShadowStatus('success');
-      setShadowForm({ name: '', dbName: '', platform: 'shopify', shopifyDomain: '', shopifyToken: '', wooUrl: '', wooKey: '', wooSecret: '' });
+      setShadowForm({ name: '', dbName: '', platform: 'shopify', shopifyDomain: '', shopifyClientId: '', shopifyClientSecret: '', wooUrl: '', wooKey: '', wooSecret: '' });
     } catch (err) {
       setShadowError(err.message);
       setShadowStatus('error');
@@ -1865,6 +2110,171 @@ export default function AdminPanel({ session }) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* New Client Discovery */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <div className="border-b border-gray-100 p-5 flex items-center gap-3">
+          <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-amber-700 text-sm">AI</span>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">New Client Mode</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Discover filters from a store URL, review the suggested credentials object, then save to users.users under the target dbName.
+            </p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+            <div className="flex gap-2">
+              {['shopify', 'woocommerce'].map(platform => (
+                <button
+                  key={platform}
+                  type="button"
+                  onClick={() => setNewClientDiscoveryForm(form => ({ ...form, platform }))}
+                  className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                    newClientDiscoveryForm.platform === platform
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+                  }`}
+                >
+                  {platform === 'shopify' ? 'Shopify' : 'WooCommerce'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Store URL</label>
+              <input
+                type="url"
+                value={newClientDiscoveryForm.url}
+                onChange={e => setNewClientDiscoveryForm(form => ({ ...form, url: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && handleDiscoverNewClientTaxonomy()}
+                placeholder="https://miregolan.co.il/"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all shadow-sm text-sm font-mono"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">DB Name <span className="text-gray-400 font-normal">(for save)</span></label>
+              <input
+                type="text"
+                value={newClientDiscoveryForm.dbName}
+                onChange={e => setNewClientDiscoveryForm(form => ({ ...form, dbName: e.target.value.replace(/\s/g, '') }))}
+                placeholder="e.g. mireGolan"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all shadow-sm text-sm font-mono"
+                dir="ltr"
+              />
+            </div>
+          </div>
+
+          {newClientDiscoveryForm.dbName.trim() && newClientDiscoveryStatus === 'success' && (
+            <p className="text-xs text-gray-600">
+              {newClientDiscoveryResult?.userExists
+                ? <>Existing user will be updated when you save.</>
+                : <>No user with this dbName yet — save will create a new users.users record.</>}
+            </p>
+          )}
+
+          {newClientDiscoveryStatus === 'error' && newClientDiscoveryError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              {newClientDiscoveryError}
+            </div>
+          )}
+
+          {newClientDiscoveryStatus === 'success' && newClientDiscoveryResult?.discovery && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">
+                    Discovery complete: analyzed {newClientDiscoveryResult.pagesAnalyzed || 1} site pages — review below, then save
+                  </p>
+                  {newClientDiscoveryResult.discovery.notes && (
+                    <p className="text-green-800 mt-1">{newClientDiscoveryResult.discovery.notes}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs text-gray-200 overflow-x-auto">
+                <p className="text-gray-400 mb-2">credentials preview (saved shape)</p>
+                {[
+                  ['categories', newClientDiscoveryResult.discovery.categories],
+                  ['type', newClientDiscoveryResult.discovery.type || newClientDiscoveryResult.discovery.productTypes],
+                  ['softCategories', newClientDiscoveryResult.discovery.softCategories]
+                ].map(([field, values]) => (
+                  <div key={field} className="mb-3 last:mb-0">
+                    <p>
+                      <span className="text-purple-300">{field}</span>
+                      <span className="text-gray-500">: Array ({values?.length || 0})</span>
+                    </p>
+                    {(values || []).map((item, index) => (
+                      <p key={`${field}-${index}`} className="pl-4 text-green-300">
+                        {index}: &quot;{item}&quot;
+                      </p>
+                    ))}
+                    {!values?.length && <p className="pl-4 text-gray-500">(empty)</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {newClientDiscoverySaveStatus === 'error' && newClientDiscoverySaveError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              {newClientDiscoverySaveError}
+            </div>
+          )}
+
+          {newClientDiscoverySaveStatus === 'success' && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              <CheckCircle className="h-4 w-4 flex-shrink-0" />
+              Saved to users.users credentials for {newClientDiscoveryForm.dbName}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button
+              onClick={handleDiscoverNewClientTaxonomy}
+              disabled={newClientDiscoveryStatus === 'loading' || !newClientDiscoveryForm.url.trim()}
+              className="w-full py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+            >
+              {newClientDiscoveryStatus === 'loading' ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Discovering...</>
+              ) : (
+                'Discover from URL'
+              )}
+            </button>
+            <button
+              onClick={handleSaveNewClientTaxonomy}
+              disabled={newClientDiscoverySaveStatus === 'loading' || !newClientDiscoveryResult?.discovery || !newClientDiscoveryForm.dbName.trim()}
+              className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+            >
+              {newClientDiscoverySaveStatus === 'loading' ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+              ) : (
+                'Save to users.users'
+              )}
+            </button>
+            <button
+              onClick={handleApplyNewClientDiscovery}
+              disabled={!newClientDiscoveryResult?.discovery}
+              className="w-full py-3 bg-gray-900 text-white rounded-lg hover:bg-black disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-sm"
+            >
+              Fill form fields
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Discover only previews filters. Save writes credentials.categories, credentials.type, and credentials.softCategories — updating an existing user or creating one if dbName is new.
+          </p>
         </div>
       </div>
 
@@ -2055,6 +2465,176 @@ export default function AdminPanel({ session }) {
         </div>
       </div>
 
+      {/* Public Catalog Import */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+        <div className="border-b border-gray-100 p-5">
+          <h2 className="text-lg font-semibold text-gray-800">Public Catalog Import</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Import products directly from a public Shopify products.json URL or WooCommerce Store API (wc/store/v1, with prices and stock).
+          </p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Platform</label>
+              <div className="flex gap-2">
+                {[{
+                  id: 'shopify',
+                  label: 'Shopify',
+                  platform: 'shopify',
+                  fetchType: 'default'
+                }, {
+                  id: 'woocommerce',
+                  label: 'WooCommerce (WooCommerce API)',
+                  platform: 'woocommerce',
+                  fetchType: 'default'
+                }, {
+                  id: 'woocommerce-semantix',
+                  label: 'WooCommerce (Semantix Endpoint)',
+                  platform: 'woocommerce',
+                  fetchType: 'semantix-custom'
+                }].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPublicImportForm(form => ({
+                      ...form,
+                      platform: opt.platform,
+                      fetchType: opt.fetchType,
+                      // Clear auth fields if not semantix-custom
+                      ...(opt.fetchType !== 'semantix-custom' && { username: '', password: '' })
+                    }))}
+                    className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                      publicImportForm.platform === opt.platform && publicImportForm.fetchType === opt.fetchType
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Catalog URL</label>
+              <input
+                type="text"
+                value={publicImportForm.url}
+                onChange={e => setPublicImportForm(form => ({ ...form, url: e.target.value }))}
+                placeholder={publicImportForm.platform === 'shopify'
+                  ? 'https://shlomitofir.co.il/products.json'
+                  : (publicImportForm.fetchType === 'semantix-custom'
+                    ? 'https://yourshop.com/wp-json/semantix/v1/public-products'
+                    : 'https://miregolan.co.il/')
+                }
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm text-sm font-mono"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">DB Name</label>
+              <input
+                type="text"
+                value={publicImportForm.dbName}
+                onChange={e => setPublicImportForm(form => ({ ...form, dbName: e.target.value.replace(/\s/g, '-') }))}
+                onKeyDown={e => e.key === 'Enter' && handlePublicCatalogImport()}
+                placeholder="client-products-db"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm text-sm font-mono"
+                dir="ltr"
+              />
+            </div>
+          </div>
+
+          {publicImportForm.fetchType === 'semantix-custom' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Basic Auth Username</label>
+                <input
+                  type="text"
+                  value={publicImportForm.username}
+                  onChange={e => setPublicImportForm(form => ({ ...form, username: e.target.value }))}
+                  placeholder="shoofra-ext"
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm text-sm font-mono"
+                  dir="ltr"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Basic Auth Password</label>
+                <input
+                  type="password"
+                  value={publicImportForm.password}
+                  onChange={e => setPublicImportForm(form => ({ ...form, password: e.target.value }))}
+                  placeholder="********"
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm text-sm font-mono"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+          )}
+
+          {publicImportStatus === 'error' && publicImportError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              {publicImportError}
+            </div>
+          )}
+
+          {publicImportStatus === 'success' && publicImportResult && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              <CheckCircle className="h-4 w-4 flex-shrink-0" />
+              Upserted {publicImportResult.saved ?? publicImportResult.total ?? 0} products to {publicImportResult.dbName}.products
+              {(publicImportResult.modified != null || publicImportResult.inserted != null) && (
+                <span className="text-green-800">
+                  {' '}({publicImportResult.modified ?? 0} updated, {publicImportResult.inserted ?? 0} new)
+                </span>
+              )}
+            </div>
+          )}
+
+          {(publicImportStatus === 'loading' || publicImportLogs.length > 0) && (
+            <div className="bg-gray-900 rounded-lg p-4 max-h-72 overflow-y-auto">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Import Logs</h4>
+                {publicImportStatus === 'loading' && (
+                  <span className="flex items-center text-xs text-yellow-400">
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Running
+                  </span>
+                )}
+              </div>
+              <div className="space-y-0.5 font-mono text-xs">
+                {publicImportLogs.length === 0 && publicImportStatus === 'loading' && (
+                  <p className="text-gray-500">Waiting for first logs...</p>
+                )}
+                {publicImportLogs.map((log, i) => (
+                  <p key={i} className={`${log.includes('❌') ? 'text-red-400' :
+                    log.includes('✅') ? 'text-green-400' :
+                      log.includes('⚠️') ? 'text-yellow-400' :
+                        log.includes('💾') ? 'text-blue-300' :
+                          'text-gray-300'
+                    }`}>
+                    {log}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handlePublicCatalogImport}
+            disabled={publicImportStatus === 'loading' || !publicImportForm.url.trim() || !publicImportForm.dbName.trim()}
+            className="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+          >
+            {publicImportStatus === 'loading' ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Importing...</>
+            ) : (
+              'Import Public Catalog'
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* User Lookup Section */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
         <div className="border-b border-gray-100 p-5">
@@ -2210,13 +2790,13 @@ export default function AdminPanel({ session }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Product Types (comma-separated)
+                type (comma-separated, strict & small)
               </label>
               <input
                 type="text"
                 value={productTypes}
                 onChange={(e) => setProductTypes(e.target.value)}
-                placeholder="e.g., כשר, מבצע"
+                placeholder="e.g., כשר, מהדרין, גברים, נשים"
                 className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
               />
             </div>
@@ -4226,6 +4806,23 @@ export default function AdminPanel({ session }) {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Skeleton Loading Text</label>
+                  <input
+                    type="text"
+                    value={siteConfig.skeleton?.loadingText || ''}
+                    onChange={(e) => setSiteConfig({
+                      ...siteConfig,
+                      skeleton: {
+                        ...siteConfig.skeleton,
+                        loadingText: e.target.value
+                      }
+                    })}
+                    placeholder="Loading AI recommendations..."
+                    className="w-full p-2 border border-purple-200 rounded text-sm"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-xs font-medium text-purple-700 mb-1">Logo Size (px)</label>
                   <input
                     type="number"
@@ -5044,7 +5641,8 @@ export default function AdminPanel({ session }) {
                 { key: 'reprocessVariants', label: 'Variants', description: 'Reprocess product variants (sizes, colors)' },
                 { key: 'reprocessEmbeddings', label: 'Embeddings', description: 'Regenerate vector embeddings' },
                 { key: 'reprocessDescriptions', label: 'Descriptions', description: 'Retranslate and enrich descriptions' },
-                { key: 'translateBeforeEmbedding', label: 'Translation', description: 'Translate to English before embedding' }
+                { key: 'translateBeforeEmbedding', label: 'Translation', description: 'Translate the full description to English before embedding' },
+                { key: 'appendTranslatedNameToName', label: 'Append English Name to Product Name', description: 'Store the name as one string: Original name | English name' }
               ].map(({ key, label, description }) => (
                 <div key={key} className="flex items-start space-x-3 space-x-reverse">
                   <input

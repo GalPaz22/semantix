@@ -49,7 +49,8 @@ export async function POST(request) {
         ]);
 
         // Inject/zero-results click → cart cross-reference (separated by source)
-        // Matching strategy: product id/name + timestamp proximity (click happened up to 2 hours before cart add)
+        // Matching strategy: session_id (when both sides have one) + product id/name
+        //                    + timestamp proximity (click must precede cart add by ≤2 h)
         let zeroResultsCartCount = 0;
         let zeroResultsCartSessions = 0;
         let zeroResultsCartValue = 0;
@@ -80,57 +81,107 @@ export async function POST(request) {
 
             const TIME_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+            // Always apply a time filter on clicks even when no dashboard date range is set,
+            // to avoid loading the entire historical clicks collection.
+            const clickTimeFilter = Object.keys(clicksDateFilter).length > 0
+                ? clicksDateFilter
+                : (() => {
+                      // Default: clicks from the last 90 days
+                      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+                      return { $or: [
+                          { timestamp: { $gte: since } },
+                          { created_at: { $gte: since } },
+                      ]};
+                  })();
+
             const allInjectClicks = await db.collection("product_clicks")
                 .find(
-                    { ...clicksDateFilter, source: { $in: ["zero-results", "inject"] } },
+                    { ...clickTimeFilter, source: { $in: ["zero-results", "inject"] } },
                     { projection: { session_id: 1, product_id: 1, product_name: 1, source: 1, timestamp: 1, time: 1, event_time: 1, search_query: 1 } }
                 )
                 .toArray();
 
             console.log(`[inject] cart items: ${cart.length}, inject/zero-results clicks in range: ${allInjectClicks.length}`);
 
+            // ── Build click index for O(1) product lookup instead of O(N×M) scan ──
+            // Index by stringified product_id and by product_name
+            const clicksByProductId   = {}; // "123" → [click, ...]
+            const clicksByProductName = {}; // "Wine X" → [click, ...]
+            for (const click of allInjectClicks) {
+                if (click.product_id) {
+                    const key = String(click.product_id);
+                    if (!clicksByProductId[key]) clicksByProductId[key] = [];
+                    clicksByProductId[key].push(click);
+                }
+                if (click.product_name) {
+                    const key = click.product_name;
+                    if (!clicksByProductName[key]) clicksByProductName[key] = [];
+                    clicksByProductName[key].push(click);
+                }
+            }
+
             const zeroMatchedSessions = new Set();
             const injectMatchedSessions = new Set();
 
             for (const cartItem of cart) {
-                const cartTime = getItemTime(cartItem);
+                const cartTime      = getItemTime(cartItem);
                 const cartProductId = cartItem.product_id ? String(cartItem.product_id) : null;
-                const cartName = cartItem.product_name || cartItem.name || null;
+                const cartName      = cartItem.product_name || cartItem.name || null;
+                const cartSessionId = cartItem.session_id || null;
+                if (cartTime === null) continue;
 
-                for (const click of allInjectClicks) {
-                    const clickTime = getItemTime(click);
-                    if (clickTime === null || cartTime === null) continue;
+                // Candidate clicks: union of id-matched and name-matched
+                const candidateSet = new Set();
+                if (cartProductId && clicksByProductId[cartProductId]) {
+                    for (const c of clicksByProductId[cartProductId]) candidateSet.add(c);
+                }
+                if (cartName && clicksByProductName[cartName]) {
+                    for (const c of clicksByProductName[cartName]) candidateSet.add(c);
+                }
+                if (candidateSet.size === 0) continue;
+
+                let bestClick = null;
+                for (const click of candidateSet) {
+                    const clickTime      = getItemTime(click);
+                    const clickSessionId = click.session_id || null;
+
+                    if (clickTime === null) continue;
+                    // Click must happen BEFORE the cart add, within the time window
                     if (clickTime > cartTime || cartTime - clickTime > TIME_WINDOW_MS) continue;
 
-                    const clickProductId = click.product_id ? String(click.product_id) : null;
-                    const clickName = click.product_name || null;
+                    // Session guard: if both sides have a session_id they MUST match.
+                    // If either side lacks a session_id, fall back to time+product match only.
+                    if (cartSessionId && clickSessionId && cartSessionId !== clickSessionId) continue;
 
-                    const idMatch = cartProductId && clickProductId && cartProductId === clickProductId;
-                    const nameMatch = cartName && clickName && cartName === clickName;
-
-                    if (idMatch || nameMatch) {
-                        const entry = {
-                            productId: cartProductId,
-                            productName: cartName,
-                            price: cartItem.price ?? null,
-                            product_price: cartItem.product_price ?? null,
-                            cartTime: cartItem.timestamp || cartItem.created_at || null,
-                            clickTime: click.timestamp || click.time || click.event_time || null,
-                            searchQuery: click.search_query || null,
-                            sessionId: cartItem.session_id || click.session_id || null,
-                            source: click.source,
-                        };
-                        if (click.source === "zero-results") {
-                            zeroResultsCartCount++;
-                            if (cartItem.session_id) zeroMatchedSessions.add(cartItem.session_id);
-                            zeroResultsItems.push(entry);
-                        } else if (click.source === "inject") {
-                            injectCartCount++;
-                            if (cartItem.session_id) injectMatchedSessions.add(cartItem.session_id);
-                            injectItems.push(entry);
-                        }
-                        break; // count each cart item once
+                    // Pick the click closest in time to the cart add (most relevant)
+                    if (!bestClick || cartTime - clickTime < cartTime - getItemTime(bestClick)) {
+                        bestClick = click;
                     }
+                }
+
+                if (!bestClick) continue;
+
+                const entry = {
+                    productId:   cartProductId,
+                    productName: cartName,
+                    price:        cartItem.price ?? null,
+                    product_price: cartItem.product_price ?? null,
+                    cartTime:    cartItem.timestamp || cartItem.created_at || null,
+                    clickTime:   bestClick.timestamp || bestClick.time || bestClick.event_time || null,
+                    searchQuery: bestClick.search_query || null,
+                    // Prefer cart session for checkout cross-referencing; fall back to click session
+                    sessionId:   cartSessionId || bestClick.session_id || null,
+                    source:      bestClick.source,
+                };
+
+                if (bestClick.source === "zero-results") {
+                    zeroResultsCartCount++;
+                    if (cartSessionId) zeroMatchedSessions.add(cartSessionId);
+                    zeroResultsItems.push(entry);
+                } else if (bestClick.source === "inject") {
+                    injectCartCount++;
+                    if (cartSessionId) injectMatchedSessions.add(cartSessionId);
+                    injectItems.push(entry);
                 }
             }
             zeroResultsCartSessions = zeroMatchedSessions.size;
@@ -271,10 +322,23 @@ export async function POST(request) {
                     }
 
                     if (matchedCo) {
-                        // Price preference: sub-item price → cart_total → top-level price → fallback
-                        const rawPrice = (matchedSubItem?.price ?? matchedSubItem?.product_price) ??
-                                         matchedCo.cart_total ?? matchedCo.price ?? matchedCo.product_price ?? item.price ?? null;
-                        const p = parseFloat(String(rawPrice ?? "").replace(/[^0-9.]/g, "")) || item.price || 0;
+                        // Price preference:
+                        //   1. sub-item price (exact per-product price from cart_items/products array)
+                        //   2. top-level product_price on the checkout event
+                        //   3. the already-enriched ATC item price
+                        //   4. cart_total only as last resort (it covers the whole order, not one product)
+                        const subPrice = matchedSubItem
+                            ? parseFloat(String(matchedSubItem.price ?? matchedSubItem.product_price ?? "").replace(/[^0-9.]/g, ""))
+                            : NaN;
+                        const coTopPrice = parseFloat(String(matchedCo.product_price ?? matchedCo.price ?? "").replace(/[^0-9.]/g, ""));
+                        const atcPrice   = parseFloat(String(item.price ?? "").replace(/[^0-9.]/g, ""));
+                        const cartTotal  = parseFloat(String(matchedCo.cart_total ?? "").replace(/[^0-9.]/g, ""));
+
+                        const p = (!isNaN(subPrice)    && subPrice    > 0) ? subPrice    :
+                                  (!isNaN(coTopPrice)  && coTopPrice  > 0) ? coTopPrice  :
+                                  (!isNaN(atcPrice)    && atcPrice    > 0) ? atcPrice    :
+                                  (!isNaN(cartTotal)   && cartTotal   > 0) ? cartTotal   : 0;
+
                         checkoutItems.push({ ...item, checkoutTime: matchedCo.timestamp || matchedCo.created_at || null, checkoutPrice: p });
                     }
                 }

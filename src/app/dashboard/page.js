@@ -8,6 +8,7 @@ import ProductsPanel from '../components/ProductsPanel';
 import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
 import AdminPanel from '../components/AdminPanel';
 import DemoPanel from '../components/DemoPanel';
+import DataAgentPanel from '../components/DataAgentPanel';
 // Import the subscription-related components at the top
 import { useUserDetails } from '../hooks/useUserDetails';
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
@@ -49,7 +50,8 @@ import {
   MousePointer2,
   Zap,
   Star,
-  Activity
+  Activity,
+  Sparkles
 } from "lucide-react";
 
 
@@ -2376,8 +2378,10 @@ function ApiKeyPanel({ session, onboarding }) {
 }
 
 /* -------- tiny helper so sidebar labels & panels stay together ---- */
+const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
+  { id: "agent", label: "סוכן נתונים", component: DataAgentPanel, icon: Sparkles, adminOnly: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
@@ -2393,6 +2397,8 @@ const PANELS = [
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL;
+  const availablePanels = PANELS.filter(panel => !panel.adminOnly || isAdmin);
   const [active, setActive] = useState("analytics");
   const [onboarding, setOnboarding] = useState(null);
   const [loadingOnboarding, setLoadingOnboarding] = useState(true);
@@ -2452,12 +2458,18 @@ export default function DashboardPage() {
     const tabParam = params.get('tab');
 
     // Handle both 'panel' and 'tab' parameters
-    if (panelParam && PANELS.some(p => p.id === panelParam)) {
+    if (panelParam && availablePanels.some(p => p.id === panelParam)) {
       setActive(panelParam);
-    } else if (tabParam && PANELS.some(p => p.id === tabParam)) {
+    } else if (tabParam && availablePanels.some(p => p.id === tabParam)) {
       setActive(tabParam);
     }
-  }, []);
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!availablePanels.some(panel => panel.id === active)) {
+      setActive("analytics");
+    }
+  }, [active, isAdmin]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -2536,8 +2548,8 @@ export default function DashboardPage() {
     return null;
   }
 
-  const Panel = PANELS.find(p => p.id === active)?.component ?? (() => null);
-  const ActiveIcon = PANELS.find(p => p.id === active)?.icon || LayoutDashboard;
+  const Panel = availablePanels.find(p => p.id === active)?.component ?? AnalyticsPanel;
+  const ActiveIcon = availablePanels.find(p => p.id === active)?.icon || LayoutDashboard;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2640,7 +2652,7 @@ export default function DashboardPage() {
         {/* Nav items */}
         <div className="flex-1 px-4 py-6 overflow-y-auto">
           <nav className="space-y-1">
-            {PANELS.map((item) =>
+            {availablePanels.map((item) =>
               item.external ? (
                 <Link
                   key={item.id}
@@ -2709,7 +2721,7 @@ export default function DashboardPage() {
                 >
                   <ActiveIcon className="h-5 w-5 text-indigo-600" />
                   <span className="text-sm font-medium max-w-[120px] truncate">
-                    {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
+                    {availablePanels.find(p => p.id === active)?.label || "לוח בקרה"}
                   </span>
                   <ChevronDown className={`h-4 w-4 transition-transform ${mobileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -2726,7 +2738,7 @@ export default function DashboardPage() {
                     {/* Dropdown content */}
                     <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-[70]" style={{ direction: 'rtl' }}>
                       <div className="py-2">
-                        {PANELS.map((item) =>
+                        {availablePanels.map((item) =>
                           item.external ? (
                             <Link
                               key={item.id}
@@ -2767,7 +2779,7 @@ export default function DashboardPage() {
               <div className="hidden sm:flex items-center ml-2">
                 <ActiveIcon className="h-6 w-6 text-indigo-600 mr-2" />
                 <h2 className="text-lg font-medium text-gray-800">
-                  {PANELS.find(p => p.id === active)?.label || "לוח בקרה"}
+                  {availablePanels.find(p => p.id === active)?.label || "לוח בקרה"}
                 </h2>
               </div>
             </div>
@@ -2810,4 +2822,3 @@ function useSyncStatus(dbName, enabled) {
   }, [dbName, enabled]);
   return state;
 }
-

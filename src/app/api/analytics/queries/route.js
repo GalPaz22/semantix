@@ -1,6 +1,8 @@
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
+import clientPromise from "../../../../../lib/mongodb";
+import { buildDynamicDateFilter } from "../../../../../lib/analytics-helper";
 
 export async function POST(request) {
     try {
@@ -10,10 +12,65 @@ export async function POST(request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { dbName, startDate, endDate } = await request.json();
+        const { dbName, startDate, endDate, complexOnly = false, limit } = await request.json();
 
         if (!dbName) {
             return Response.json({ error: "Missing dbName" }, { status: 400 });
+        }
+
+        if (complexOnly) {
+            const client = await clientPromise;
+            const db = client.db(dbName);
+            const match = {
+                $or: [
+                    { isComplex: true },
+                    { isComplex: "true" },
+                    { isComplicated: true },
+                    { isComplicated: "true" }
+                ]
+            };
+
+            if (startDate && endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                const dateFilter = await buildDynamicDateFilter(
+                    db,
+                    "queries",
+                    startDate,
+                    end.toISOString()
+                );
+                Object.assign(match, dateFilter);
+            }
+
+            const queryLimit = Number.isFinite(Number(limit))
+                ? Math.min(Math.max(Number(limit), 1), 100000)
+                : 100000;
+            const queries = await db.collection("queries").aggregate([
+                { $match: match },
+                { $sort: { timestamp: -1 } },
+                {
+                    $project: {
+                        query: 1,
+                        timestamp: 1,
+                        isComplex: 1,
+                        isComplicated: 1,
+                        resultsCount: {
+                            $size: { $ifNull: ["$deliveredProducts", []] }
+                        }
+                    }
+                },
+                { $limit: queryLimit }
+            ]).toArray();
+
+            return Response.json({
+                queries,
+                meta: {
+                    total: queries.length,
+                    filtered: queries.length,
+                    complexOnly: true,
+                    range: { startDate, endDate }
+                }
+            });
         }
 
         // 2. Fetch from External API

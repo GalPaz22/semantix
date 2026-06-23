@@ -6,7 +6,8 @@ import {
 } from 'recharts';
 import {
   BarChart3, Download, Search, ChevronDown, Calendar,
-  TrendingUp, ShoppingCart, DollarSign, MousePointer2, Zap
+  TrendingUp, ShoppingCart, DollarSign, MousePointer2, Zap,
+  Sparkles, ArrowLeft, CheckCircle2
 } from "lucide-react";
 
 // ─── constants used by isComplex / isUpsell ───────────────────────────────────
@@ -157,6 +158,627 @@ function formatCurrency(v) {
   return `₪${(v||0).toLocaleString("he-IL",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 }
 
+function isExplicitlyComplicated(query) {
+  return query?.isComplex === true || query?.isComplex === "true" ||
+    query?.isComplicated === true || query?.isComplicated === "true";
+}
+
+function eventQueryText(event) {
+  return trimAndNormalize(event?.search_query || event?.query || "").toLowerCase();
+}
+
+function eventRevenue(event, preferCartTotal = false) {
+  const quantity = Number(event?.quantity) || 1;
+  const cartTotal = normalizePrice(event?.cart_total ?? event?.order_total ?? event?.total);
+  const productTotal = normalizePrice(event?.product_price ?? event?.price) * quantity;
+  return preferCartTotal && cartTotal > 0 ? cartTotal : productTotal || cartTotal;
+}
+
+function purchaseProductNames(event) {
+  const nestedProducts = [
+    ...(Array.isArray(event?.products) ? event.products : []),
+    ...(Array.isArray(event?.cart_items) ? event.cart_items : []),
+    ...(Array.isArray(event?.line_items) ? event.line_items : []),
+  ];
+  const names = nestedProducts
+    .map(product => product?.product_name || product?.name || product?.title)
+    .filter(Boolean);
+  const topLevelName = event?.product_name || event?.name || event?.product;
+  if (topLevelName) names.unshift(topLevelName);
+  return [...new Set(names)];
+}
+
+function ArikImpactPanel({
+  session,
+  queries,
+  cartAnalytics,
+  checkoutEvents,
+  loading,
+  error,
+  periodLabel,
+  timePeriodOpen,
+  setTimePeriodOpen,
+  timePeriods,
+  selectedTimePeriod,
+  onTimePeriodChange,
+  onDownload,
+  cachedImpact,
+  cacheMeta,
+}) {
+  const queryLogPageSize = 15;
+  const [queryLogPage, setQueryLogPage] = useState(1);
+  const [queryLogOpen, setQueryLogOpen] = useState(false);
+  const [purchasesExpanded, setPurchasesExpanded] = useState(false);
+
+  const calculatedImpact = useMemo(() => {
+    const complicatedQueries = queries
+      .filter(isExplicitlyComplicated)
+      .slice()
+      .sort((a, b) => parseEventTime(b.timestamp) - parseEventTime(a.timestamp));
+    const rows = complicatedQueries.map((query, index) => ({
+      ...query,
+      impactKey: `${query._id || query.timestamp || "query"}:${index}`,
+      normalizedQuery: trimAndNormalize(query.query).toLowerCase(),
+      queryTime: parseEventTime(query.timestamp || query.created_at),
+      cartCount: 0,
+      cartRevenue: 0,
+      checkoutCount: 0,
+    }));
+    const rowsByText = new Map();
+    rows.forEach(row => {
+      if (!row.normalizedQuery) return;
+      const matches = rowsByText.get(row.normalizedQuery) || [];
+      matches.push(row);
+      rowsByText.set(row.normalizedQuery, matches);
+    });
+
+    const ATTRIBUTION_WINDOW = 2 * 60 * 60 * 1000;
+    const attributedRow = event => {
+      const candidates = rowsByText.get(eventQueryText(event)) || [];
+      if (!candidates.length) return null;
+      const eventTime = parseEventTime(event.timestamp || event.created_at);
+      if (!eventTime) return candidates[0];
+      for (const row of candidates) {
+        if (row.queryTime && row.queryTime <= eventTime && eventTime - row.queryTime <= ATTRIBUTION_WINDOW) {
+          return row;
+        }
+      }
+      return null;
+    };
+
+    const matchingCart = [];
+    const attributedRowsBySession = new Map();
+    cartAnalytics.forEach(event => {
+      const row = attributedRow(event);
+      if (!row) return;
+      matchingCart.push(event);
+      row.cartCount += 1;
+      row.cartRevenue += eventRevenue(event);
+      if (event.session_id) attributedRowsBySession.set(String(event.session_id), row);
+    });
+
+    const checkoutKeys = new Set();
+    const purchases = [];
+    let checkoutRevenue = 0;
+    checkoutEvents.forEach((event, index) => {
+      const row = attributedRow(event) ||
+        (event.session_id ? attributedRowsBySession.get(String(event.session_id)) : null);
+      if (!row) return;
+      const queryKey = eventQueryText(event);
+      const timestamp = parseEventTime(event.timestamp || event.created_at);
+      const fallbackBucket = timestamp ? Math.floor(timestamp / (5 * 60 * 1000)) : index;
+      const orderKey = event.order_id || event.orderId || event.checkout_id ||
+        `${queryKey}:${event.product_id || event.product_name || "checkout"}:${fallbackBucket}`;
+      if (checkoutKeys.has(orderKey)) return;
+      checkoutKeys.add(orderKey);
+      const revenue = eventRevenue(event, true);
+      checkoutRevenue += revenue;
+      row.checkoutCount += 1;
+      purchases.push({
+        key: orderKey,
+        query: row.query || event.search_query || "—",
+        products: purchaseProductNames(event),
+        revenue,
+        orderId: event.order_id || event.orderId || event.checkout_id || null,
+        timestamp: timestamp || row.queryTime,
+      });
+    });
+
+    const rescuedWithCart = rows.filter(row => row.cartCount > 0).length;
+    const rescuedWithCheckout = rows.filter(row => row.checkoutCount > 0).length;
+    const cartRevenue = matchingCart.reduce((sum, event) => sum + eventRevenue(event), 0);
+
+    const dailyMap = new Map();
+    complicatedQueries.forEach(query => {
+      const timestamp = parseEventTime(query.timestamp);
+      if (!timestamp) return;
+      const date = new Date(timestamp);
+      const key = date.toISOString().slice(0, 10);
+      const current = dailyMap.get(key) || {
+        key,
+        date: date.toLocaleDateString("he-IL", { day: "numeric", month: "numeric" }),
+        queries: 0,
+        cart: 0,
+        checkout: 0,
+      };
+      current.queries += 1;
+      dailyMap.set(key, current);
+    });
+    rows.forEach(row => {
+      const timestamp = parseEventTime(row.timestamp);
+      if (!timestamp) return;
+      const key = new Date(timestamp).toISOString().slice(0, 10);
+      const current = dailyMap.get(key);
+      if (!current) return;
+      current.cart += row.cartCount;
+      current.checkout += row.checkoutCount;
+    });
+
+    const searchGroups = new Map();
+    rows.forEach(row => {
+      if (!row.normalizedQuery) return;
+      const current = searchGroups.get(row.normalizedQuery) || {
+        query: row.query,
+        searches: 0,
+        cart: 0,
+        checkout: 0,
+        latest: 0,
+      };
+      current.searches += 1;
+      current.cart += row.cartCount;
+      current.checkout += row.checkoutCount;
+      current.latest = Math.max(current.latest, row.queryTime || 0);
+      searchGroups.set(row.normalizedQuery, current);
+    });
+
+    const topSearches = Array.from(searchGroups.values())
+      .sort((a, b) => b.searches - a.searches || b.latest - a.latest)
+      .slice(0, 8);
+    const opportunities = Array.from(searchGroups.values())
+      .filter(item => item.cart === 0 && item.checkout === 0)
+      .sort((a, b) => b.searches - a.searches || b.latest - a.latest)
+      .slice(0, 8);
+
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const productGroups = new Map();
+    purchases
+      .filter(purchase => purchase.timestamp >= weekAgo)
+      .forEach(purchase => {
+        purchase.products.forEach(productName => {
+          const key = trimAndNormalize(productName).toLowerCase();
+          if (!key) return;
+          const current = productGroups.get(key) || { name: productName, purchases: 0 };
+          current.purchases += 1;
+          productGroups.set(key, current);
+        });
+      });
+    const topProductsThisWeek = Array.from(productGroups.values())
+      .sort((a, b) => b.purchases - a.purchases)
+      .slice(0, 8);
+
+    return {
+      complicatedQueries,
+      complexQueryCount: complicatedQueries.length,
+      rows,
+      matchingCart,
+      addToCartCount: matchingCart.length,
+      checkoutCount: checkoutKeys.size,
+      rescuedWithCart,
+      rescuedWithCheckout,
+      cartRevenue,
+      checkoutRevenue,
+      totalValue: checkoutRevenue > 0 ? checkoutRevenue : cartRevenue,
+      purchases: purchases.sort((a, b) => b.timestamp - a.timestamp),
+      topProductsThisWeek,
+      topSearches,
+      opportunities,
+      daily: Array.from(dailyMap.values()).sort((a, b) => a.key.localeCompare(b.key)).slice(-14),
+    };
+  }, [queries, cartAnalytics, checkoutEvents]);
+
+  const impact = useMemo(() => {
+    if (!cachedImpact) return calculatedImpact;
+    const cachedRows = cachedImpact.rows || [];
+    const cachedByKey = new Map(
+      cachedRows.map(row => [String(row._id || `${row.query}:${row.timestamp}`), row])
+    );
+    const liveRows = queries.map((query, index) => {
+      const key = String(query._id || `${query.query}:${query.timestamp}`);
+      return cachedByKey.get(key) || {
+        ...query,
+        impactKey: `${key}:${index}`,
+        cartCount: 0,
+        cartRevenue: 0,
+        checkoutCount: 0,
+      };
+    });
+    const merged = new Map(cachedRows.map(row => [
+      String(row._id || `${row.query}:${row.timestamp}`),
+      row,
+    ]));
+    liveRows.forEach(row => merged.set(String(row._id || `${row.query}:${row.timestamp}`), row));
+    return {
+      ...cachedImpact,
+      complicatedQueries: Array.from(merged.values()),
+      rows: Array.from(merged.values())
+        .sort((a, b) => parseEventTime(b.timestamp) - parseEventTime(a.timestamp)),
+      matchingCart: [],
+    };
+  }, [cachedImpact, calculatedImpact, queries]);
+
+  useEffect(() => {
+    setQueryLogPage(1);
+  }, [selectedTimePeriod]);
+
+  const queryLogTotalPages = Math.max(1, Math.ceil(impact.rows.length / queryLogPageSize));
+  const queryLogRows = impact.rows.slice(
+    (queryLogPage - 1) * queryLogPageSize,
+    queryLogPage * queryLogPageSize
+  );
+
+  const kpis = [
+    {
+      icon: ShoppingCart,
+      label: "הוספות לעגלה",
+      value: (impact.addToCartCount || 0).toLocaleString("he-IL"),
+      sub: `${impact.rescuedWithCart.toLocaleString("he-IL")} שאילתות מורכבות הובילו לעגלה`,
+      color: "from-emerald-400 to-teal-500",
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+    },
+    {
+      icon: Sparkles,
+      label: "שאילתות מורכבות שניצלו",
+      value: (impact.complexQueryCount || 0).toLocaleString("he-IL"),
+      sub: "שאילתות שהיו עלולות להסתיים ללא תוצאות",
+      color: "from-violet-500 to-indigo-600",
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-600",
+    },
+    {
+      icon: DollarSign,
+      label: "ערך מסחרי שיוחס",
+      value: formatCurrency(impact.totalValue),
+      sub: impact.checkoutRevenue > 0 ? "שווי Checkout משאילתות מורכבות" : "שווי עגלות משאילתות מורכבות",
+      color: "from-amber-400 to-orange-500",
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-600",
+    },
+  ];
+
+  return (
+    <div className="w-full space-y-6" dir="rtl">
+      <section className="relative overflow-hidden rounded-[28px] border border-gray-200 bg-white text-gray-950 shadow-[0_24px_70px_-38px_rgba(15,23,42,0.35)]">
+        <div className="absolute inset-x-0 top-0 h-1 bg-red-600" />
+        <div className="absolute -left-24 -top-28 h-72 w-72 rounded-full bg-gray-100/80 blur-3xl" />
+        <div className="absolute -bottom-36 right-12 h-72 w-72 rounded-full bg-red-50/70 blur-3xl" />
+        <div className="relative px-6 py-7 lg:px-10 lg:py-10">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="max-w-3xl">
+              <p className="text-sm font-bold text-gray-500">הכנסות שיוחסו ל־Semantix</p>
+              <div className="mt-2">
+                <p className="text-6xl font-black tabular-nums tracking-[-0.06em] text-gray-950 sm:text-7xl lg:text-8xl">
+                  {formatCurrency(impact.checkoutRevenue)}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <span className="rounded-full bg-gray-950 px-4 py-2 text-sm font-black text-white">
+                    {impact.checkoutCount.toLocaleString("he-IL")} עסקאות
+                  </span>
+                  <span className="text-sm font-semibold text-gray-500">
+                    ב־{periodLabel}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start">
+              {(impact.complexQueryCount || 0) > 0 && (
+                <button onClick={onDownload}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
+                  <Download className="h-3.5 w-3.5" />ייצוא CSV
+                </button>
+              )}
+              <div className="relative">
+                <button onClick={() => setTimePeriodOpen(!timePeriodOpen)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-950 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-gray-800">
+                  <Calendar className="h-3.5 w-3.5 text-red-400" />
+                  {periodLabel}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${timePeriodOpen ? "rotate-180" : ""}`} />
+                </button>
+                {timePeriodOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setTimePeriodOpen(false)} />
+                    <div className="absolute top-full left-0 mt-2 w-48 rounded-xl bg-white p-1.5 text-slate-800 shadow-xl z-20">
+                      {timePeriods.map(period => (
+                        <button key={period.value} onClick={() => onTimePeriodChange(period)}
+                          className={`w-full px-3 py-2 text-right rounded-lg text-sm flex items-center justify-between ${selectedTimePeriod === period.value ? "bg-red-50 text-red-700 font-bold" : "hover:bg-slate-50"}`}>
+                          <span>{period.label}</span>
+                          {selectedTimePeriod === period.value && <span className="h-2 w-2 rounded-full bg-red-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 gap-3 border-t border-gray-200 pt-6 sm:grid-cols-3">
+            {[
+              ["רכישות דרך Semantix", impact.checkoutCount, "bg-red-600"],
+              ["שאילתות שהובילו לרכישה", impact.rescuedWithCheckout, "bg-gray-950"],
+              ["הוספות לעגלה", impact.addToCartCount || 0, "bg-gray-400"],
+            ].map(([label, value, color], index) => (
+              <div key={label} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                <div className={`h-2.5 w-2.5 rounded-full ${color}`} />
+                <div>
+                  <p className="text-2xl font-black tabular-nums text-gray-950">{Number(value).toLocaleString("he-IL")}</p>
+                  <p className="text-xs font-medium text-gray-500">{label}</p>
+                </div>
+                {index < 2 && <ArrowLeft className="mr-auto hidden h-4 w-4 text-gray-300 sm:block" />}
+              </div>
+            ))}
+          </div>
+          {cacheMeta?.generatedAt && (
+            <p className="mt-4 text-[11px] font-medium text-gray-400">
+              עודכן לאחרונה {new Date(cacheMeta.generatedAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              {cacheMeta.refreshing ? " · מתרענן ברקע" : ""}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {loading && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-16 text-center shadow-sm">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-100 border-t-violet-500" />
+          <p className="mt-3 text-sm font-medium text-gray-400">טוען את נתוני ההשפעה...</p>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
+          <p className="font-semibold text-red-700">לא הצלחנו לטעון את נתוני האנליטיקה</p>
+          <p className="mt-1 text-sm text-red-500">{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="flex flex-col gap-6">
+          <section className="order-1 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+            <div className="flex flex-col gap-2 border-b border-emerald-100 bg-gradient-to-l from-emerald-50 to-white px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 shadow-sm">
+                  <CheckCircle2 className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-gray-950">רכישות דרך Semantix</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">השאילתה המורכבת והמוצרים שנרכשו בעקבותיה</p>
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black tabular-nums text-emerald-700">
+                  {impact.checkoutCount.toLocaleString("he-IL")}
+                </span>
+                <span className="text-xs font-bold text-emerald-600">רכישות</span>
+              </div>
+            </div>
+
+            {impact.purchases.length === 0 ? (
+              <div className="px-6 py-14 text-center">
+                <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-200" />
+                <p className="mt-3 text-sm font-semibold text-gray-700">אין רכישות מיוחסות בתקופה שנבחרה</p>
+                <p className="mt-1 text-xs text-gray-400">כאשר שאילתה מורכבת תוביל לרכישה, היא תופיע כאן.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {impact.purchases.slice(0, purchasesExpanded ? 50 : 4).map(purchase => (
+                  <div key={purchase.key} className="grid gap-4 px-6 py-4 transition-colors hover:bg-emerald-50/30 md:grid-cols-[1.1fr_1.4fr_auto] md:items-center">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-violet-500">השאילתה</p>
+                      <p className="mt-1 text-sm font-bold text-gray-900">״{purchase.query}״</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">הרכישה</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-800">
+                        {purchase.products.length > 0 ? purchase.products.join(" · ") : "רכישה הושלמה"}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                        {purchase.orderId && <span>הזמנה #{purchase.orderId}</span>}
+                        {purchase.timestamp > 0 && (
+                          <span>{new Date(purchase.timestamp).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:text-left">
+                      <span className="inline-flex rounded-xl bg-emerald-100 px-3 py-2 text-base font-black tabular-nums text-emerald-800">
+                        {purchase.revenue > 0 ? formatCurrency(purchase.revenue) : "נרכש"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {impact.purchases.length > 4 && (
+              <div className="flex justify-center border-t border-emerald-100 bg-emerald-50/30 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setPurchasesExpanded(expanded => !expanded)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-5 py-2.5 text-sm font-bold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-50">
+                  {purchasesExpanded ? "הצג פחות" : `הצג עוד (${impact.purchases.length - 4})`}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${purchasesExpanded ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="order-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {kpis.map(({ icon: Icon, label, value, sub, color, iconBg, iconColor }) => (
+              <div key={label} className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-l ${color}`} />
+                <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
+                  <Icon className={`h-5 w-5 ${iconColor}`} />
+                </div>
+                <p className="text-xs font-semibold text-gray-500">{label}</p>
+                <p className="mt-1 text-3xl font-black tabular-nums text-gray-950">{value}</p>
+                <p className="mt-2 text-xs leading-5 text-gray-400">{sub}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="order-4 grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <SectionCard title="המוצרים המובילים השבוע" subtitle="לפי מספר רכישות שיוחסו לשאילתות מורכבות" icon={ShoppingCart} iconColor="from-emerald-500 to-teal-600">
+              {impact.topProductsThisWeek.length > 0 ? (
+                <div className="space-y-2">
+                  {impact.topProductsThisWeek.map((product, index) => (
+                    <div key={product.name} className="flex items-center gap-3 rounded-xl border border-gray-100 px-3 py-2.5">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-xs font-black text-emerald-700">{index + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">{product.name}</span>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">{product.purchases} רכישות</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="py-12 text-center text-sm text-gray-400">אין עדיין רכישות מיוחסות בשבעת הימים האחרונים.</p>}
+            </SectionCard>
+
+            <SectionCard title="החיפושים המובילים" subtitle="השאילתות המורכבות המבוקשות ביותר ב־30 הימים האחרונים" icon={Search} iconColor="from-violet-500 to-indigo-600">
+              <div className="space-y-2">
+                {impact.topSearches.map((item, index) => (
+                  <div key={`${item.query}-${index}`} className="rounded-xl border border-gray-100 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm font-semibold text-gray-800">״{item.query}״</span>
+                      <span className="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">{item.searches} חיפושים</span>
+                    </div>
+                    {(item.cart > 0 || item.checkout > 0) && (
+                      <p className="mt-1 text-[11px] text-gray-400">{item.cart} לעגלה · {item.checkout} לרכישה</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="הזדמנויות למרצ׳נדייזינג" subtitle="ביקוש חוזר שעדיין לא הפך לעגלה או לרכישה" icon={Sparkles} iconColor="from-amber-500 to-orange-500">
+              {impact.opportunities.length > 0 ? (
+                <div className="space-y-2">
+                  {impact.opportunities.map((item, index) => (
+                    <div key={`${item.query}-${index}`} className="rounded-xl border border-amber-100 bg-amber-50/40 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-gray-800">״{item.query}״</span>
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">{item.searches} חיפושים</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-amber-700">כדאי לבדוק מלאי, תוצאות, בוסט או ניסוח קטגוריה</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="py-12 text-center text-sm text-gray-400">אין כרגע הזדמנויות בולטות ללא המרה.</p>}
+            </SectionCard>
+          </section>
+
+          <section className="order-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setQueryLogOpen(open => !open)}
+              className="flex w-full flex-col gap-3 bg-gradient-to-l from-gray-50 to-white px-6 py-5 text-right transition-colors hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                  <h2 className="text-sm font-bold text-gray-900">לוג השאילתות האחרונות</h2>
+                </div>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {queryLogOpen ? "15 שאילתות בכל עמוד · החדשות ביותר מופיעות ראשונות" : "לחצו לפתיחת הלוג החי"}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-fit rounded-full bg-gray-900 px-3 py-1 text-xs font-bold text-white">
+                  {(impact.complexQueryCount || 0).toLocaleString("he-IL")} שאילתות
+                </span>
+                <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${queryLogOpen ? "rotate-180" : ""}`} />
+              </div>
+            </button>
+
+            {queryLogOpen && (impact.rows.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <Sparkles className="mx-auto h-8 w-8 text-violet-200" />
+                <p className="mt-3 text-sm font-semibold text-gray-700">אין שאילתות מורכבות בתקופה שנבחרה</p>
+                <p className="mt-1 text-xs text-gray-400">אפשר לבחור טווח זמן רחב יותר כדי לראות את ההשפעה המצטברת.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/60 text-[11px] font-semibold text-gray-400">
+                      <th className="px-6 py-3.5 text-right">שאילתה מורכבת</th>
+                      <th className="px-4 py-3.5 text-right">זמן</th>
+                      <th className="px-4 py-3.5 text-center">תוצאות שהוצגו</th>
+                      <th className="px-4 py-3.5 text-center">הוספה לעגלה</th>
+                      <th className="px-4 py-3.5 text-center">Checkout</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {queryLogRows.map((query, index) => {
+                      const resultsCount = typeof query.resultsCount === "number"
+                        ? query.resultsCount
+                        : Array.isArray(query.deliveredProducts) ? query.deliveredProducts.length : null;
+                      return (
+                        <tr key={query.impactKey || index} className="transition-colors hover:bg-violet-50/30">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">מורכבת</span>
+                              <span className="text-sm font-semibold text-gray-900">{query.query || "—"}</span>
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-4 text-xs text-gray-400">
+                            {query.timestamp ? new Date(query.timestamp).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <span className="text-sm font-bold text-gray-700">{resultsCount ?? "—"}</span>
+                            {resultsCount > 0 && <p className="text-[10px] text-violet-500">במקום 0</p>}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {query.cartCount > 0 ? (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">{query.cartCount}</span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {query.checkoutCount > 0 ? (
+                              <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700">{query.checkoutCount}</span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            {queryLogOpen && impact.rows.length > queryLogPageSize && (
+              <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs font-medium text-gray-500">
+                  עמוד {queryLogPage.toLocaleString("he-IL")} מתוך {queryLogTotalPages.toLocaleString("he-IL")}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setQueryLogPage(page => Math.max(1, page - 1))}
+                    disabled={queryLogPage === 1}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">
+                    הקודם
+                  </button>
+                  <span className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">{queryLogPage}</span>
+                  <button
+                    onClick={() => setQueryLogPage(page => Math.min(queryLogTotalPages, page + 1))}
+                    disabled={queryLogPage === queryLogTotalPages}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">
+                    הבא
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function KpiCard({ icon: Icon, label, value, sub, color }) {
@@ -292,6 +914,18 @@ function SourceBadge({ source }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AnalyticsPanel({ session, onboarding }) {
   const onboardDB = onboarding?.credentials?.dbName || onboarding?.dbName || "";
+  const impactPanelEmails = new Set([
+    "arik.oshrat@gmail.com",
+    "kobi@shaked-bros.co.il",
+  ]);
+  const normalizedSessionEmail = String(session?.user?.email || "")
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+  const normalizedUserEmail = normalizedSessionEmail.endsWith("@internal.semantix")
+    ? normalizedSessionEmail.slice(0, -"@internal.semantix".length)
+    : normalizedSessionEmail;
+  const isImpactPanel = impactPanelEmails.has(normalizedUserEmail);
 
   const [queries, setQueries]                   = useState([]);
   const [loading, setLoading]                   = useState(false);
@@ -324,15 +958,19 @@ export default function AnalyticsPanel({ session, onboarding }) {
   const [expandedQueries, setExpandedQueries]   = useState({});
   const [filters, setFilters]                   = useState({category:"",type:"",minPrice:"",maxPrice:""});
   const [categoryOptions, setCategoryOptions]   = useState([]);
+  const [impactSnapshot, setImpactSnapshot]     = useState(null);
+  const [impactCacheMeta, setImpactCacheMeta]   = useState(null);
 
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0];
+    const d = new Date();
+    d.setDate(d.getDate() - (isImpactPanel ? 30 : 7));
+    return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate]         = useState(() => new Date().toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [timePeriodOpen, setTimePeriodOpen]         = useState(false);
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("7d");
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState(isImpactPanel ? "30d" : "7d");
 
   const timePeriods = [
     { value:"today", label:"היום",           days:0   },
@@ -369,17 +1007,58 @@ export default function AnalyticsPanel({ session, onboarding }) {
     if (!onboardDB) return;
     const fetchAll = async () => {
       try {
-        setLoading(true); setLoadingCart(true); setLoadingCheckout(true); setLoadingClicks(true);
+        setLoading(true); setLoadingCart(true); setLoadingCheckout(true); setLoadingClicks(!isImpactPanel);
         setError(""); setCartError(""); setCheckoutError(""); setClickError("");
-        const payload = { dbName:onboardDB, startDate:startDate||null, endDate:endDate||null };
+        if (isImpactPanel) {
+          const days = selectedTimePeriod === "today" ? 1 : selectedTimePeriod === "7d" ? 7 : 30;
+          const response = await fetch("/api/analytics/impact-cache", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "get", days }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Failed to fetch cached analytics");
+          setImpactSnapshot(data.snapshot || null);
+          setImpactCacheMeta(data.meta || null);
+          setQueries(data.snapshot?.rows || []);
+          setCartAnalytics([]);
+          setCheckoutEvents([]);
+          if (data.meta?.stale) {
+            setImpactCacheMeta(meta => ({ ...meta, refreshing: true }));
+            fetch("/api/analytics/impact-cache", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "refresh", days }),
+            })
+              .then(result => result.json())
+              .then(refreshed => {
+                if (!refreshed?.snapshot) return;
+                setImpactSnapshot(refreshed.snapshot);
+                setImpactCacheMeta(refreshed.meta || null);
+                setQueries(refreshed.snapshot.rows || []);
+              })
+              .catch(() => {
+                setImpactCacheMeta(meta => ({ ...meta, refreshing: false }));
+              });
+          }
+          return;
+        }
+        const payload = {
+          dbName:onboardDB,
+          startDate:startDate||null,
+          endDate:endDate||null,
+          complexOnly:isImpactPanel,
+        };
         const [qRes, perfRes, boostRes] = await Promise.all([
           fetch("/api/analytics/queries",         {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),
           fetch("/api/analytics/performance",     {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),
-          fetch("/api/analytics/boosted-products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dbName:onboardDB})}),
+          isImpactPanel
+            ? Promise.resolve(null)
+            : fetch("/api/analytics/boosted-products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dbName:onboardDB})}),
         ]);
         const qData = await qRes.json();
         const perfData = await perfRes.json();
-        const boostData = await boostRes.json();
+        const boostData = boostRes ? await boostRes.json() : { boostedProducts: [] };
         if (!qRes.ok)    throw new Error(qData.error    || "Failed to fetch queries");
         if (!perfRes.ok) throw new Error(perfData.error || "Failed to fetch performance");
         setQueries(qData.queries || []); setHasMoreQueries(false);
@@ -394,11 +1073,15 @@ export default function AnalyticsPanel({ session, onboarding }) {
       finally { setLoading(false); setLoadingCart(false); setLoadingCheckout(false); setLoadingClicks(false); }
     };
     fetchAll();
-  }, [onboardDB, startDate, endDate]);
+  }, [onboardDB, startDate, endDate, isImpactPanel, selectedTimePeriod]);
 
   // Clicks (separate fetch, no date filter)
   useEffect(() => {
-    if (!onboardDB) return;
+    if (!onboardDB || isImpactPanel) {
+      setClickEvents([]);
+      setLoadingClicks(false);
+      return;
+    }
     (async () => {
       setLoadingClicks(true); setClickError("");
       try {
@@ -409,7 +1092,42 @@ export default function AnalyticsPanel({ session, onboarding }) {
       } catch (err) { setClickError(err.message); }
       finally { setLoadingClicks(false); }
     })();
-  }, [onboardDB]);
+  }, [onboardDB, isImpactPanel]);
+
+  // Lightweight live query log refresh for impact panels.
+  useEffect(() => {
+    if (!onboardDB || !isImpactPanel) return;
+    const refreshLatestQueries = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      try {
+        const response = await fetch("/api/analytics/queries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dbName: onboardDB,
+            startDate: startDate || null,
+            endDate: endDate || null,
+            complexOnly: true,
+            limit: 30,
+          }),
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const latest = data.queries || [];
+        if (!latest.length) return;
+        setQueries(previous => {
+          const merged = new Map(previous.map(query => [String(query._id || `${query.query}:${query.timestamp}`), query]));
+          latest.forEach(query => merged.set(String(query._id || `${query.query}:${query.timestamp}`), query));
+          return Array.from(merged.values())
+            .sort((a, b) => parseEventTime(b.timestamp) - parseEventTime(a.timestamp));
+        });
+      } catch {
+        // Keep the current dashboard data when the lightweight refresh is unavailable.
+      }
+    };
+    const interval = setInterval(refreshLatestQueries, 60_000);
+    return () => clearInterval(interval);
+  }, [onboardDB, isImpactPanel, startDate, endDate]);
 
   useEffect(() => {
     const cats = [];
@@ -698,6 +1416,28 @@ export default function AnalyticsPanel({ session, onboarding }) {
   const isDataLoading = loading || loadingCart || loadingCheckout;
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
+  if (isImpactPanel) {
+    return (
+      <ArikImpactPanel
+        session={session}
+        queries={filteredQueries}
+        cartAnalytics={cartAnalytics}
+        checkoutEvents={checkoutEvents}
+        loading={isDataLoading}
+        error={error || cartError || checkoutError}
+        periodLabel={getCurrentTimePeriodLabel()}
+        timePeriodOpen={timePeriodOpen}
+        setTimePeriodOpen={setTimePeriodOpen}
+        timePeriods={timePeriods.filter(period => ["today", "7d", "30d"].includes(period.value))}
+        selectedTimePeriod={selectedTimePeriod}
+        onTimePeriodChange={handleTimePeriodChange}
+        onDownload={downloadCSV}
+        cachedImpact={impactSnapshot}
+        cacheMeta={impactCacheMeta}
+      />
+    );
+  }
+
   return (
     <div className="w-full" dir="rtl">
 

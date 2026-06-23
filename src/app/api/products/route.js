@@ -12,7 +12,8 @@ export async function POST(request) {
       type = '', 
       softCategory = '',
       status = 'all',
-      processed = 'all'
+      processed = 'all',
+      boosted = false
     } = await request.json();
     
     if (!dbName) {
@@ -28,7 +29,7 @@ export async function POST(request) {
     
     // Search filter - regex fallback (no text index required)
     if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escaped = search.replace(/[.*+?^${}()|[\]\\\\]/g, '\\\\$&');
       filter.$or = [
         { name: { $regex: escaped, $options: 'i' } },
         { description: { $regex: escaped, $options: 'i' } },
@@ -77,6 +78,11 @@ export async function POST(request) {
           { $or: [{ softCategory: { $exists: false } }, { softCategory: null }, { softCategory: [] }] }
         ]}
       ];
+    }
+
+    // Boosted filter
+    if (boosted) {
+      filter.boost = { $gt: 0 };
     }
     
     // Calculate pagination
@@ -175,4 +181,4 @@ export async function POST(request) {
     console.error('Error fetching products:', error);
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
   }
-} 
+}

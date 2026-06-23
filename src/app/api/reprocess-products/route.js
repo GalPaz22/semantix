@@ -24,6 +24,7 @@ export async function POST(request) {
       reprocessEmbeddings,
       reprocessDescriptions,
       translateBeforeEmbedding,
+      appendTranslatedNameToName,
       reprocessAll,
       // Incremental mode
       incrementalMode,
@@ -57,6 +58,7 @@ export async function POST(request) {
     console.log("- Embeddings:", reprocessEmbeddings !== undefined ? reprocessEmbeddings : "default (false)");
     console.log("- Descriptions:", reprocessDescriptions !== undefined ? reprocessDescriptions : "default (false)");
     console.log("- Translation:", translateBeforeEmbedding !== undefined ? translateBeforeEmbedding : "default (false)");
+    console.log("- Append English Name to Name:", appendTranslatedNameToName !== undefined ? appendTranslatedNameToName : "default (false)");
     console.log("- All:", reprocessAll !== undefined ? reprocessAll : "default (false)");
 
     const client = await clientPromise;
@@ -180,6 +182,7 @@ export async function POST(request) {
         reprocessEmbeddings: reprocessEmbeddings !== undefined ? reprocessEmbeddings : false,
         reprocessDescriptions: reprocessDescriptions !== undefined ? reprocessDescriptions : false,
         translateBeforeEmbedding: translateBeforeEmbedding !== undefined ? translateBeforeEmbedding : false,
+        appendTranslatedNameToName: appendTranslatedNameToName !== undefined ? appendTranslatedNameToName : false,
         reprocessAll: reprocessAll !== undefined ? reprocessAll : false
       }
     };

@@ -98,11 +98,11 @@ export async function POST(request) {
       // BLOCKING: await the full processing before returning
       if (platform === "woocommerce") {
         const { wooUrl, wooKey, wooSecret } = credentials;
-        if (!wooUrl || !wooKey || !wooSecret) {
-          throw new Error('WooCommerce credentials are missing');
+        if (!wooUrl) {
+          throw new Error('WooCommerce URL is missing');
         }
 
-        console.log(`🛒 [Admin Sync] Calling WooCommerce ${syncMode} processor...`);
+        console.log(`🛒 [Admin Sync] Calling WooCommerce ${syncMode} processor (${wooKey && wooSecret ? 'rest_credentials' : 'public_wp_v2_product'})...`);
 
         if (syncMode === "image") {
           logs = await processWooImages({ 
@@ -128,18 +128,19 @@ export async function POST(request) {
 
         const { shopifyDomain, shopifyToken, shopifyClientId, shopifyClientSecret } = effectiveCreds;
         const hasClientCreds = shopifyClientId && shopifyClientSecret;
-        if (!shopifyDomain || (!shopifyToken && !hasClientCreds)) {
-          throw new Error('Shopify credentials are missing (need domain + token or client ID/secret)');
+        if (!shopifyDomain) {
+          throw new Error('Shopify domain is missing');
         }
 
         const shopifyAuthArgs = hasClientCreds
           ? { shopifyDomain, shopifyClientId, shopifyClientSecret }
-          : { shopifyDomain, shopifyToken };
+          : { shopifyDomain, ...(shopifyToken ? { shopifyToken } : {}) };
 
         if (shopifyCredsOverride) {
           console.log(`🔑 [Admin Sync] Using credential override from request`);
         }
-        console.log(`🛍️ [Admin Sync] Calling Shopify ${syncMode} processor (${hasClientCreds ? 'client_credentials' : 'legacy_token'})...`);
+        const authMode = hasClientCreds ? 'client_credentials' : (shopifyToken ? 'legacy_token' : 'public_products_json');
+        console.log(`🛍️ [Admin Sync] Calling Shopify ${syncMode} processor (${authMode})...`);
 
         if (syncMode === "image") {
           logs = await processShopifyImages({
