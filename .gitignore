@@ -29,3 +29,6 @@ next-env.d.ts
 
 # Shopify CLI
 shopify/semantix/node_modules/
+
+# Local Claude worktrees
+.claude/worktrees/
