@@ -20,6 +20,11 @@ export const metadata = {
   title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
   description: "מנוע חיפוש מבוסס בינה מלאכותית לעסקים וחנויות אי-קומרס. Semantix מבין עברית, מתאים את עצמו לפעילות העסקית של האתר ויוצר שכבת חיפוש חכמה שמובילה לרכישות - לא לנטישות.",
   keywords: "AI לעסקים, בינה מלאכותית לעסקים, כלי AI לעסקים, פתרונות בינה מלאכותית, חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, מנוע חיפוש AI, גילוי מוצרים, חיפוש בעברית, הגדלת המרות, AI לאיקומרס, site search, semantic search, AI search, ecommerce AI",
+  robots: {
+    index: true,
+    follow: true,
+    noimageindex: true,
+  },
   openGraph: {
     title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
     description: "שכבת חיפוש חכמה שמתאימה את עצמה לעסק שלכם ומובילה לרכישות - לא לנטישות",
@@ -100,7 +105,6 @@ export default function RootLayout({ children }) {
         <meta name="twitter:image" content="https://www.semantix.co.il/main-logo.png" />
 
         {/* Robots */}
-        <meta name="robots" content="index, follow, noimageindex" />
         <meta name="googlebot" content="index, follow, noimageindex" />
 
         {/* JSON-LD Structured Data */}
