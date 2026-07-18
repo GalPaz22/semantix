@@ -17,12 +17,12 @@ if (typeof window === 'undefined') {
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Semantix - חיפוש חכם באמת | מנוע חיפוש AI לחנויות אי-קומרס",
-  description: "מנוע החיפוש שמבין עברית, מתקן שגיאות כתיב ומגדיל המרות. Semantix הופכת את שורת החיפוש שלכם למוכר הכי טוב בחנות - מדייקת תוצאות, מבינה כוונה ומגדילה סלי קנייה.",
-  keywords: "חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, גילוי מוצרים, חיפוש בעברית, site search, semantic search, ecommerce, בינה מלאכותית לעסקים",
+  title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
+  description: "מנוע חיפוש מבוסס בינה מלאכותית לעסקים וחנויות אי-קומרס. Semantix מבין עברית, מתאים את עצמו לפעילות העסקית של האתר ויוצר שכבת חיפוש חכמה שמובילה לרכישות - לא לנטישות.",
+  keywords: "AI לעסקים, בינה מלאכותית לעסקים, כלי AI לעסקים, פתרונות בינה מלאכותית, חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, מנוע חיפוש AI, גילוי מוצרים, חיפוש בעברית, הגדלת המרות, AI לאיקומרס, site search, semantic search, AI search, ecommerce AI",
   openGraph: {
-    title: "Semantix - חיפוש חכם שמגדיל מכירות",
-    description: "מנוע החיפוש שמבין עברית, מתקן שגיאות ומגדיל המרות בעסק שלכם",
+    title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
+    description: "שכבת חיפוש חכמה שמתאימה את עצמה לעסק שלכם ומובילה לרכישות - לא לנטישות",
     url: "https://www.semantix.co.il",
     siteName: "Semantix",
     locale: "he_IL",
@@ -111,7 +111,7 @@ export default function RootLayout({ children }) {
             "name": "Semantix",
             "url": "https://www.semantix.co.il",
             "logo": "https://www.semantix.co.il/main-logo.png",
-            "description": "מנוע חיפוש חכם מבוסס AI לחנויות אי-קומרס - מבין עברית, מתקן שגיאות ומגדיל המרות",
+            "description": "מנוע חיפוש חכם מבוסס AI לחנויות אי-קומרס - מבין עברית, מתאים את עצמו לעסק ומגדיל המרות",
             "sameAs": [
               "https://www.facebook.com/semantix"
             ]
@@ -144,7 +144,7 @@ export default function RootLayout({ children }) {
               "price": "0",
               "priceCurrency": "ILS"
             },
-            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לחנויות אי-קומרס - מבין עברית, מתקן שגיאות ומגדיל המרות"
+            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לחנויות אי-קומרס - מבין עברית, מתאים את עצמו לעסק ומגדיל המרות"
           })}
         </Script>
 
