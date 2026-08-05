@@ -143,3 +143,312 @@ body {
 .animate-pin-bounce {
   animation: pinBounce 0.4s ease-in-out;
 }
+
+/* MARKETING_ANIMS_FROM_EN */
+@keyframes scroll-track-1 {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes scroll-track-2 {
+  0% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: translateX(-75%);
+  }
+}
+
+.animate-scroll-track-1 {
+  animation: scroll-track-1 15s linear infinite;
+}
+
+.animate-scroll-track-2 {
+  animation: scroll-track-2 15s linear infinite;
+}
+
+.hero-scroll-track {
+  animation-name: scroll-track-1;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: none;
+}
+
+.hero-scroll-track-alt {
+  animation-name: scroll-track-2;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: none;
+}
+
+@media (max-width: 640px) {
+  .animate-scroll-track-1 {
+    animation-duration: 22s;
+  }
+
+  .animate-scroll-track-2 {
+    animation-duration: 22s;
+  }
+
+  .hero-scroll-track,
+  .hero-scroll-track-alt {
+    animation-duration: 28s !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll-track-1,
+  .animate-scroll-track-2,
+  .hero-scroll-track,
+  .hero-scroll-track-alt {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes profileMeter {
+  0% {
+    width: 0%;
+  }
+}
+
+.animate-profile-meter {
+  animation: profileMeter 1.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Background removal for product images */
+.remove-bg {
+  mix-blend-mode: multiply;
+  filter: contrast(1.1) brightness(1.1);
+}
+
+.remove-bg-white {
+  background: white;
+  mix-blend-mode: multiply;
+  filter: contrast(1.2) brightness(1.05) saturate(1.1);
+}
+
+.remove-bg-jewelry {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+  mix-blend-mode: multiply;
+  filter: brightness(1.2) saturate(1.05) contrast(1.1);
+  -webkit-filter: brightness(1.2) saturate(1.05) contrast(1.1);
+}
+
+/* White glow animation for buttons */
+@keyframes whiteGlow {
+  0%, 100% {
+    box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.4), 0 0 10px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.4), 0 0 25px rgba(255, 255, 255, 0.9), 0 0 40px rgba(255, 255, 255, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+.animate-white-glow {
+  animation: whiteGlow 2s ease-in-out infinite;
+}
+
+@media (max-width: 640px) {
+  .animate-white-glow {
+    animation: none;
+    box-shadow: 0 8px 18px -4px rgba(147, 51, 234, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-white-glow {
+    animation: none;
+  }
+}
+
+/* Search Saver animation */
+.search-saver-orbit {
+  width: 340px;
+  height: 340px;
+  display: grid;
+  place-items: center;
+  perspective: 900px;
+}
+
+.search-saver-ring {
+  width: 320px;
+  height: 320px;
+  filter: drop-shadow(0 0 14px rgba(176, 122, 255, 0.4));
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+  backface-visibility: hidden;
+  animation: searchSaverSpin 12s linear infinite;
+}
+
+@keyframes searchSaverSpin {
+  0% {
+    transform: rotateX(12deg) rotateZ(0deg);
+  }
+  50% {
+    transform: rotateX(12deg) rotateZ(180deg);
+  }
+  100% {
+    transform: rotateX(12deg) rotateZ(360deg);
+  }
+}
+
+@keyframes signal-flow {
+  0%,
+  100% {
+    width: 28%;
+    opacity: 0.45;
+  }
+  50% {
+    width: 78%;
+    opacity: 1;
+  }
+}
+
+.signal-bar {
+  width: 38%;
+  animation: signal-flow 2.8s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+@keyframes capability-cycle {
+  0%,
+  100% {
+    border-color: transparent;
+    background: transparent;
+    color: rgb(55, 65, 81);
+  }
+  35%,
+  55% {
+    border-color: rgba(196, 181, 253, 1);
+    background: rgba(245, 243, 255, 0.9);
+    color: rgb(109, 40, 217);
+  }
+}
+
+.capability-highlight {
+  animation: capability-cycle 4.6s ease-in-out infinite;
+}
+
+@keyframes metric-breathe {
+  0%,
+  100% {
+    transform: scaleX(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.metric-fill {
+  animation: metric-breathe 2.8s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+@keyframes why-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 1;
+  }
+}
+
+.why-dot {
+  animation: why-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    color: rgb(139, 92, 246);
+    text-shadow: 0 0 0px rgba(168, 85, 247, 0);
+  }
+  50% {
+    color: rgba(168, 85, 247, 0.95);
+    text-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+  }
+  100% {
+    color: rgb(139, 92, 246);
+    text-shadow: 0 0 0px rgba(168, 85, 247, 0);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Semantix analytics dashboard (imported from dashboard project) */
+.semantix-shell {
+  --bg: 249 250 251;
+  --surface: 255 255 255;
+  --line: 229 231 235;
+  --ink: 17 24 39;
+  --muted: 107 114 128;
+  --accent: 124 58 237;
+  --success: 35 188 113;
+  --warning: 255 173 51;
+  --danger: 241 87 87;
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+}
+
+.semantix-chip {
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  background: rgba(124, 58, 237, 0.06);
+  color: rgb(var(--accent));
+}
+
+.semantix-purple-panel {
+  background: linear-gradient(135deg, rgba(97, 69, 241, 1), rgba(157, 66, 240, 1));
+}
+
+.semantix-soft-panel {
+  background: linear-gradient(180deg, rgba(247, 244, 255, 0.92), rgba(255, 255, 255, 0.98));
+}
+
+.semantix-shell input:focus,
+.semantix-shell select:focus,
+.semantix-shell button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(123, 63, 242, 0.16);
+}
+
+.semantix-shell select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(62, 46, 120, 0.8) 50%),
+    linear-gradient(135deg, rgba(62, 46, 120, 0.8) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% - 3px),
+    calc(100% - 14px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2.75rem;
+}

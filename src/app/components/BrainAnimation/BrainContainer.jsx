@@ -6,6 +6,7 @@ import DashboardCard from './DashboardCard';
 import RevenueAttribution from './RevenueAttribution';
 import LiveQueryStream from './LiveQueryStream';
 import InsightsCard from './InsightsCard';
+import PulseIndicator from './PulseIndicator';
 
 const segments = [
   { id: 'metrics', duration: 4000 },
@@ -86,10 +87,10 @@ export default function BrainContainer() {
             transition={{ duration: 0.6, ease: 'easeInOut' }}
             className="h-full"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 text-right">מדדים מרכזיים</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">מדדים מרכזיים</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
               <DashboardCard
-                label="סך החיפושים"
+                label="סה״כ שאילתות"
                 value={8234}
                 delay={0}
                 isMain={true}
@@ -101,26 +102,26 @@ export default function BrainContainer() {
                 delay={0.1}
               />
               <DashboardCard
-                label="ממוצע הזמנה"
-                value={456}
-                prefix="₪"
+                label="ממוצע ערך הזמנה"
+                value={127.5}
+                prefix="$"
                 delay={0.2}
               />
             </div>
             <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3 text-right">3 החיפושים המובילים היום</h4>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">3 השאילתות המובילות היום</h4>
               <div className="space-y-2">
                 {[
                   { query: 'יין אדום לארוחת סטייק', conversions: 127 },
-                  { query: 'שעון ריצה עם GPS', conversions: 89 },
+                  { query: 'שעון GPS לריצה', conversions: 89 },
                   { query: 'מתנה ליום הולדת לבת', conversions: 76 },
                 ].map((item, index) => (
                   <div
                     key={item.query}
                     className="flex items-center justify-between p-2 bg-white rounded-lg text-sm"
                   >
-                    <span className="text-purple-600 font-semibold ml-2">{item.conversions}</span>
-                    <span className="text-gray-900 truncate flex-1 text-right">{item.query}</span>
+                    <span className="text-gray-900 truncate flex-1">{item.query}</span>
+                    <span className="text-purple-600 font-semibold mr-2">{item.conversions}</span>
                   </div>
                 ))}
               </div>
@@ -138,7 +139,7 @@ export default function BrainContainer() {
             transition={{ duration: 0.6, ease: 'easeInOut' }}
             className="h-full"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 text-right">ייחוס הכנסות</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">ייחוס הכנסות</h3>
             <RevenueAttribution />
           </motion.div>
         )}
@@ -168,19 +169,19 @@ export default function BrainContainer() {
             className="h-full"
           >
             <h3 className="text-lg font-semibold text-gray-900 text-center mb-6">
-              Semantix Brain הופך נתוני חיפוש לתובנות פעולה.
+              Semantix Brain הופך נתוני חיפוש לתובנות שאפשר לפעול לפיהן.
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <InsightsCard
                 title="שעות שיא"
-                data="14:00-16:00, 19:00-21:00"
-                description="פעילות חיפוש הגבוהה ביותר"
+                data="14:00–16:00, 19:00–21:00"
+                description="פעילות החיפוש הגבוהה ביותר"
                 delay={0}
               />
               <InsightsCard
                 title="פעילות יומית"
-                data="+23% לעומת שבוע שעבר"
-                description="נפח חיפוש גדל"
+                data="+23% לעומת השבוע שעבר"
+                description="נפח חיפושים בצמיחה"
                 delay={0.1}
               />
               <InsightsCard
@@ -190,9 +191,9 @@ export default function BrainContainer() {
                 delay={0.2}
               />
               <InsightsCard
-                title="זמנים הטובים ביותר"
+                title="הזמנים החזקים ביותר"
                 data="שעות הערב"
-                description="תקופות עם AOV גבוה"
+                description="תקופות עם AOV הגבוה ביותר"
                 delay={0.3}
               />
             </div>

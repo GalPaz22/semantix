@@ -36,13 +36,12 @@ export default function DashboardCard({ label, value, prefix = '', suffix = '', 
           ? 'bg-gradient-to-br from-[#9C4FFF] to-[#6E46FF] text-white'
           : 'bg-white border border-gray-100'
       }`}
-      dir="rtl"
     >
-      <p className={`text-xs sm:text-sm font-medium mb-2 text-right ${isMain ? 'text-white/80' : 'text-gray-600'}`}>
+      <p className={`text-xs sm:text-sm font-medium mb-2 ${isMain ? 'text-white/80' : 'text-gray-600'}`}>
         {label}
       </p>
       <p
-        className={`text-2xl sm:text-3xl lg:text-4xl font-bold text-right ${isMain ? 'text-white' : 'text-gray-900'}`}
+        className={`text-2xl sm:text-3xl lg:text-4xl font-bold ${isMain ? 'text-white' : 'text-gray-900'}`}
       >
         {prefix}
         {displayValue.toLocaleString()}

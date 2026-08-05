@@ -1,21 +1,29 @@
 import Link from 'next/link';
+import { PRIMARY_CTA, PRIMARY_CTA_HREF } from '../../lib/marketing-copy';
 
-export default function SearchSaverCTA() {
+export default function SearchSaverCTA({
+  eyebrow = 'Search Saver מבית Semantix',
+  title = 'גלו כמה כסף החיפוש שלכם מפספס.',
+  body = 'בדמו קצר נראה איך Search Saver מזהה חיפושים בלי תוצאות, מחזיר מוצרים רלוונטיים ועוקב אחרי ההכנסות שהוחזרו.',
+}) {
   return (
-    <section className="bg-[#0b0616] text-white py-20 sm:py-24">
-      <div className="max-w-5xl mx-auto px-6 sm:px-8 text-center">
-        <h2 className="text-3xl sm:text-4xl font-semibold mb-4">
-          Ready to save the sale?
-        </h2>
-        <p className="text-white/70 text-lg mb-8">
-          Search Saver activates only when search fails. Keep what works, rescue what doesn’t.
+    <section className="bg-black py-16 text-white sm:py-32" dir="rtl">
+      <div className="mx-auto max-w-5xl px-6 text-center sm:px-8">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-purple-300">
+          {eyebrow}
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+        <h2 className="mt-5 text-3xl font-semibold leading-[1.15] tracking-[-0.02em] sm:text-5xl">
+          {title}
+        </h2>
+        <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+          {body}
+        </p>
+        <div className="mt-8">
           <Link
-            href="/contact"
-            className="inline-flex items-center justify-center rounded-full border border-white/30 text-white px-6 py-3 hover:border-white/70 transition-colors"
+            href={PRIMARY_CTA_HREF}
+            className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition-colors hover:bg-purple-50"
           >
-            Book a 10-minute demo
+            {PRIMARY_CTA}
           </Link>
         </div>
       </div>

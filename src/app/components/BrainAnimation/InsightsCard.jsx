@@ -13,11 +13,10 @@ export default function InsightsCard({ title, data, description, delay = 0 }) {
         boxShadow: '0 10px 25px -5px rgba(156, 79, 255, 0.2)',
       }}
       className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-md hover:shadow-lg transition-all"
-      dir="rtl"
     >
-      <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 text-right">{title}</h4>
-      <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 text-right">{data}</p>
-      <p className="text-xs sm:text-sm text-gray-600 text-right">{description}</p>
+      <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">{title}</h4>
+      <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">{data}</p>
+      <p className="text-xs sm:text-sm text-gray-600">{description}</p>
     </motion.div>
   );
 }

@@ -1,44 +1,58 @@
 import Link from 'next/link';
-import SearchSaverAnimation from './SearchSaverAnimation';
+import SearchSaverAgentDemo from './SearchSaverAgentDemo';
+import { PRIMARY_CTA, PRIMARY_CTA_HREF } from '../../lib/marketing-copy';
+
+const PILLARS = ['התקנה ב־5 דקות', 'בלי עיצוב מחדש', 'בלי צ\'אטבוט', 'מתחבר לחנות'];
 
 export default function SearchSaverHero() {
   return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(141,92,255,0.12),_transparent_55%)]" />
+    <section dir="rtl" className="relative overflow-hidden bg-white pt-24 sm:pt-28">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(167,139,250,0.16),_transparent_46%)]" />
 
-      <div className="relative max-w-6xl mx-auto px-6 sm:px-8 py-20 sm:py-28 grid gap-12 lg:grid-cols-[1.1fr_0.9fr] items-center text-[#120a22]">
-        <div className="space-y-6">
-          <span className="inline-flex items-center rounded-full border border-[#2a1850]/20 px-4 py-1 text-sm tracking-wide text-[#2a1850]/70">
-            Search Saver by Semantix
-          </span>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold leading-tight">
-            Turn “No Results” into Revenue.
+      <div className="relative mx-auto grid max-w-7xl items-start gap-12 px-6 pb-20 sm:px-8 lg:grid-cols-[0.96fr_1.04fr] lg:gap-14">
+        <div className="max-w-2xl lg:sticky lg:top-28">
+          <p className="text-xs font-semibold uppercase leading-snug tracking-[0.14em] text-purple-700 sm:text-sm sm:tracking-[0.18em]">
+            שכבה קלה מעל שורת החיפוש הקיימת
+          </p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-black sm:text-5xl lg:text-6xl">
+            החיפוש שלכם מפסיד כסף.
           </h1>
-          <p className="text-lg sm:text-xl text-[#3d2c5f]/80 max-w-2xl">
-            Search Saver is a lightweight rescue layer that activates only when search fails. It
-            surfaces intent-based alternatives and saves the sale without replacing your existing
-            search.
+          <p className="mt-6 text-lg leading-8 text-gray-600 sm:text-xl">
+            Search Saver מחזיר חיפושי מוצרים בלי תוצאות — בלי להחליף את שורת החיפוש.
           </p>
-          <p className="text-base sm:text-lg text-[#3d2c5f]/70">
-            Activates only when search fails. No migration. No redesign. Live in minutes.
+          <p className="mt-4 text-base font-medium text-gray-500">
+            בלי עיצוב מחדש. בלי צ&apos;אטבוט. מתחבר לחנות הקיימת.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <Link
-              href="/contact"
-              className="inline-flex items-center justify-center rounded-full border border-[#2a1850]/30 text-[#2a1850] px-6 py-3 hover:border-[#2a1850]/60 transition-colors"
-            >
-              Book a 10-minute demo
-            </Link>
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            {PILLARS.map((pillar) => (
+              <span
+                key={pillar}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600"
+              >
+                {pillar}
+              </span>
+            ))}
           </div>
 
-          <div className="pt-4 text-sm text-[#3d2c5f]/60">
-            Measure recovered Add to Carts and Purchases from day one.
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={PRIMARY_CTA_HREF}
+              className="inline-flex items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-900"
+            >
+              {PRIMARY_CTA}
+            </Link>
+            <a
+              href="#how-search-saver-works"
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-purple-300 hover:text-black"
+            >
+              איך זה עובד
+            </a>
           </div>
         </div>
 
         <div className="flex justify-center lg:justify-end">
-          <SearchSaverAnimation />
+          <SearchSaverAgentDemo variant="landing" />
         </div>
       </div>
     </section>

@@ -60,7 +60,7 @@ export default function SearchSaverAnimation() {
           <text fill="#e9ddff" fontSize="12" fontWeight="600" letterSpacing="2">
             <textPath
               href="#searchSaverRingPath"
-              startOffset="100%"
+              startOffset="0%"
               textLength="130"
               lengthAdjust="spacing"
             >

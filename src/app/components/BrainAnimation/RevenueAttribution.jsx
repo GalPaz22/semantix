@@ -10,11 +10,11 @@ export default function RevenueAttribution() {
   const [displaySemantix, setDisplaySemantix] = useState(0);
 
   useEffect(() => {
-    const controls1 = animate(totalRevenue, 1523847.5, {
+    const controls1 = animate(totalRevenue, 4275638.6, {
       duration: 2,
       ease: 'easeOut',
     });
-    const controls2 = animate(semantixRevenue, 101089.2, {
+    const controls2 = animate(semantixRevenue, 283459.3, {
       duration: 2,
       delay: 0.3,
       ease: 'easeOut',
@@ -41,16 +41,16 @@ export default function RevenueAttribution() {
   }, [totalRevenue, semantixRevenue]);
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="bg-gray-50 rounded-2xl p-4 sm:p-6 border border-gray-100"
       >
-        <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 text-right">סך הכנסות מהוספות לעגלה</p>
-        <p className="text-2xl sm:text-3xl font-bold text-gray-900 text-right">
-          ₪{displayTotal.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">סה״כ הכנסות מהוספות לעגלה</p>
+        <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+          ${displayTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </p>
       </motion.div>
 
@@ -73,9 +73,9 @@ export default function RevenueAttribution() {
           }}
         />
         <div className="relative">
-          <p className="text-xs sm:text-sm font-medium text-white/80 mb-1 text-right">הכנסות דרך Semantix (משוערות)</p>
-          <p className="text-2xl sm:text-3xl font-bold text-white text-right">
-            ₪{displaySemantix.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <p className="text-xs sm:text-sm font-medium text-white/80 mb-1">הכנסות דרך Semantix (הערכה)</p>
+          <p className="text-2xl sm:text-3xl font-bold text-white">
+            ${displaySemantix.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <motion.span
             initial={{ opacity: 0, scale: 0.8 }}

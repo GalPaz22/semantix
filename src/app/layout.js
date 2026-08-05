@@ -1,12 +1,13 @@
-import { Inter } from "next/font/google";
-import Link from 'next/link';
+import { Heebo } from "next/font/google";
 import "./globals.css";
-import Script from "next/script";
 import { Providers } from "./providers";
-import HeaderAuthButton from "./HeaderAuthButton.js";
 import { validatePaddleEnvironment } from "/lib/env-validator";
-import GetStartedButton from "./GetStartedButton.js";
-import ConditionalFooter from "./ConditionalFooter.js";
+import ConditionalFooter from "./components/ConditionalFooter.js";
+import CookieConsent from "./components/CookieConsent.js";
+import MarketingAttributionCapture from "./components/MarketingAttributionCapture.jsx";
+import ConditionalMarketingScripts from "./components/ConditionalMarketingScripts.jsx";
+import ConditionalShopifyAppBridge from "./components/ConditionalShopifyAppBridge.jsx";
+import { ConditionalMarketingNav, ConditionalMainPadding } from "./components/ConditionalSiteChrome.js";
 
 // Run environment validation on server-side
 if (typeof window === 'undefined') {
@@ -14,182 +15,99 @@ if (typeof window === 'undefined') {
   validatePaddleEnvironment();
 }
 
-const inter = Inter({ subsets: ["latin"] });
+const heebo = Heebo({ subsets: ["hebrew", "latin"] });
+
+const SITE_URL = "https://www.semantix.co.il";
+
+const organizationStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Semantix",
+  url: SITE_URL,
+  logo: `${SITE_URL}/main-logo.svg`,
+  description:
+    "Semantix בונה חיפוש לאי־קומרס שמוכר — Search Saver מציל חיפושים ללא תוצאות, ו־Semantix Search מפעיל את חוויית החיפוש המלאה בחנות.",
+  sameAs: ["https://www.linkedin.com/company/semantix-io/"],
+  contactPoint: {
+    "@type": "ContactPoint",
+    email: "Sales@semantix-ai.com",
+    contactType: "sales",
+  },
+};
 
 export const metadata = {
-  title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
-  description: "מנוע חיפוש מבוסס בינה מלאכותית לעסקים וחנויות אי-קומרס. Semantix מבין עברית, מתאים את עצמו לפעילות העסקית של האתר ויוצר שכבת חיפוש חכמה שמובילה לרכישות - לא לנטישות.",
-  keywords: "AI לעסקים, בינה מלאכותית לעסקים, כלי AI לעסקים, פתרונות בינה מלאכותית, חיפוש באתר, חיפוש סמנטי, חיפוש AI, מנוע חיפוש לחנויות אי-קומרס, מנוע חיפוש AI, גילוי מוצרים, חיפוש בעברית, הגדלת המרות, AI לאיקומרס, site search, semantic search, AI search, ecommerce AI",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Semantix | חיפוש לאי־קומרס שמוכר",
+    template: "%s",
+  },
+  description:
+    "Semantix בונה חיפוש לאי־קומרס שמוכר — Search Saver מציל חיפושים ללא תוצאות, ו־Semantix Search מפעיל את חוויית החיפוש המלאה בחנות.",
+  keywords: [
+    "חיפוש סמנטי",
+    "חיפוש לאיקומרס",
+    "חיפוש AI",
+    "Search Saver",
+    "הצלת חיפושים ללא תוצאות",
+    "semantix",
+  ],
+  authors: [{ name: "Semantix" }],
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Semantix",
+    locale: "he_IL",
+    title: "Semantix | חיפוש לאי־קומרס שמוכר",
+    description:
+      "Semantix בונה חיפוש לאי־קומרס שמוכר — מציל חיפושים כושלים והופך כוונת קונים להכנסות.",
+    images: [{ url: "/main-logo.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Semantix | חיפוש לאי־קומרס שמוכר",
+    description:
+      "Semantix בונה חיפוש לאי־קומרס שמוכר — מציל חיפושים כושלים והופך כוונת קונים להכנסות.",
+    images: ["/main-logo.png"],
+  },
   robots: {
     index: true,
     follow: true,
-    noimageindex: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "none",
+    },
   },
-  openGraph: {
-    title: "Semantix - מנוע החיפוש המתקדם בעולם לאי-קומרס",
-    description: "שכבת חיפוש חכמה שמתאימה את עצמה לעסק שלכם ומובילה לרכישות - לא לנטישות",
-    url: "https://www.semantix.co.il",
-    siteName: "Semantix",
-    locale: "he_IL",
-    type: "website",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png", sizes: "300x300" },
+    ],
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="he" dir="rtl">
-      <head>
-        <Script
-          async src="https://www.googletagmanager.com/gtag/js?id=G-BLXY1X669N"
+      <body className={`${heebo.className} min-h-screen flex flex-col bg-white`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationStructuredData) }}
         />
-        <Script id="google-analytics">
-          {`
-              window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-8KT8DK42GV');
-          `}
-        </Script>
-
-        {/* Shopify App Bridge Script - Add this to enable app embedding */}
-        <Script
-          id="shopify-app-bridge"
-          src="https://cdn.shopify.com/shopifycloud/app-bridge.js"
-          data-api-key={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || 'ed3834d550c5d814851e0ad46493ca2c'}
-          strategy="beforeInteractive"
-        />
-
-        {/* Session Token Authentication Script */}
-        <Script id="shopify-app-bridge-init">
-          {`
-            if (window.shopify && window.shopify.config) {
-              var AppBridge = window['app-bridge'];
-              var createApp = AppBridge.default;
-              var app = createApp({
-                apiKey: '${process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || 'ed3834d550c5d814851e0ad46493ca2c'}',
-                host: window.shopify.config.host,
-                forceRedirect: true
-              });
-              
-              // Set up session token handling
-              var SessionToken = AppBridge.actions.SessionToken;
-              var sessionToken = SessionToken.create(app);
-              
-              // Listen for session token changes
-              sessionToken.subscribe(function(payload) {
-                // Store the token for API calls
-                window.sessionToken = payload.data;
-              });
-            }
-          `}
-        </Script>
-
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="description" content={metadata.description} />
-        <meta name="keywords" content={metadata.keywords} />
-        <meta name="author" content="Semantix" />
-
-        {/* Open Graph / Facebook */}
-        <meta property="og:title" content={metadata.openGraph.title} />
-        <meta property="og:description" content={metadata.openGraph.description} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.semantix.co.il" />
-        <meta property="og:site_name" content="Semantix" />
-        <meta property="og:image" content="https://www.semantix.co.il/main-logo.png" />
-
-        {/* Twitter */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={metadata.openGraph.title} />
-        <meta name="twitter:description" content={metadata.openGraph.description} />
-        <meta name="twitter:image" content="https://www.semantix.co.il/main-logo.png" />
-
-        {/* Robots */}
-        <meta name="googlebot" content="index, follow, noimageindex" />
-
-        {/* JSON-LD Structured Data */}
-        <Script id="json-ld-organization" type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Organization",
-            "name": "Semantix",
-            "url": "https://www.semantix.co.il",
-            "logo": "https://www.semantix.co.il/main-logo.png",
-            "description": "מנוע חיפוש חכם מבוסס AI לחנויות אי-קומרס - מבין עברית, מתאים את עצמו לעסק ומגדיל המרות",
-            "sameAs": [
-              "https://www.facebook.com/semantix"
-            ]
-          })}
-        </Script>
-
-        <Script id="json-ld-website" type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            "name": "Semantix",
-            "url": "https://www.semantix.co.il",
-            "description": "שורת החיפוש היא המוכר שלכם - מנוע חיפוש חכם שמבין עברית ומגדיל מכירות",
-            "potentialAction": {
-              "@type": "SearchAction",
-              "target": "https://www.semantix.co.il/search?q={search_term_string}",
-              "query-input": "required name=search_term_string"
-            }
-          })}
-        </Script>
-
-        <Script id="json-ld-software" type="application/ld+json">
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            "name": "Semantix",
-            "applicationCategory": "BusinessApplication",
-            "offers": {
-              "@type": "Offer",
-              "price": "0",
-              "priceCurrency": "ILS"
-            },
-            "description": "מנוע חיפוש חכם מבוסס בינה מלאכותית לחנויות אי-קומרס - מבין עברית, מתאים את עצמו לעסק ומגדיל המרות"
-          })}
-        </Script>
-
-
-        <link rel="icon" href="/favicon.png" type="image/png" />
-        <link rel="shortcut icon" href="/favicon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
-
-
-        <title>{metadata.title}</title>
-      </head>
-      <body className={`${inter.className} min-h-screen flex flex-col bg-white`}>
-        {/* Single SessionProvider wrapping the entire app */}
         <Providers>
-          {/* Professional Navigation Bar */}
-          <nav className="fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-lg z-50 border-b border-gray-100 shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-16">
-                {/* Logo */}
-                <div className="flex items-center space-x-8">
-                  <Link href="/" className="flex items-center">
-                    <img src="/main-logo.svg" alt="Semantix - חיפוש סמנטי מבוסס בינה מלאכותית לתוצאות מדויקות בעסק שלך" className="h-12 w-auto [&>path]:fill-purple-600" style={{ filter: "none" }} />
-                  </Link>
-                </div>
+          <ConditionalMarketingScripts />
+          <ConditionalShopifyAppBridge />
+          <MarketingAttributionCapture />
+          <ConditionalMarketingNav />
 
-                {/* Right Side Actions */}
-                <div className="flex items-center space-x-4">
-                  <HeaderAuthButton />
-                  <GetStartedButton />
-                </div>
-              </div>
-            </div>
-          </nav>
-
-          {/* Main Content with padding for fixed nav */}
-          <div className="flex-grow relative overflow-hidden pt-16">
-            <main className="flex-grow relative z-10">
-              {children}
-            </main>
+          <ConditionalMainPadding>
+            <main className="relative z-10 flex-grow">{children}</main>
             <ConditionalFooter />
-          </div>
+          </ConditionalMainPadding>
+
+          <CookieConsent />
         </Providers>
       </body>
     </html>
