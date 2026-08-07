@@ -35,7 +35,7 @@ export default function CookieConsent() {
   }, []);
 
   const initializeAnalytics = () => {
-    // Trigger Hotjar/ContentSquare if analytics are enabled
+    // Trigger analytics scripts if analytics are enabled
     if (typeof window !== 'undefined' && window.hj) {
       window.hj('trigger', 'consent_given');
     }
@@ -114,7 +114,7 @@ export default function CookieConsent() {
                     </h3>
                     <p className="text-gray-600 text-sm leading-relaxed mb-4">
                       אנחנו משתמשים בעוגיות כדי לשפר את חוויית הגלישה, לנתח תנועה באתר ולהבין מאיפה מגיעים המבקרים שלנו.
-                      בלחיצה על "אישור לכל", אתם מסכימים לשימוש בעוגיות, כולל כלי אנליטיקה כמו Hotjar.
+                      בלחיצה על "אישור לכל", אתם מסכימים לשימוש בעוגיות, כולל כלי אנליטיקה.
                     </p>
                     
                     <div className="flex flex-wrap gap-3">
@@ -206,7 +206,7 @@ export default function CookieConsent() {
                           </button>
                         </div>
                         <p className="text-sm text-gray-600">
-                          אנחנו משתמשים בשירותי אנליטיקה כמו Hotjar כדי להבין איך מבקרים מתנהגים באתר. זה עוזר לנו לשפר את החוויה שלכם.
+                          אנחנו משתמשים בשירותי אנליטיקה כדי להבין איך מבקרים מתנהגים באתר. זה עוזר לנו לשפר את החוויה שלכם.
                         </p>
                       </div>
                     </div>
