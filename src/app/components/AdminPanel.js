@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle, XCircle, RefreshCw, Copy } from 'lucide-react';
+import PinnedResultsPanel from './PinnedResultsPanel';
 
 export default function AdminPanel({ session }) {
   const [apiKey, setApiKey] = useState('');
@@ -36,6 +37,7 @@ export default function AdminPanel({ session }) {
   // User data fetched from API key
   const [userData, setUserData] = useState(null);
   const [userActive, setUserActive] = useState(true);
+  const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [dbName, setDbName] = useState('');
   const [categories, setCategories] = useState('');
   const [productTypes, setProductTypes] = useState('');
@@ -148,6 +150,7 @@ export default function AdminPanel({ session }) {
       disabled: false,
       shadowMode: false
     },
+    sessionModes: {},
     texts: {
       loader: ''
     },
@@ -321,6 +324,7 @@ export default function AdminPanel({ session }) {
         // Auto-populate apiKey from the fetched user (needed for save/sync)
         if (data.user?.apiKey) setApiKey(data.user.apiKey);
         setUserActive(data.user?.active !== false);
+        setShowOutOfStock(data.credentials?.showOutOfStock === true);
 
         // Extract from nested configuration structure
         const config = data.configuration || {};
@@ -459,6 +463,7 @@ export default function AdminPanel({ session }) {
               disabled: safeGet(savedConfig, 'features.disabled', false),
               shadowMode: safeGet(savedConfig, 'features.shadowMode', false)
             },
+            sessionModes: safeGet(savedConfig, 'sessionModes', {}),
             texts: {
               loader: safeGet(savedConfig, 'texts.loader', '')
             },
@@ -534,6 +539,22 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  const handleSetShowOutOfStock = async (newValue) => {
+    if (!isAdmin || !apiKey) return;
+    setShowOutOfStock(newValue);
+    try {
+      const res = await fetch('/api/admin/update-user-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, showOutOfStock: newValue })
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch (error) {
+      console.error('Failed to set showOutOfStock:', error);
+      setShowOutOfStock(!newValue); // revert on error
+    }
+  };
+
   const handleSaveShopifyCreds = async () => {
     if (!isAdmin || !apiKey) return;
     const { shopifyDomain, shopifyClientId, shopifyClientSecret } = editCredForm;
@@ -578,6 +599,10 @@ export default function AdminPanel({ session }) {
         queryParams: Array.isArray(siteConfig.queryParams)
           ? siteConfig.queryParams
           : siteConfig.queryParams.split(',').map(p => p.trim()).filter(Boolean),
+        // Drop unnamed test-mode rows (empty session_id keys)
+        sessionModes: Object.fromEntries(
+          Object.entries(siteConfig.sessionModes || {}).filter(([sid]) => sid.trim())
+        ),
         selectors: {
           ...siteConfig.selectors,
           resultsGrid: Array.isArray(siteConfig.selectors.resultsGrid)
@@ -1078,6 +1103,7 @@ export default function AdminPanel({ session }) {
     if (data.user?.apiKey) setApiKey(data.user.apiKey);
     if (data.user?.name) setSearchName(data.user.name);
     setUserActive(data.user?.active !== false);
+    setShowOutOfStock(data.credentials?.showOutOfStock === true);
 
     const config = data.configuration || {};
     setDbName(config.dbName || targetDbName);
@@ -1887,11 +1913,12 @@ export default function AdminPanel({ session }) {
           textColor: parsed.placeholderRotate?.textColor || '#6b7280'
         },
         features: {
-          rerankBoost: parsed.features?.rerankBoost || false,
+          rerankBoost: parsed.features?.rerankBoost !== undefined ? parsed.features.rerankBoost : true,
           injectIntoGrid: parsed.features?.injectIntoGrid !== undefined ? parsed.features.injectIntoGrid : true,
           zeroReplace: parsed.features?.zeroReplace !== undefined ? parsed.features.zeroReplace : true,
           shadowMode: parsed.features?.shadowMode !== undefined ? parsed.features.shadowMode : false
         },
+        sessionModes: parsed.sessionModes || {},
         texts: {
           loader: parsed.texts?.loader || 'טוען תוצאות חכמות'
         },
@@ -2688,6 +2715,26 @@ export default function AdminPanel({ session }) {
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${userActive ? 'bg-green-500' : 'bg-gray-300'}`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${userActive ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+      )}
+
+      {/* Show out-of-stock products in search */}
+      {userData && (
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Out-of-Stock Products</p>
+            <p className={`text-xs mt-0.5 ${showOutOfStock ? 'text-amber-600' : 'text-gray-500'}`}>
+              {showOutOfStock
+                ? 'Shown — search results include out-of-stock products'
+                : 'Hidden — search results only include in-stock products'}
+            </p>
+          </div>
+          <button
+            onClick={() => handleSetShowOutOfStock(!showOutOfStock)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showOutOfStock ? 'bg-amber-500' : 'bg-gray-300'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${showOutOfStock ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
       )}
@@ -4176,6 +4223,83 @@ export default function AdminPanel({ session }) {
               </div>
             </div>
 
+            {/* Test Modes (per session_id) */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-amber-900 mb-1">🧪 Test Modes (per session_id)</h4>
+              <p className="text-xs text-amber-700 mb-3">
+                Run the engine in a different mode for specific sessions only — everyone else is unaffected.
+                A tester can adopt a session_id by visiting the site with <code className="bg-amber-100 px-1 rounded">?semantix_sid=&lt;id&gt;</code>.
+              </p>
+
+              <div className="space-y-2">
+                {Object.entries(siteConfig.sessionModes || {}).map(([sid, mode], idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={sid}
+                      onChange={(e) => {
+                        const entries = Object.entries(siteConfig.sessionModes || {});
+                        entries[idx] = [e.target.value, entries[idx][1]];
+                        setSiteConfig({ ...siteConfig, sessionModes: Object.fromEntries(entries) });
+                      }}
+                      placeholder="sess-1738483200000-ab12cd34"
+                      className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded font-mono"
+                      dir="ltr"
+                    />
+                    {typeof mode === 'string' ? (
+                      <select
+                        value={mode}
+                        onChange={(e) => {
+                          const entries = Object.entries(siteConfig.sessionModes || {});
+                          entries[idx] = [entries[idx][0], e.target.value];
+                          setSiteConfig({ ...siteConfig, sessionModes: Object.fromEntries(entries) });
+                        }}
+                        className="px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                      >
+                        <option value="shadow">shadow</option>
+                        <option value="off">off</option>
+                        <option value="normal">normal</option>
+                        <option value="full">full (force all features on)</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={JSON.stringify(mode)}
+                        disabled
+                        title="Custom features object — edit via JSON import"
+                        className="px-2 py-1 text-xs border border-gray-200 rounded bg-gray-100 text-gray-500 font-mono max-w-[180px]"
+                        dir="ltr"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const entries = Object.entries(siteConfig.sessionModes || {});
+                        entries.splice(idx, 1);
+                        setSiteConfig({ ...siteConfig, sessionModes: Object.fromEntries(entries) });
+                      }}
+                      className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = siteConfig.sessionModes || {};
+                    if ('' in current) return; // finish naming the previous row first
+                    setSiteConfig({ ...siteConfig, sessionModes: { ...current, '': 'shadow' } });
+                  }}
+                  className="px-3 py-1 text-xs font-medium text-amber-800 bg-amber-100 hover:bg-amber-200 rounded"
+                >
+                  + Add Session
+                </button>
+              </div>
+            </div>
+
             {/* Placeholder Rotation Configuration */}
             <div className="mb-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-purple-200 rounded-lg">
               <div className="flex items-center justify-between mb-3">
@@ -5563,6 +5687,15 @@ export default function AdminPanel({ session }) {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* Pinned / Promoted Results (merchandising) */}
+      {userData && apiKey && (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+          <div className="p-6">
+            <PinnedResultsPanel apiKey={apiKey} dbName={dbName} adminMode />
           </div>
         </div>
       )}

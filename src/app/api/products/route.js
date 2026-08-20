@@ -13,7 +13,8 @@ export async function POST(request) {
       softCategory = '',
       status = 'all',
       processed = 'all',
-      boosted = false
+      boosted = false,
+      excludeHidden = false
     } = await request.json();
     
     if (!dbName) {
@@ -83,6 +84,12 @@ export async function POST(request) {
     // Boosted filter
     if (boosted) {
       filter.boost = { $gt: 0 };
+    }
+
+    // Exclude hidden products (hidden === true). Covers boolean; other
+    // representations (1 / "true") are additionally filtered client-side.
+    if (excludeHidden) {
+      filter.hidden = { $ne: true };
     }
     
     // Calculate pagination

@@ -44,14 +44,14 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active, shopifyCreds } = body;
+    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active, shopifyCreds, showOutOfStock } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
     }
 
-    // Allow credential-only updates (shopifyCreds patch) without requiring categories
-    const categoriesOnlyUpdate = !categories && !types && !softCategories && shopifyCreds;
+    // Allow partial updates (shopifyCreds patch / showOutOfStock toggle) without requiring categories
+    const categoriesOnlyUpdate = !categories && !types && !softCategories && (shopifyCreds || showOutOfStock !== undefined);
 
     if (!categoriesOnlyUpdate && (!Array.isArray(categories) || !Array.isArray(types) || !Array.isArray(softCategories))) {
       return NextResponse.json({
@@ -63,7 +63,7 @@ export async function POST(request) {
     let boosts = softCategoryBoosts;
     if (!boosts || typeof boosts !== 'object') {
       boosts = {};
-      softCategories.forEach(category => {
+      (softCategories || []).forEach(category => {
         boosts[category] = 1.0;
       });
     }
@@ -108,6 +108,11 @@ export async function POST(request) {
       updateFields["active"] = active;
     }
 
+    // Toggle: include out-of-stock products in search results for this store
+    if (showOutOfStock !== undefined) {
+      updateFields["credentials.showOutOfStock"] = showOutOfStock === true;
+    }
+
     // Update user's configuration
     const result = await users.updateOne(
       { apiKey },
@@ -121,7 +126,10 @@ export async function POST(request) {
     }
 
     console.log(`✅ Admin updated configuration for user: ${user.email}`);
-    console.log(`   Categories: ${categories.length}, Types: ${types.length}, Soft Categories: ${softCategories.length}, Colors: ${(colors || []).length}`);
+    console.log(`   Categories: ${(categories || []).length}, Types: ${(types || []).length}, Soft Categories: ${(softCategories || []).length}, Colors: ${(colors || []).length}`);
+    if (showOutOfStock !== undefined) {
+      console.log(`   Show out-of-stock: ${showOutOfStock === true}`);
+    }
     if (siteConfig) {
       console.log(`   Site Config: Updated with ${siteConfig.domains?.length || 0} domains`);
       console.log(`   🔍 nativeCard.cardTemplate length: ${siteConfig.nativeCard?.cardTemplate?.length || 0}`);
@@ -141,11 +149,12 @@ export async function POST(request) {
       success: true,
       message: "User configuration updated successfully",
       updated: {
-        categoriesCount: categories.length,
-        typesCount: types.length,
-        softCategoriesCount: softCategories.length,
+        categoriesCount: (categories || []).length,
+        typesCount: (types || []).length,
+        softCategoriesCount: (softCategories || []).length,
         colorsCount: (colors || []).length,
-        siteConfigUpdated: !!siteConfig
+        siteConfigUpdated: !!siteConfig,
+        showOutOfStock: showOutOfStock === undefined ? undefined : showOutOfStock === true
       }
     });
 

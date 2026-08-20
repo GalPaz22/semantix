@@ -91,7 +91,8 @@ export async function GET(request) {
       shopifyClientSecret,
       platform: credentialsPlatform,
       wooUrl,
-      siteConfig
+      siteConfig,
+      showOutOfStock
     } = credentials;
 
     // Get product count from the user's database if dbName exists
@@ -122,6 +123,7 @@ export async function GET(request) {
         shopifyClientId:     shopifyClientId     || null,
         shopifyClientSecret: shopifyClientSecret || null,
         shopifyToken:        credentialsShopifyToken || null,
+        showOutOfStock:      showOutOfStock === true,
       },
       // Public app OAuth connection (populated when merchant installs via app store)
       shopifyAppConnection: shopifyConnected ? {

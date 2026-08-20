@@ -9,6 +9,7 @@ import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
 import AdminPanel from '../components/AdminPanel';
 import DemoPanel from '../components/DemoPanel';
 import DataAgentPanel from '../components/DataAgentPanel';
+import PinnedResultsPanel from '../components/PinnedResultsPanel';
 // Import the subscription-related components at the top
 import { useUserDetails } from '../hooks/useUserDetails';
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
@@ -51,7 +52,8 @@ import {
   Zap,
   Star,
   Activity,
-  Sparkles
+  Sparkles,
+  Pin
 } from "lucide-react";
 
 
@@ -2378,12 +2380,18 @@ function ApiKeyPanel({ session, onboarding }) {
 }
 
 /* -------- tiny helper so sidebar labels & panels stay together ---- */
+function DashboardPinnedResultsPanel({ onboarding }) {
+  const dbName = onboarding?.credentials?.dbName || onboarding?.dbName || "";
+  return <PinnedResultsPanel dbName={dbName} />;
+}
+
 const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "agent", label: "סוכן נתונים", component: DataAgentPanel, icon: Sparkles, adminOnly: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
+  { id: "pinned-results", label: "תוצאות מקודמות", component: DashboardPinnedResultsPanel, icon: Pin },
   { id: "settings", label: "הגדרות התוסף", component: SettingsPanel, icon: Settings },
   { id: "apikey", label: "מפתח API", component: ApiKeyPanel, icon: ListTodo },
   { id: "subscription", label: "מנוי", component: SubscriptionPanel, icon: CreditCard },
