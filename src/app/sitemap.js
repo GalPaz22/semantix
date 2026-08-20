@@ -17,6 +17,7 @@ const STATIC_ROUTES = [
   { path: '/case-studies', changeFrequency: 'weekly', priority: 0.8 },
   { path: '/learn', changeFrequency: 'weekly', priority: 0.8 },
   { path: '/glossary', changeFrequency: 'weekly', priority: 0.7 },
+  { path: '/llms.txt', changeFrequency: 'weekly', priority: 0.4 },
   { path: '/tools', changeFrequency: 'weekly', priority: 0.7 },
   { path: '/research', changeFrequency: 'weekly', priority: 0.7 },
   { path: '/blog', changeFrequency: 'weekly', priority: 0.7 },

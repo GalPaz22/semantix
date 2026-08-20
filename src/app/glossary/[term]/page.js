@@ -18,10 +18,16 @@ export function generateMetadata({ params }) {
   }
 
   return {
-    title: `${entry.term} | Semantix Glossary`,
+    title: `${entry.term}: הגדרה | Semantix`,
     description: entry.shortDefinition,
     alternates: {
       canonical: `${SITE_URL}/glossary/${entry.slug}`,
+    },
+    openGraph: {
+      title: `${entry.term}: הגדרה`,
+      description: entry.shortDefinition,
+      url: `${SITE_URL}/glossary/${entry.slug}`,
+      locale: 'he_IL',
     },
   };
 }
@@ -43,6 +49,7 @@ export default function GlossaryTermPage({ params }) {
     description: entry.shortDefinition,
     url: `${SITE_URL}/glossary/${entry.slug}`,
     inDefinedTermSet: `${SITE_URL}/glossary`,
+    inLanguage: 'he',
   };
 
   const breadcrumbStructuredData = {

@@ -3,15 +3,22 @@ import { GLOSSARY_TERMS } from '../lib/glossary-content';
 import { getDomain } from '../lib/content-taxonomy';
 
 export const metadata = {
-  title: 'מילון | מונחי חיפוש למסחר אלקטרוני מ-Semantix',
+  title: 'מילון חיפוש איקומרס | חיפוש סמנטי, אפס תוצאות ועוד',
   description:
-    'הגדרות קצרות ובשפה פשוטה למונחי חיפוש במסחר אלקטרוני — מחיפוש ללא תוצאות ועד חיפוש וקטורי, ניקוד רלוונטיות ו-merchandising.',
+    'הגדרות קצרות בעברית למונחי חיפוש באתר: חיפוש ללא תוצאות, חיפוש סמנטי, חיפוש היברידי, BM25, בוסטינג, חיפוש בעברית ועוד.',
+  keywords: [
+    'מילון חיפוש',
+    'חיפוש סמנטי הגדרה',
+    'חיפוש ללא תוצאות',
+    'חיפוש היברידי',
+    'חיפוש באתר',
+  ],
   alternates: {
     canonical: 'https://www.semantix.co.il/glossary',
   },
 };
 
-const sortedTerms = [...GLOSSARY_TERMS].sort((a, b) => a.term.localeCompare(b.term));
+const sortedTerms = [...GLOSSARY_TERMS].sort((a, b) => a.term.localeCompare(b.term, 'he'));
 
 export default function GlossaryHubPage() {
   return (
@@ -22,11 +29,11 @@ export default function GlossaryHubPage() {
             מילון
           </p>
           <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-[-0.03em] text-black sm:text-5xl">
-            מונחי חיפוש במסחר אלקטרוני — מוגדרים.
+            מילון חיפוש לאיקומרס — מוגדר בעברית.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-600">
-            הגדרות קצרות ובשפה פשוטה למושגים שעולים בהקשר של חיפוש,
-            התאמת AI, merchandising ואנליטיקה.
+            הגדרות קצרות שאפשר לצטט: חיפוש באתר, חיפוש סמנטי, חיפושים ללא תוצאות,
+            חיפוש בעברית, דירוג, מרצ׳נדייזינג ואנליטיקה.
           </p>
         </div>
       </section>

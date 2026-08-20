@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getLearnArticle, getAllLearnSlugs } from '../../lib/learn-content';
+import { getLearnArticle, getAllLearnSlugs, LEARN_CONTENT_LAST_REVIEWED } from '../../lib/learn-content';
 import { getDomain } from '../../lib/content-taxonomy';
 import { blogArticles } from '../../blog/data';
 import { CASE_STUDIES } from '../../lib/case-studies';
@@ -22,8 +22,16 @@ export function generateMetadata({ params }) {
   return {
     title: `${article.title} | Semantix`,
     description: article.metaDescription,
+    keywords: article.keywords,
     alternates: {
       canonical: `${SITE_URL}/learn/${article.slug}`,
+    },
+    openGraph: {
+      title: article.title,
+      description: article.metaDescription,
+      url: `${SITE_URL}/learn/${article.slug}`,
+      type: 'article',
+      locale: 'he_IL',
     },
   };
 }
@@ -50,6 +58,9 @@ export default function LearnArticlePage({ params }) {
     headline: article.title,
     description: article.metaDescription,
     url: `${SITE_URL}/learn/${article.slug}`,
+    datePublished: LEARN_CONTENT_LAST_REVIEWED,
+    dateModified: LEARN_CONTENT_LAST_REVIEWED,
+    inLanguage: 'he-IL',
     author: { '@type': 'Organization', name: 'Semantix', url: SITE_URL },
     publisher: { '@type': 'Organization', name: 'Semantix', url: SITE_URL },
   };
@@ -111,6 +122,14 @@ export default function LearnArticlePage({ params }) {
             {article.title}
           </h1>
           <p className="mt-5 text-lg leading-8 text-gray-600">{article.summary}</p>
+          <p className="mt-4 text-xs text-gray-400">
+            עודכן לאחרונה{' '}
+            {new Date(LEARN_CONTENT_LAST_REVIEWED).toLocaleDateString('he-IL', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
         </div>
       </section>
 
