@@ -45,10 +45,14 @@ export const metadata = {
     "Semantix בונה חיפוש לאי־קומרס שמוכר — Search Saver מציל חיפושים ללא תוצאות, ו־Semantix Search מפעיל את חוויית החיפוש המלאה בחנות.",
   keywords: [
     "חיפוש סמנטי",
+    "חיפוש באתר",
     "חיפוש לאיקומרס",
     "חיפוש AI",
+    "חיפושים ללא תוצאות",
+    "מנוע חיפוש לחנות",
     "Search Saver",
     "הצלת חיפושים ללא תוצאות",
+    "חיפוש בעברית",
     "semantix",
   ],
   authors: [{ name: "Semantix" }],
@@ -80,11 +84,11 @@ export const metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon.png", type: "image/png", sizes: "300x300" },
+      { url: "/favicon-48x48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon.png", type: "image/png", sizes: "192x192" },
     ],
     shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
 
