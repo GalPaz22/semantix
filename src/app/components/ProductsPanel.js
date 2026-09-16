@@ -10,6 +10,7 @@ import {
   CheckCircle,
   AlertCircle,
   Eye,
+  EyeOff,
   X,
   Save,
   ExternalLink,
@@ -35,6 +36,7 @@ export default function ProductsPanel({ session, onboarding }) {
   const [statusFilter, setStatusFilter] = useState('all'); // all, instock, outofstock
   const [processedFilter, setProcessedFilter] = useState('all'); // all, processed, unprocessed
   const [boostedFilter, setBoostedFilter] = useState(false); // only boosted products
+  const [hiddenFilter, setHiddenFilter] = useState(false); // only hidden products
   const [currentPage, setCurrentPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -100,7 +102,8 @@ export default function ProductsPanel({ session, onboarding }) {
           softCategory: selectedSoftCategory,
           status: statusFilter,
           processed: processedFilter,
-          boosted: boostedFilter
+          boosted: boostedFilter,
+          hiddenOnly: hiddenFilter
         })
       });
 
@@ -152,7 +155,7 @@ export default function ProductsPanel({ session, onboarding }) {
       setCurrentPage(1);
       fetchProducts(true);
     }
-  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter, processedFilter, boostedFilter]);
+  }, [searchTerm, selectedCategory, selectedType, selectedSoftCategory, statusFilter, processedFilter, boostedFilter, hiddenFilter]);
 
 
 
@@ -248,6 +251,37 @@ export default function ProductsPanel({ session, onboarding }) {
         p.id === product.id ? { ...p, boost: product.boost } : p
       ));
       setError('Failed to update boost. Please try again.');
+    }
+  };
+
+  // Handle inline hidden toggle
+  const handleToggleHidden = async (product) => {
+    const hidden = !product.hidden;
+
+    // Optimistic update
+    setProducts(products.map(p =>
+      p.id === product.id ? { ...p, hidden } : p
+    ));
+
+    try {
+      const response = await fetch('/api/products/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbName,
+          productId: product.id,
+          updates: { hidden }
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      console.error('Error updating hidden state:', err);
+      // Revert on failure
+      setProducts(products.map(p =>
+        p.id === product.id ? { ...p, hidden: product.hidden } : p
+      ));
+      setError('Failed to update product visibility. Please try again.');
     }
   };
 
@@ -425,6 +459,19 @@ export default function ProductsPanel({ session, onboarding }) {
           </div>
 
           <div className="flex items-end">
+            <div className="flex items-center h-full">
+              <input
+                type="checkbox"
+                id="hiddenFilter"
+                checked={hiddenFilter}
+                onChange={(e) => setHiddenFilter(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="hiddenFilter" className="ml-2 block text-sm font-medium text-gray-700">Show Hidden Products Only</label>
+            </div>
+          </div>
+
+          <div className="flex items-end">
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -434,6 +481,8 @@ export default function ProductsPanel({ session, onboarding }) {
                 setSelectedSoftCategory('');
                 setStatusFilter('all');
                 setProcessedFilter('all');
+                setBoostedFilter(false);
+                setHiddenFilter(false);
                 setCurrentPage(1);
               }}
               className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
@@ -502,7 +551,7 @@ export default function ProductsPanel({ session, onboarding }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {products.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50">
+                <tr key={product.id} className={`hover:bg-gray-50 ${product.hidden ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       {product.image && (
@@ -513,8 +562,14 @@ export default function ProductsPanel({ session, onboarding }) {
                         />
                       )}
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                           {safeText(product.name)}
+                          {product.hidden && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                              <EyeOff className="h-3 w-3 mr-1" />
+                              Hidden
+                            </span>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500 truncate max-w-xs">
                           {safeText(product.description1 || product.description) || 'No description'}
@@ -613,6 +668,13 @@ export default function ProductsPanel({ session, onboarding }) {
                         className="text-indigo-600 hover:text-indigo-900 transition-colors"
                       >
                         <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleToggleHidden(product)}
+                        title={product.hidden ? 'Unhide product' : 'Hide product'}
+                        className={`transition-colors ${product.hidden ? 'text-amber-600 hover:text-amber-800' : 'text-gray-600 hover:text-gray-900'}`}
+                      >
+                        {product.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                       {product.url && (
                         <a

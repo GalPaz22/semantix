@@ -14,7 +14,8 @@ export async function POST(request) {
       status = 'all',
       processed = 'all',
       boosted = false,
-      excludeHidden = false
+      excludeHidden = false,
+      hiddenOnly = false
     } = await request.json();
     
     if (!dbName) {
@@ -90,6 +91,8 @@ export async function POST(request) {
     // representations (1 / "true") are additionally filtered client-side.
     if (excludeHidden) {
       filter.hidden = { $ne: true };
+    } else if (hiddenOnly) {
+      filter.hidden = true;
     }
     
     // Calculate pagination
