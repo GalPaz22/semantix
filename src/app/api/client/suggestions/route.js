@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { authorizeTenantDb, tenantApiKey } from "/lib/tenant";
 import { optimizer, optimizerConfigured } from "/lib/optimizer";
+import { demoSuggestions, suggestionsDemoEnabled } from "/lib/suggestions-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const tenant = await authorizeTenantDb(session, searchParams.get("dbName") || undefined);
     if (tenant.error) return tenant.error;
+    if (suggestionsDemoEnabled()) return Response.json(await demoSuggestions(tenant.dbName));
     if (!optimizerConfigured()) return Response.json({ available: false, suggestions: [], tests: [] });
 
     const apiKey = await tenantApiKey(tenant);

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 import { authorizeTenantDb, tenantApiKey } from "/lib/tenant";
 import { optimizer } from "/lib/optimizer";
+import { demoAction, suggestionsDemoEnabled } from "/lib/suggestions-demo";
 
 // apply: live for everyone now · test: A/B test · dismiss: reject
 const ACTIONS = {
@@ -17,6 +18,11 @@ export async function POST(req, { params }) {
     const { action, note, dbName } = await req.json();
     const tenant = await authorizeTenantDb(session, dbName);
     if (tenant.error) return tenant.error;
+    if (suggestionsDemoEnabled()) {
+      if (!ACTIONS[action]) return Response.json({ error: "Invalid request" }, { status: 400 });
+      const done = await demoAction(tenant.dbName, params.id, action);
+      return done ? Response.json({ ok: true }) : Response.json({ error: "pending proposal not found" }, { status: 404 });
+    }
     if (!ACTIONS[action] || !/^[a-f0-9]{24}$/i.test(params.id)) {
       return Response.json({ error: "Invalid request" }, { status: 400 });
     }
