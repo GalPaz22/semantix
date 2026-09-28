@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function POST(request) {
   try {
@@ -9,7 +10,10 @@ export async function POST(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { dbName, productId, updates } = await request.json();
+    const { dbName: requestedDbName, productId, updates } = await request.json();
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbName = tenant.dbName;
     
     if (!dbName || !productId || !updates) {
       return Response.json({ 

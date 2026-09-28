@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "../../../../lib/mongodb.js";
+import { authorizeTenantDb } from "/lib/tenant";
 
 /* GET /api/sync-status?dbName=<n> */
 export async function GET(req) {
@@ -10,7 +11,10 @@ export async function GET(req) {
   if (!email) return Response.json({ error:"Unauthorized" }, { status:401 });
 
   const { searchParams } = new URL(req.url);
-  const dbName = searchParams.get("dbName") || "users"; // Default to "users" if not provided
+  const requestedDbName = searchParams.get("dbName");
+  const tenant = await authorizeTenantDb(session, requestedDbName);
+  if (tenant.error) return tenant.error;
+  const dbName = tenant.dbName;
 
   try {
     const client = await clientPromise;

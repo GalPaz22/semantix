@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { authorizeTenantDb } from "/lib/tenant";
 
 /* GET /api/latest-products?dbName=<n>&count=<number> */
 export async function GET(req) {
@@ -10,12 +11,12 @@ export async function GET(req) {
   }
 
   const { searchParams } = new URL(req.url);
-  const dbName = searchParams.get("dbName");
+  const requestedDbName = searchParams.get("dbName");
+  const tenant = await authorizeTenantDb(session, requestedDbName);
+  if (tenant.error) return tenant.error;
+  const dbName = tenant.dbName;
   const count = parseInt(searchParams.get("count") || "1", 10);
 
-  if (!dbName) {
-    return Response.json({ error: "dbName is required" }, { status: 400 });
-  }
 
   try {
     const client = await clientPromise;

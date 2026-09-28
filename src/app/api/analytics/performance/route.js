@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import clientPromise from "../../../../../lib/mongodb";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { buildDynamicDateFilter } from "../../../../../lib/analytics-helper";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function POST(request) {
     try {
@@ -11,7 +12,10 @@ export async function POST(request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { dbName, startDate, endDate } = await request.json();
+        const { dbName: requestedDbName, startDate, endDate } = await request.json();
+        const tenant = await authorizeTenantDb(session, requestedDbName);
+        if (tenant.error) return tenant.error;
+        const dbName = tenant.dbName;
 
         let effectiveEndDate = endDate;
         if (endDate) {
@@ -20,9 +24,6 @@ export async function POST(request) {
             effectiveEndDate = endObj.toISOString();
         }
 
-        if (!dbName) {
-            return Response.json({ error: "Missing dbName" }, { status: 400 });
-        }
 
         const client = await clientPromise;
         const db = client.db(dbName);

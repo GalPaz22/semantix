@@ -1,6 +1,7 @@
 import { getServerSession }   from "next-auth";
 import { authOptions }        from "../auth/[...nextauth]/route";
 import clientPromise          from "/lib/mongodb";
+import { authorizeTenantDb } from "/lib/tenant";
 
 /* GET /api/last-processed-product?dbName=<n> */
 export async function GET(req) {
@@ -10,7 +11,10 @@ export async function GET(req) {
   }
 
   const { searchParams } = new URL(req.url);
-  const dbName = searchParams.get("dbName") || "users"; // Default to "users" if not provided
+  const requestedDbName = searchParams.get("dbName");
+  const tenant = await authorizeTenantDb(session, requestedDbName);
+  if (tenant.error) return tenant.error;
+  const dbName = tenant.dbName;
   
   try {
     const client = await clientPromise;

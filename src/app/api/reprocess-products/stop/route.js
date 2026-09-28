@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { authorizeTenantDb } from "/lib/tenant";
 
 const LOCK_DIR = os.tmpdir(); // Use OS temp directory instead of hardcoded /tmp
 const getLockFilePath = (dbName) => path.join(LOCK_DIR, `reprocessing_${dbName}.lock`);
@@ -9,11 +12,11 @@ const getLockFilePath = (dbName) => path.join(LOCK_DIR, `reprocessing_${dbName}.
 export async function POST(request) {
   console.log("STOP API: Received request.");
   try {
-    const { dbName } = await request.json();
-    if (!dbName) {
-      console.log("STOP API: dbName is required.");
-      return NextResponse.json({ error: "dbName is required" }, { status: 400 });
-    }
+    const session = await getServerSession(authOptions);
+    const { dbName: requestedDbName } = await request.json();
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbName = tenant.dbName;
     const lockFilePath = getLockFilePath(dbName);
     console.log(`STOP API: Attempting to delete lock file at ${lockFilePath}`);
     await fs.unlink(lockFilePath);

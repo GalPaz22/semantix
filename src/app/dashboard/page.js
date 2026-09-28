@@ -15,6 +15,7 @@ import { useUserDetails } from '../hooks/useUserDetails';
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
 import CancellationModal from '../components/CancellationModal';
 import AnalyticsPanel from '../components/AnalyticsPanel';
+import ClientSearchPanel from '../components/ClientSearchPanel';
 
 // Charts
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -2387,6 +2388,7 @@ function DashboardPinnedResultsPanel({ onboarding }) {
 
 const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
+  { id: "search-performance", label: "ביצועי חיפוש", component: ClientSearchPanel, icon: Search },
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "agent", label: "סוכן נתונים", component: DataAgentPanel, icon: Sparkles, adminOnly: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
@@ -2470,8 +2472,11 @@ export default function DashboardPage() {
       setActive(panelParam);
     } else if (tabParam && availablePanels.some(p => p.id === tabParam)) {
       setActive(tabParam);
+    } else if (status === "authenticated" && !isAdmin) {
+      // Clients land on the search performance view.
+      setActive("search-performance");
     }
-  }, [isAdmin]);
+  }, [isAdmin, status]);
 
   useEffect(() => {
     if (!availablePanels.some(panel => panel.id === active)) {
