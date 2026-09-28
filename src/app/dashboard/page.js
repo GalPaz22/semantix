@@ -16,6 +16,7 @@ import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
 import CancellationModal from '../components/CancellationModal';
 import AnalyticsPanel from '../components/AnalyticsPanel';
 import ClientSearchPanel from '../components/ClientSearchPanel';
+import ClientSuggestionsPanel from '../components/ClientSuggestionsPanel';
 
 // Charts
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -31,6 +32,7 @@ import {
   X,
   Download,
   Search,
+  Lightbulb,
   Bell,
   HelpCircle,
   ChevronDown,
@@ -2389,6 +2391,7 @@ function DashboardPinnedResultsPanel({ onboarding }) {
 const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
   { id: "search-performance", label: "ביצועי חיפוש", component: ClientSearchPanel, icon: Search },
+  { id: "suggestions", label: "הצעות לשיפור", component: ClientSuggestionsPanel, icon: Lightbulb },
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "agent", label: "סוכן נתונים", component: DataAgentPanel, icon: Sparkles, adminOnly: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
