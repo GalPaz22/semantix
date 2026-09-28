@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import clientPromise from "/lib/mongodb.js";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function GET(req) {
-  const dbName = req.nextUrl.searchParams.get("dbName");
-  if (!dbName) {
-    return NextResponse.json({ error: "missing dbName" }, { status: 400 });
-  }
+  const session = await getServerSession(authOptions);
+  const requestedDbName = req.nextUrl.searchParams.get("dbName");
+  const tenant = await authorizeTenantDb(session, requestedDbName);
+  if (tenant.error) return tenant.error;
+  const dbName = tenant.dbName;
 
   try {
     const client = await clientPromise;

@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { authorizeTenantDb } from "/lib/tenant";
 
 /**
  * API endpoint to fetch cart analytics data
@@ -17,13 +18,13 @@ export async function POST(request) {
 
     // Parse request body
     const body = await request.json();
-    const { dbName, type, startDate, endDate } = body;
+    const { dbName: requestedDbName, type, startDate, endDate } = body;
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbName = tenant.dbName;
 
     console.log("[API Cart-Analytics] Request:", { dbName, type, startDate, endDate });
 
-    if (!dbName) {
-      return Response.json({ error: "Missing dbName parameter" }, { status: 400 });
-    }
 
     // Connect to MongoDB
     const client = await clientPromise;

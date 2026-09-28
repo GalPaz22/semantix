@@ -9,9 +9,16 @@ import { NextResponse } from "next/server";
 import clientPromise from "/lib/mongodb";
 import { GraphQLClient, gql } from "graphql-request";
 import WooCommerceRestApi from "@woocommerce/woocommerce-rest-api";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { isAdminSession } from "/lib/tenant";
 
 export async function POST(request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!isAdminSession(session)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const { dbName } = await request.json();
     if (!dbName) {
       return NextResponse.json({ error: "dbName is required" }, { status: 400 });

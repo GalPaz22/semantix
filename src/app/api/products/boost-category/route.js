@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { authorizeTenantDb } from "/lib/tenant";
 
 /**
  * POST /api/products/boost-category
@@ -23,7 +24,10 @@ export async function POST(request) {
   }
 
   try {
-    const { dbName, category, categoryType, boost } = await request.json();
+    const { dbName: requestedDbName, category, categoryType, boost } = await request.json();
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbName = tenant.dbName;
 
     if (!dbName || !category || !categoryType) {
       return NextResponse.json(

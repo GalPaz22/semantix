@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "../../../../../lib/mongodb";
 import { buildDynamicDateFilter } from "../../../../../lib/analytics-helper";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function POST(request) {
     try {
@@ -12,11 +13,11 @@ export async function POST(request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { dbName, startDate, endDate, complexOnly = false, limit } = await request.json();
+        const { dbName: requestedDbName, startDate, endDate, complexOnly = false, limit } = await request.json();
 
-        if (!dbName) {
-            return Response.json({ error: "Missing dbName" }, { status: 400 });
-        }
+        const tenant = await authorizeTenantDb(session, requestedDbName);
+        if (tenant.error) return tenant.error;
+        const dbName = tenant.dbName;
 
         if (complexOnly) {
             const client = await clientPromise;

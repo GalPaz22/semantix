@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb.js";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function POST(request) {
   console.log("🚀 REPROCESS API: Starting...");
 
   try {
     const {
-      dbName: dbNameFromRequest,
+      dbName: requestedDbName,
       categories,
       type: userTypes,
       softCategories,
@@ -32,6 +35,11 @@ export async function POST(request) {
       incrementalHardCategories,
       incrementalColors
     } = await request.json();
+
+    const session = await getServerSession(authOptions);
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbNameFromRequest = tenant.dbName;
 
     // Map the new parameter to the existing one
     const filterMissingSoftCategories = onlyWithoutSoftCategories || missingSoftCategoryOnly || false;

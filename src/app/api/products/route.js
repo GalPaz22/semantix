@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '/lib/mongodb';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { authorizeTenantDb } from "/lib/tenant";
 
 export async function POST(request) {
   try {
+    const session = await getServerSession(authOptions);
     const { 
-      dbName, 
+      dbName: requestedDbName, 
       page = 1, 
       limit = 20, 
       search = '', 
@@ -17,10 +21,10 @@ export async function POST(request) {
       excludeHidden = false,
       hiddenOnly = false
     } = await request.json();
-    
-    if (!dbName) {
-      return NextResponse.json({ error: 'Database name is required' }, { status: 400 });
-    }
+
+    const tenant = await authorizeTenantDb(session, requestedDbName);
+    if (tenant.error) return tenant.error;
+    const dbName = tenant.dbName;
 
     const client = await clientPromise;
     const db = client.db(dbName);
