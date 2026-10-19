@@ -2,6 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { optimizerRouteAllowed, ownershipFilter, publicOptimizerData } from '../lib/optimizer-access.js';
 const id='1234567890abcdef12345678';
+test('concierge exposes read-only history and explicit settings PUT without arbitrary operations', () => {
+  for (const path of ['concierge/settings', 'concierge/conversations', 'concierge/conversations/a:1.2']) assert.equal(optimizerRouteAllowed('GET', path), true);
+  assert.equal(optimizerRouteAllowed('PUT', 'concierge/settings'), true);
+  for (const method of ['POST', 'DELETE']) assert.equal(optimizerRouteAllowed(method, 'concierge/settings'), false);
+  for (const path of ['concierge/conversations/../settings', 'concierge/conversations/$bad', 'concierge/conversations/a/export', 'concierge/chat']) assert.equal(optimizerRouteAllowed('GET', path), false);
+  assert.equal(optimizerRouteAllowed('DELETE', 'concierge/conversations/a'), false);
+});
 test('proxy accepts scoped dashboard operations and rejects arbitrary admin and traversal paths',()=>{
   assert.equal(optimizerRouteAllowed('GET','dashboard'),true);
   assert.equal(optimizerRouteAllowed('PUT','dashboard/pins'),true);

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft } from "lucide-react";
 import ClientAnalyticsPanel from "../../components/client-demo/ClientAnalyticsPanel";
-import SearchAgentPanel from "../../components/client-demo/SearchAgentPanel";
+import ClientChatbotPanel from "../../components/client-demo/ClientChatbotPanel";
 import ResultsPanel from "../../components/client-demo/ResultsPanel";
 import ClientProductsPanel from "../../components/client-demo/ClientProductsPanel";
 import { OptimizerProvider, useOptimizer } from "../../components/client-demo/OptimizerContext";
@@ -171,7 +171,7 @@ function ClientDashboard() {
           <div className={active === "analytics" ? "" : "hidden"}><ClientAnalyticsPanel onNavigate={select} /></div>
           <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
           <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>
-          <div className={active === "agent" ? "" : "hidden"}><SearchAgentPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
+          <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
         </main>
       </div>
     </div>

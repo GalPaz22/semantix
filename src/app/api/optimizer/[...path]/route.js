@@ -55,7 +55,8 @@ async function handle(request, { params }) {
       return NextResponse.json({ ...data, saved: true, published, message: published ? 'הכללים נשמרו. השינויים בכללים מהאדמין יופיעו בחיפוש תוך עד 5 דקות.' : 'הכללים נשמרו. הסנכרון עם מנוע החיפוש טרם אומת; יש לרענן ולבדוק.' });
     }
     const parts = path.split('/');
-    const resourceId = parts.find(part => /^[a-f\d]{24}$/i.test(part));
+    // Concierge records live in the authenticated store DB, and are checked there.
+    const resourceId = parts[0] === 'concierge' ? null : parts.find(part => /^[a-f\d]{24}$/i.test(part));
     if (resourceId) {
       const collection = parts[0] === 'optimization' ? 'optimization_actions' : parts[0] === 'agent' ? 'agent_runs' : parts[0];
       const owned = await client.db('control_plane').collection(collection).findOne({ _id: new ObjectId(resourceId), ...ownershipFilter(user.dbName, keys) }, { projection: { _id: 1 } });
@@ -68,6 +69,9 @@ async function handle(request, { params }) {
     if (path === 'dashboard/catalog') url.searchParams.set('query', incoming.searchParams.get('query') || '');
     if (path === 'dashboard/products') {
       for (const key of ['query', 'visibility', 'promotion', 'page']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));
+    }
+    if (path === 'concierge/conversations') {
+      for (const key of ['query', 'page', 'content']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));
     }
     let body;
     if (method !== 'GET' && method !== 'DELETE') {

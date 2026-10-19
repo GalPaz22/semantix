@@ -1,0 +1,78 @@
+'use client'
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2, Save, RefreshCw, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Card, PageHeader } from './ui';
+import { useOptimizer, buttonClass } from './OptimizerContext';
+const field = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 disabled:opacity-50';
+const date = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' }) : '—';
+const number = n => Number(n || 0).toLocaleString('he-IL');
+const url = value => { try { const u = new URL(value); return ['http:', 'https:'].includes(u.protocol) ? u.href : null; } catch { return null; } };
+const reason = value => ({ no_results: 'לא נמצאו תוצאות', out_of_stock: 'אזל מהמלאי', non_literal: 'בקשת ייעוץ', consultative: 'בקשת ייעוץ' }[value] || 'שיחה בחנות');
+export default function ConciergeManagementPanel({ section, visible }) { return section === 'instructions' ? <Instructions visible={visible} /> : <Conversations visible={visible} />; }
+
+function Instructions({ visible }) {
+  const { request, mutate, ready } = useOptimizer();
+  const [saved, setSaved] = useState(null), [draft, setDraft] = useState(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
+  const dirty = !!saved && !!draft && ['instructions','context','systemPrompt'].some(key => saved[key] !== draft[key]);
+  const load = useCallback(async signal => { setLoading(true); setError(''); try { const next = await request('concierge/settings', { signal }); if (!signal?.aborted) { setSaved(next); setDraft(next); } } catch (e) { if (!signal?.aborted) setError(e.message); } finally { if (!signal?.aborted) setLoading(false); } }, [request]);
+  useEffect(() => { if (!visible || !ready || saved) return; const controller = new AbortController(); load(controller.signal); return () => controller.abort(); }, [visible, ready, saved, load]);
+  useEffect(() => { if (!dirty) return; const warn = event => { event.preventDefault(); event.returnValue = ''; }; window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn); }, [dirty]);
+  const edit = (key, value) => { setDraft(d => ({ ...d, [key]: value })); setNotice(''); };
+  const save = async event => { event.preventDefault(); if (busy || !dirty) return; setBusy(true); setError(''); setNotice(''); try { const next = await mutate('concierge/settings', { revision: saved.revision, instructions: draft.instructions, context: draft.context, systemPrompt: draft.systemPrompt }, 'PUT'); setSaved(next); setDraft(next); setNotice(next.message || 'ההוראות נשמרו'); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  return <div dir="rtl">
+    <PageHeader eyebrow="הקונסיירז׳ בחנות" title="הוראות לצ׳אטבוט של הלקוחות" subtitle="קבעו את סגנון התשובות, איך להמליץ על מוצרים ואילו הנחיות חשוב לשמור בכל שיחה." right={<button type="button" className={buttonClass} disabled={!ready || loading || busy || dirty} onClick={() => load()}><RefreshCw className="h-4 w-4" />טעינת ההוראות העדכניות</button>} />
+    {error && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+    {notice && <div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
+    {!ready || loading ? <Card className="p-8 text-center text-sm text-slate-500">{!ready ? 'בחרו חנות לצפייה בהנחיות שלה' : 'טוען את ההנחיות הקיימות…'}</Card> : !draft ? <button className={buttonClass} onClick={() => load()}><RefreshCw className="h-4 w-4" />טעינה מחדש</button> : <form onSubmit={save}>
+      <Card className="p-5 md:p-6 space-y-6">
+        <div className="flex items-center gap-2 text-xs text-slate-500"><span className={`h-2 w-2 rounded-full ${saved.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />{saved.enabled ? 'הקונסיירז׳ פעיל בחנות' : 'הקונסיירז׳ אינו מופעל כרגע בחנות · אפשר להכין את ההוראות מראש'}</div>
+        <div><label htmlFor="concierge-instructions" className="block font-semibold text-sm mb-2">הוראות נוספות לצ׳אטבוט</label><p className="text-xs text-slate-500 mb-3">ההוראות מצטרפות לפרומפט הקיים של החנות. אפשר לכתוב איך לפנות ללקוחות, מה לשאול לפני המלצה ומה חשוב להדגיש.</p><textarea id="concierge-instructions" className={field} rows={9} maxLength={8000} value={draft.instructions} disabled={busy} onChange={e => edit('instructions', e.target.value)} placeholder="לדוגמה: עני בקצרה ובשפה מקצועית ונעימה. לפני המלצה שאלי אם המוצר מיועד לעבודה ביתית או מקצועית. הציעי 2–3 אפשרויות והסבירי את ההבדל ביניהן." /><div className="text-left text-[11px] text-slate-400 mt-1">{number(draft.instructions.length)} / 8,000</div></div>
+        <div><label htmlFor="concierge-context" className="block font-semibold text-sm mb-2">מידע ורקע על החנות</label><p className="text-xs text-slate-500 mb-3">פרטים שהצ׳אטבוט צריך לדעת — תחומי התמחות, קהל היעד ומדיניות שירות שברצונכם למסור.</p><textarea id="concierge-context" className={field} rows={4} maxLength={4000} value={draft.context} disabled={busy} onChange={e => edit('context', e.target.value)} /></div>
+        <details className="border-t border-slate-100 pt-4"><summary className="cursor-pointer text-sm font-medium text-slate-600">עריכה מתקדמת — פרומפט ראשי מותאם</summary><p className="text-xs text-slate-500 my-3">טקסט כאן מחליף את הפרומפט הראשי הכללי. הנחיות ייעודיות לחנות, אם קיימות, וההוראות הנוספות ממשיכות להצטרף אליו. השאירו ריק כדי להשתמש בברירת המחדל.</p><label htmlFor="concierge-system-prompt" className="sr-only">פרומפט ראשי מותאם</label><textarea id="concierge-system-prompt" className={field} rows={10} maxLength={16000} value={draft.systemPrompt} disabled={busy} onChange={e => edit('systemPrompt', e.target.value)} /><button type="button" disabled={busy || !draft.systemPrompt} className="mt-2 text-xs text-indigo-600 disabled:opacity-40" onClick={() => edit('systemPrompt', '')}>חזרה לפרומפט ברירת המחדל</button></details>
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5"><button className={buttonClass} disabled={!dirty || busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}שמירת הוראות</button><button type="button" className="text-xs text-slate-500 disabled:opacity-40" disabled={!dirty || busy} onClick={() => { setDraft(saved); setError(''); setNotice(''); }}>ביטול שינויים</button>{dirty && <span className="text-xs text-amber-700">יש שינויים שטרם נשמרו</span>}</div>
+      </Card>
+      <p className="text-xs text-slate-500 mt-3">השינוי חל על הודעות חדשות בקונסיירז׳ שבחנות. שיחות שמורות מציגות את התשובות המקוריות ואינן משתנות בעקבות עריכת ההוראות.</p>
+    </form>}
+  </div>;
+}
+
+function Conversations({ visible }) {
+  const { request, ready } = useOptimizer();
+  const [days, setDays] = useState('30'), [content, setContent] = useState('all'), [input, setInput] = useState(''), [query, setQuery] = useState(''), [page, setPage] = useState(1), [reload, setReload] = useState(0);
+  const [list, setList] = useState(null), [selected, setSelected] = useState(null), [detail, setDetail] = useState(null), [loading, setLoading] = useState(false), [detailLoading, setDetailLoading] = useState(false), [error, setError] = useState(''), [detailError, setDetailError] = useState('');
+  const params = useMemo(() => new URLSearchParams({ days, content, query, page: String(page) }).toString(), [days, content, query, page]);
+  useEffect(() => {
+    if (!visible || !ready) return; const controller = new AbortController(); setLoading(true); setError(''); setList(null); setSelected(null); setDetail(null);
+    request(`concierge/conversations?${params}`, { signal: controller.signal }).then(data => { if (controller.signal.aborted) return; setList(data); setSelected((data.conversations.find(c => c.hasTranscript) || data.conversations[0])?.id || null); }).catch(e => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [visible, ready, request, params, reload]);
+  useEffect(() => {
+    setDetail(null); setDetailError(''); if (!selected || !visible || !ready) { setDetailLoading(false); return; }
+    const controller = new AbortController(); setDetailLoading(true);
+    request(`concierge/conversations/${encodeURIComponent(selected)}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setDetail(data); }).catch(e => { if (!controller.signal.aborted) setDetailError(e.message); }).finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
+    return () => controller.abort();
+  }, [selected, visible, ready, request]);
+  const filter = (fn, value) => { fn(value); setPage(1); };
+  return <div dir="rtl">
+    <PageHeader eyebrow="הקונסיירז׳ בחנות" title="שיחות הלקוחות" subtitle="השיחות שנשמרו מהצ׳אט באתר, כולל ההודעות, התשובות והמוצרים שהוצגו." right={<button className={buttonClass} disabled={loading || !ready} onClick={() => setReload(r => r + 1)}><RefreshCw className="h-4 w-4" />רענון</button>} />
+    <Card className="p-4 mb-4"><form onSubmit={e => { e.preventDefault(); filter(setQuery, input.trim()); }} className="flex flex-wrap gap-3"><input className={`${field} flex-1 min-w-[180px]`} aria-label="חיפוש בשיחות הקונסיירז׳" maxLength={200} value={input} onChange={e => setInput(e.target.value)} placeholder="חיפוש לפי חיפוש בחנות או תוכן ההודעות" /><select className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" aria-label="תקופת השיחות" value={days} onChange={e => filter(setDays, e.target.value)}><option value="7">7 ימים</option><option value="30">30 ימים</option><option value="90">90 ימים</option><option value="all">כל הזמן</option></select><select className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" aria-label="סוג השיחות השמורות" value={content} onChange={e => filter(setContent, e.target.value)}><option value="all">כל הרשומות</option><option value="transcript">עם תוכן שיחה</option><option value="metadata">נתוני פעילות בלבד</option></select><button className={buttonClass}>חיפוש</button></form></Card>
+    {error && <p role="alert" className="p-4 mb-4 rounded-xl bg-rose-50 text-rose-700 text-sm">{error}</p>}
+    {list && <p className="text-xs text-slate-500 mb-4">{number(list.total)} רשומות בטווח שנבחר · {number(list.withTranscript)} עם תוכן שיחה שמור. רשומות ישנות עשויות להכיל נתוני פעילות בלבד.</p>}
+    <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
+      <Card className="overflow-hidden"><div className="p-4 border-b border-slate-100 font-semibold text-sm">שיחות אחרונות</div>
+        {!ready || loading ? <p role="status" className="p-8 text-sm text-center text-slate-500">{!ready ? 'בחרו חנות לצפייה בשיחות שלה' : 'טוען שיחות…'}</p> : !list?.conversations.length ? <p className="p-8 text-sm text-slate-500">לא נמצאו שיחות בטווח ובסינון שנבחרו.</p> : <div className="max-h-[65dvh] overflow-y-auto">{list.conversations.map(c => <button key={c.id} onClick={() => setSelected(c.id)} aria-pressed={selected === c.id} className={`w-full text-right px-4 py-4 border-b border-slate-100 ${selected === c.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}><div className="flex items-center gap-2 text-sm font-medium"><MessageSquare className="h-4 w-4 shrink-0 text-slate-400" /><span className="truncate">{c.query || c.preview || 'שיחה ללא חיפוש פתיחה'}</span></div><p className="text-xs text-slate-500 mt-2">{date(c.updatedAt)} · {number(c.turns)} סבבים</p><span className={`inline-block text-[11px] mt-2 rounded-full px-2 py-1 ${c.hasTranscript ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{c.hasTranscript ? 'תוכן השיחה זמין' : 'נתוני פעילות בלבד'}</span></button>)}</div>}
+        {list?.totalPages > 1 && <div className="p-3 flex items-center justify-between text-xs border-t border-slate-100"><button aria-label="עמוד קודם בשיחות" className="p-2 disabled:opacity-30" disabled={loading || page <= 1} onClick={() => setPage(p => p - 1)}><ChevronRight className="h-4 w-4" /></button><span>עמוד {number(page)} מתוך {number(list.totalPages)}</span><button aria-label="עמוד הבא בשיחות" className="p-2 disabled:opacity-30" disabled={loading || page >= list.totalPages} onClick={() => setPage(p => p + 1)}><ChevronLeft className="h-4 w-4" /></button></div>}
+      </Card>
+      <Card className="min-w-0 overflow-hidden">{detailLoading ? <p role="status" className="p-10 text-center text-sm text-slate-500">טוען את תוכן השיחה…</p> : detailError ? <p role="alert" className="p-5 text-sm text-rose-700">{detailError}</p> : !detail ? <p className="p-10 text-center text-sm text-slate-500">בחרו שיחה כדי לראות את פרטיה</p> : <>
+        <div className="px-5 py-4 border-b border-slate-100"><h3 className="font-semibold break-words">{detail.query || 'שיחת קונסיירז׳'}</h3><p className="text-xs text-slate-500 mt-1">{reason(detail.reason)} · התחילה {date(detail.createdAt)} · עודכנה {date(detail.updatedAt)}</p></div>
+        {!detail.hasTranscript ? <div className="p-6"><p className="text-sm font-medium text-slate-700">לשיחה הזו נשמרו נתוני פעילות בלבד</p><p className="text-sm text-slate-500 mt-2 leading-relaxed">טקסט ההודעות לא נשמר בגרסה שבה התקיימה השיחה, ולכן אין תמליל להצגה. לאחר עדכון מנוע החיפוש, שיחות חדשות נשמרות עם תוכן ההודעות והתשובות.</p></div> : <div className="p-4 md:p-6 space-y-5 max-h-[75dvh] overflow-y-auto" aria-label="תמליל שיחת הלקוח">{detail.transcript.map((turn, i) => <div key={i} className="space-y-3">
+          {turn.opening ? <p className="text-xs text-center text-slate-400">פתיחה אוטומטית בעקבות החיפוש ״{turn.query || detail.query}״</p> : turn.message && <Bubble customer text={turn.message} />}
+          {turn.reply && <Bubble text={turn.reply} />}
+          {turn.products.length > 0 && <div className="flex flex-wrap gap-2">{turn.products.map((p, index) => { const link = url(p.url), picture = url(p.image); return <a key={`${p.id}-${index}`} href={link || undefined} target={link ? '_blank' : undefined} rel="noreferrer" className="flex gap-2 items-center rounded-xl border border-slate-200 p-2 bg-white text-xs max-w-[250px]">{picture && <img src={picture} loading="lazy" alt="" className="w-11 h-11 rounded-lg object-contain" />}<div className="min-w-0"><p className="font-medium break-words">{p.name || 'מוצר שהוצג'}</p>{p.price != null && <p className="text-slate-500 mt-1">{p.price} ₪</p>}</div></a>; })}</div>}
+          {turn.error && <p className="text-xs text-rose-600">השיחה הסתיימה בשגיאה: {turn.error}</p>}{turn.stopped && <p className="text-xs text-amber-700">התשובה הופסקה לפני שהושלמה</p>}{turn.at && <p className="text-[11px] text-slate-400 text-center">{date(turn.at)}</p>}
+        </div>)}{detail.legacy.map((m, i) => <Bubble key={i} customer={m.role === 'user'} text={m.text} />)}</div>}
+      </>}</Card>
+    </div>
+  </div>;
+}
+function Bubble({ customer = false, text }) { return <div className={`flex ${customer ? 'justify-start' : 'justify-end'}`}><div className={`max-w-[90%] px-4 py-3 text-sm whitespace-pre-wrap break-words rounded-2xl leading-relaxed ${customer ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-sm'}`}><p className={`text-[11px] mb-1 ${customer ? 'text-indigo-100' : 'text-slate-400'}`}>{customer ? 'לקוח/ה' : 'הקונסיירז׳'}</p>{text}</div></div>; }
