@@ -18,7 +18,7 @@ export function OptimizerProvider({ isAdmin, children }) {
     const [pathname, query = ''] = path.split('?');
     const params = new URLSearchParams(query);
     if (isAdmin && selectedStore) params.set('store', selectedStore);
-    const response = await fetch(`/api/optimizer/${pathname}?${params}`, {
+    const response = await fetch(`/api/customer-dashboard/${pathname}?${params}`, {
       ...init, signal: init.signal || AbortSignal.timeout(125000), cache: 'no-store', headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
     });
     let data;
@@ -30,7 +30,7 @@ export function OptimizerProvider({ isAdmin, children }) {
     if (!isAdmin) return;
     let live = true;
     const controller = new AbortController();
-    fetch('/api/optimizer/stores', { cache: 'no-store', signal: controller.signal }).then(async response => {
+    fetch('/api/customer-dashboard/stores', { cache: 'no-store', signal: controller.signal }).then(async response => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'לא ניתן לטעון חנויות');
       if (!live) return;
@@ -52,7 +52,7 @@ export function OptimizerProvider({ isAdmin, children }) {
   const streamUrl = useCallback(path => {
     const params = new URLSearchParams();
     if (isAdmin && selectedStore) params.set('store', selectedStore);
-    return `/api/optimizer/${path}?${params}`;
+    return `/api/customer-dashboard/${path}?${params}`;
   }, [isAdmin, selectedStore]);
   const refresh = useCallback(() => setVersion(v => v + 1), []);
   const mutate = useCallback(async (path, body, method = 'POST') => {

@@ -9,12 +9,10 @@ The existing tenant-studio search-management assistant remains a separate tab.
 Deploy all three repositories from main:
 
 - `semantix`: customer dashboard and authenticated optimizer proxy.
-- `search-optimizer`: store-scoped history/settings routes behind existing OPS authentication.
+- `tenant-studio`: store-scoped analytics, history/settings and management chat behind customer-service authentication.
 - `dashboard-server`: reads saved instructions on each shopper message and records full transcripts.
 
-Deploy the optimizer and search server before the frontend. No new environment
-variables or database migration are required. Use the existing shared MongoDB
-and optimizer service credentials. `tenant-studio` needs no change for this feature.
+Deploy Studio and the search server before the frontend. No database migration is required. Use the existing shared MongoDB and matching `STUDIO_CUSTOMER_API_TOKEN` on Studio and the frontend. Set `STUDIO_SERVICE_URL` on the frontend; no separate optimizer is required.
 
 ## Settings and history
 
@@ -36,7 +34,7 @@ and optimizer service credentials. `tenant-studio` needs no change for this feat
 ## Validation
 
 Frontend: `npm run test:optimizer` and `npm run build`.
-Optimizer: `npm run build` and `npm test`.
+Studio: `npm test`.
 Search server: `node --test concierge-settings.test.mjs tenants/beautics/concierge.test.mjs`.
 The settings/history APIs were also verified against Beautics in read-only mode;
 no production prompt edits or test conversations were created.

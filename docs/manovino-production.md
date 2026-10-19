@@ -1,38 +1,63 @@
-# Mano Vino dashboard release
+# Customer dashboard production release
 
-The release spans four repositories: `tenant-studio`, `search-optimizer`, `dashboard-server` and this Next.js frontend. Deploy Studio, the backend and search engine before switching the frontend to this version.
+The Next.js customer dashboard connects directly to **tenant-studio**. Studio
+serves analytics, products, saved shopper conversations and concierge settings
+under `/api/customer-dashboard/*`, and executes customer management chat with
+its existing `studioAgent`. No separate optimizer deployment or optimizer
+credentials are required for the four customer panels.
 
-## Tenant Studio chat
+## Deploy
 
-Customer messages use the actual `studioAgent` in `tenant-studio`; the optimizer keeps the existing queue, conversation history, aggregate analytics and approve/reject APIs. Manual customer chat defaults to `DASHBOARD_CHAT_ENGINE=studio`, with no automatic fallback to the older Claude agent. Scheduled optimizer work remains separate.
+1. Deploy `tenant-studio` from main, retaining its existing persistent
+   `STUDIO_DATA_DIR`, customer projects and model credentials.
+2. Deploy the `semantix` frontend from main (Node.js 24).
+3. Keep `dashboard-server` deployed with live merchant ranking, concierge
+   transcripts and per-message prompt settings. It serves the shopper search/chat.
 
-Set `STUDIO_SERVICE_URL=https://tenant-studio.onrender.com` in the optimizer and set the same long random `STUDIO_CUSTOMER_API_TOKEN` in **both** the optimizer and Studio. This is a server-only integration secret, not a user session token and never a browser variable. The Studio `/api/customer-chat/*` endpoints independently authenticate it and resolve the store's API key against MongoDB before selecting a project. No Studio admin session is given to the customer.
+In **both Vercel and tenant-studio**, set the same private
+`STUDIO_CUSTOMER_API_TOKEN`. In Vercel Production, set
+`STUDIO_SERVICE_URL=https://tenant-studio.onrender.com` (or the actual Studio
+HTTPS origin). This is also the frontend's production default. The token is
+server-only; the operator Studio token is not accepted. Redeploy after changing
+environment variables. Existing MongoDB/NextAuth/OAuth settings stay in place.
+`OPTIMIZER_SERVICE_URL` and `OPTIMIZER_OPS_PASSWORD` are not used by this dashboard.
 
-Studio needs its existing project data on persistent storage (`STUDIO_DATA_DIR`). Import/restore the Mano Vino project on that service before switching chat. Its existing local project is `2b3f29d3-1caf-4193-a527-d7da17bbae85`, with 2,324 products. If several Studio projects point to the same store, set `STUDIO_CUSTOMER_PROJECTS={"manoVino":"2b3f29d3-1caf-4193-a527-d7da17bbae85"}` on Studio; mapping never overrides the project's actual `existingClient.dbName` ownership.
+Studio uses `STUDIO_DASHBOARD_MONGODB_URI`, falling back to `MONGODB_URI`, for the
+same customer/control-plane database that the frontend and search service use.
+Analytics and history are deterministic reads; they need neither a Studio project
+nor Redis. Product changes and concierge edits are store scoped. Shared Redis is
+optional for analytics, but configure the search engine's production `REDIS_URL`
+on Studio for immediate cache clearing and publication of existing exact-query
+rules. Studio refreshes those saved rules every 30 seconds; no scheduled model or
+catalog changes are started.
 
-Questions do not save or publish the Studio project. Product boost, visibility and ordered pin requests become the dashboard's normal pending proposals. Other supported Studio search changes are saved as private drafts, then applied and published only after approval. Approval checks the original project fingerprint and rejects stale drafts; it does not overwrite newer Studio edits. Studio conversations receive only the customer's current chat history, not internal operator messages. Cancellation, bounded model calls and source coverage remain enforced. Studio model usage is recorded separately; the legacy Claude dollar budget is not a Gemini cost calculation.
+## Customer chat
 
-Validate a real read-only customer question and one fixture-based approval flow before promoting. The frontend shows “מחובר לסטודיו” only when the backend advertises the Studio engine.
+Studio needs the existing store project on persistent storage. Mano Vino's local
+project is `2b3f29d3-1caf-4193-a527-d7da17bbae85`. Restore it on the deployed
+Studio before using management chat. If several projects share the same dbName,
+set `STUDIO_CUSTOMER_PROJECTS={"manoVino":"2b3f29d3-1caf-4193-a527-d7da17bbae85"}`.
+The project must actually belong to that database. Customer messages never include
+private operator conversations.
 
-## Hosting configuration
+History, progress and pending proposals stay in the existing Mongo collections.
+Questions do not publish changes. Approving a draft checks store ownership and
+its original project revision. Product promotion, visibility and pin requests
+remain pending until approved in the dashboard. Stop requests and per-store run
+leases are shared through Mongo; a restarted instance does not silently lose history.
 
-Use the existing Render services and production MongoDB. The optimizer's `render.yaml` defines its build and health checks. Required optimizer secrets are `MONGODB_URI`, `REDIS_URL`, `OPS_PASSWORD` and the Studio integration token described above. `ANTHROPIC_API_KEY` is only needed for the legacy optimizer agent or scheduled Claude work; Studio uses its existing Gemini configuration. **Use the same Redis deployment as the live search engine**, never the laptop Redis. Set `SEARCH_SERVICE_URL=https://api.semantix-ai.com`, `REPROCESS_SERVICE_URL=https://onboarding-lh63.onrender.com`, `NODE_ENV=production`, `ENABLE_CRONS=false`, `AGENT_NIGHTLY=false`. These flags keep dashboard requests and manual chat available without enabling unattended catalog changes or model runs. The initial agent monthly budget is $20 in the existing Blueprint; confirm the existing service's budget when configuring it.
+## Verification
 
-In the Vercel frontend, set `OPTIMIZER_SERVICE_URL` to the actual deployed HTTPS optimizer URL and `OPTIMIZER_OPS_PASSWORD` to its `OPS_PASSWORD`. Apply to Production and Preview if testing a preview. Keep the existing MongoDB, NextAuth, OAuth and other application settings. Production `NEXTAUTH_URL` must be the actual frontend origin, such as `https://www.semantix.co.il`, never localhost. Redeploy after changing environment variables. No optimizer secrets are browser variables.
+- Studio: `npm test`.
+- Frontend: `npm run test:optimizer` and `npm run build`.
+- With production Studio credentials configured, run
+  `node scripts/verify-production-dashboard.mjs --store=manoVino`.
+  This checks service authentication, scope, catalog consistency and history using
+  read-only operations; it does not send model messages or modify products.
 
-The optimizer refuses to start in production with missing dependencies, credentials or laptop service URLs. Its health endpoint returns 503 if MongoDB or shared Redis is unavailable. The frontend returns an explicit configuration error instead of silently connecting to localhost when its production optimizer settings are missing.
-
-## Store-specific audit (19 October 2026)
-
-A read-only report for the preceding 30 days found 2,324 products, 907 available products, 1,801 identified search sessions and 376 sessions reaching a cart after searching (20.9%). Search identifier coverage was about 75%. No checkout or purchase events were recorded in this period. The dashboard therefore highlights cart conversion and cart sessions, rather than an empty revenue card. These are a point-in-time audit; the page always reads a fresh report.
-
-Leading actual searches include פלטר, ריף, בירה, zin and שאבלי. Chat suggestions use this store's current leading queries and opportunities. Existing manual pin groups cover פחית/פחיות and Portuguese red wine phrases; both are loaded from existing configuration. A legacy shared account has credentials for another store, so arrangement saves explicitly exclude accounts whose `credentials.dbName` conflicts with the current store. No historic events or existing pin groups were altered during verification.
-
-## Verification and rollback
-
-1. In `search-optimizer`: `npm run build && npm test && npm run ui:build`. Verify the remote `/api/health` reports connected MongoDB and Redis, and unauthenticated protected API calls return 401.
-2. In `dashboard-server`: `node --test merchant-ranking.test.mjs search-logging.test.mjs tenants/manovino/*.test.mjs tenants/beautics/*.test.mjs tenants/garmin/*.test.mjs`. Deploy this engine version so live boosts, hidden products and pins apply before result pagination, and dashboard previews do not pollute shopper analytics.
-3. In this repository: `npm run test:optimizer` and `NEXT_DEMO_DIST_DIR=.next-validation npm run build`. With the deployed environment configured, run `node scripts/verify-production-dashboard.mjs --store=manoVino`. This only reads the backend and store; it checks authentication, tenant scope, report/catalog consistency and chat history without changing products or starting a model run.
-4. Sign in as the existing Mano Vino customer or select `manoVino` as an administrator. Verify all four panels, existing pins, real product images, mobile layout and one read-only chat question. Approve ranking changes only through the normal review controls. Verify a new live search after an intended manual edit; existing pagination snapshots retain their original order.
-
-Keep the previous frontend and Render deployment identifiers before promotion. Roll back deployment versions if any tenant, authentication, catalog or analytics check fails. Changes are additive and require no destructive data migration. Existing tracking gaps cannot be reconstructed; checkout/order measurement needs the store integration to send those events before revenue can be shown.
+The October 19, 2026 read-only check through Studio returned 3,408 Beautics
+products, 2,296 identified search sessions in 30 days and 869 historical concierge
+records. Mano Vino returned 2,324 products and 1,802 search sessions. These are
+point-in-time checks; the dashboard reads current data. Historical records without
+saved message text cannot be reconstructed. Tracking gaps remain explicit, and
+rates are suppressed when their required coverage is unavailable.

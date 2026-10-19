@@ -14,16 +14,16 @@ try {
   const account = users.find(user => user.platform) || users[0];
   if (!account) throw Error('Store is not connected');
   const read = async (path, authenticated = true) => {
-    const url = new URL(`/api/${path}`, config.endpoint);
+    const url = new URL(`${config.prefix}/${path}`, config.endpoint);
     if (authenticated) url.searchParams.set('tenant', account.apiKey);
-    const response = await fetch(url, { headers: authenticated ? { authorization: `Basic ${Buffer.from(`dashboard:${config.password}`).toString('base64')}` } : {}, signal: AbortSignal.timeout(60000), redirect: 'error' });
+    const response = await fetch(url, { headers: config.headers, signal: AbortSignal.timeout(60000), redirect: 'error' });
     if (!response.ok) throw Error(`Readiness check failed for ${path}: HTTP ${response.status}`);
     return response.json();
   };
   const health = await read('health', false);
-  if (!health.ok || !health.services?.mongodb?.connected || !health.services?.redis?.connected) throw Error('Production dependencies are not ready');
-  const unauthenticated = await fetch(new URL('/api/dashboard', config.endpoint), { signal: AbortSignal.timeout(15000), redirect: 'error' });
-  if (unauthenticated.status !== 401) throw Error('Optimizer authentication is not enforced');
+  if (!health.ok || health.engine !== 'tenant-studio') throw Error('Production dependencies are not ready');
+  const unauthenticated = await fetch(new URL(`${config.prefix}/dashboard`, config.endpoint), { signal: AbortSignal.timeout(15000), redirect: 'error' });
+  if (unauthenticated.status !== 401) throw Error('Studio dashboard authentication is not enforced');
   const dashboard = await read('dashboard');
   if (dashboard.store?.dbName !== store || dashboard.report?.dbName !== store) throw Error('Dashboard store scope mismatch');
   const products = await read('dashboard/products');

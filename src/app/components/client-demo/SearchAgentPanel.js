@@ -203,7 +203,7 @@ function Artifact({ p, onReview }) {
     {p.status === 'pending' ? <div className="flex gap-2 mt-3">
       <button className={buttonClass} disabled={busy} onClick={() => act(true)}><Check className="h-3.5 w-3.5" />{!action && (p.kind === 'experiment' || !p.kind) ? 'אישור והתחלת A/B' : 'אישור'}</button>
       <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50" disabled={busy} onClick={() => act(false)}>דחייה</button>
-    </div> : <p className="text-xs mt-2 text-slate-500">{p.status === 'approved' ? p.kind === 'studioRevision' ? p.published ? '✓ נשמר בסטודיו ופורסם למנוע החיפוש' : 'נשמר בסטודיו · הפרסום לחיפוש טרם אומת' : `✓ הופעל${p.appliedCount != null ? ` — ${p.appliedCount} מוצרים עודכנו` : ''}` : actionStatus(p.status)}</p>}
+    </div> : <p className="text-xs mt-2 text-slate-500">{p.status === 'approved' ? p.kind === 'studioRevision' ? p.published ? '✓ נשמר בסטודיו ופורסם למנוע החיפוש' : 'נשמר בסטודיו · הפרסום לחיפוש טרם אומת' : p.published === false ? 'נשמר · הפרסום לחיפוש טרם אומת' : `✓ הופעל${p.appliedCount != null ? ` — ${p.appliedCount} מוצרים עודכנו` : ''}` : actionStatus(p.status)}</p>}
     {(p.applyError || p.error) && <p className="text-xs text-rose-600 mt-1">{p.applyError || p.error}</p>}
   </div>;
 }
