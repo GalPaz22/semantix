@@ -98,7 +98,7 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
     sending.current = true;
     setBusy(true); setError('');
     try {
-      const result = await mutate('agent/run', { ...body, ...(conversation ? { conversationId: conversation } : {}) });
+      const result = await mutate('agent/run', { ...body, days, ...(conversation ? { conversationId: conversation } : {}) });
       if (!mounted.current) return;
       chose.current = true; setConversation(result.conversationId || result.runId);
       setText(''); setFocus(null);
@@ -128,6 +128,7 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
     <Card className="flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3">
         <Sparkles className="h-4 w-4 text-indigo-500" /><h2 className="font-semibold text-sm flex-1">צ׳אטבוט</h2>
+        {dashboard?.chat?.engine === 'tenant-studio' && <span className="text-[11px] text-indigo-600 bg-indigo-50 rounded-full px-2 py-1">מחובר לסטודיו</span>}
         <button type="button" className="text-xs text-slate-500 hover:text-slate-800" disabled={busy || !!activeRun} onClick={fullReview}>סקירה מלאה של החנות</button>
       </div>
       <p className="px-5 py-2 text-xs text-slate-500 border-b border-slate-100">שאלות נבדקות מול נתוני החנות. קידומים, הסתרות ונעיצות מוצגים כהצעה ואפשר להפעיל אותם כאן לאחר בדיקה.</p>
@@ -196,12 +197,13 @@ function Artifact({ p, onReview }) {
     {p.boostChange && <p className="text-xs text-slate-600 mt-1">{p.boostChange.level === 0 ? 'הסרת קידום' : `רמת קידום: ${p.boostChange.level} מתוך 3`} · בכל החיפושים הרלוונטיים</p>}
     {pinGroups.map((pin, index) => <p key={index} className="text-xs text-slate-600 mt-1">נעיצה בחיפוש ״{pin.query}״ · {pin.productIds.length} מוצרים לפי הסדר שנבחר</p>)}
     {p.hypothesis && <p className="text-xs text-slate-600 mt-1">{p.hypothesis}</p>}
+    {p.studioChanges?.length > 0 && <ul className="list-disc pr-4 mt-2 text-xs text-slate-600">{p.studioChanges.map((change, i) => <li key={i}>{change}</li>)}</ul>}
     {action && (p.filter || p.categories) && <p className="text-xs text-slate-600 mt-1">{p.filter ? `תגית: ${p.filter}` : `קטגוריות: ${p.categories.join(', ')}`}</p>}
     {products.length > 0 && <details className="mt-1 text-xs text-slate-600"><summary className="cursor-pointer">{products.length} מוצרים</summary><ul className="mt-1 space-y-0.5 max-h-40 overflow-auto">{products.map(x => <li key={x._id}>{x.name}</li>)}</ul></details>}
     {p.status === 'pending' ? <div className="flex gap-2 mt-3">
       <button className={buttonClass} disabled={busy} onClick={() => act(true)}><Check className="h-3.5 w-3.5" />{!action && (p.kind === 'experiment' || !p.kind) ? 'אישור והתחלת A/B' : 'אישור'}</button>
       <button className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50" disabled={busy} onClick={() => act(false)}>דחייה</button>
-    </div> : <p className="text-xs mt-2 text-slate-500">{p.status === 'approved' ? `✓ הופעל${p.appliedCount != null ? ` — ${p.appliedCount} מוצרים עודכנו` : ''}` : actionStatus(p.status)}</p>}
+    </div> : <p className="text-xs mt-2 text-slate-500">{p.status === 'approved' ? p.kind === 'studioRevision' ? p.published ? '✓ נשמר בסטודיו ופורסם למנוע החיפוש' : 'נשמר בסטודיו · הפרסום לחיפוש טרם אומת' : `✓ הופעל${p.appliedCount != null ? ` — ${p.appliedCount} מוצרים עודכנו` : ''}` : actionStatus(p.status)}</p>}
     {(p.applyError || p.error) && <p className="text-xs text-rose-600 mt-1">{p.applyError || p.error}</p>}
   </div>;
 }

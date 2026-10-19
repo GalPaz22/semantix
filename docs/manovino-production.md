@@ -1,10 +1,22 @@
 # Mano Vino dashboard release
 
-The release spans three repositories: `search-optimizer`, `dashboard-server` and this Next.js frontend. Deploy the backend and search engine before switching the frontend to this version.
+The release spans four repositories: `tenant-studio`, `search-optimizer`, `dashboard-server` and this Next.js frontend. Deploy Studio, the backend and search engine before switching the frontend to this version.
+
+## Tenant Studio chat
+
+Customer messages use the actual `studioAgent` in `tenant-studio`; the optimizer keeps the existing queue, conversation history, aggregate analytics and approve/reject APIs. Manual customer chat defaults to `DASHBOARD_CHAT_ENGINE=studio`, with no automatic fallback to the older Claude agent. Scheduled optimizer work remains separate.
+
+Set `STUDIO_SERVICE_URL=https://tenant-studio.onrender.com` in the optimizer and set the same long random `STUDIO_CUSTOMER_API_TOKEN` in **both** the optimizer and Studio. This is a server-only integration secret, not a user session token and never a browser variable. The Studio `/api/customer-chat/*` endpoints independently authenticate it and resolve the store's API key against MongoDB before selecting a project. No Studio admin session is given to the customer.
+
+Studio needs its existing project data on persistent storage (`STUDIO_DATA_DIR`). Import/restore the Mano Vino project on that service before switching chat. Its existing local project is `2b3f29d3-1caf-4193-a527-d7da17bbae85`, with 2,324 products. If several Studio projects point to the same store, set `STUDIO_CUSTOMER_PROJECTS={"manoVino":"2b3f29d3-1caf-4193-a527-d7da17bbae85"}` on Studio; mapping never overrides the project's actual `existingClient.dbName` ownership.
+
+Questions do not save or publish the Studio project. Product boost, visibility and ordered pin requests become the dashboard's normal pending proposals. Other supported Studio search changes are saved as private drafts, then applied and published only after approval. Approval checks the original project fingerprint and rejects stale drafts; it does not overwrite newer Studio edits. Studio conversations receive only the customer's current chat history, not internal operator messages. Cancellation, bounded model calls and source coverage remain enforced. Studio model usage is recorded separately; the legacy Claude dollar budget is not a Gemini cost calculation.
+
+Validate a real read-only customer question and one fixture-based approval flow before promoting. The frontend shows “מחובר לסטודיו” only when the backend advertises the Studio engine.
 
 ## Hosting configuration
 
-Use the existing Render services and production MongoDB. The optimizer's `render.yaml` defines its build and health checks. Required server-only secrets are `MONGODB_URI`, `REDIS_URL`, `ANTHROPIC_API_KEY`, `OPS_PASSWORD`. **Use the same Redis deployment as the live search engine**, never the laptop Redis. Set `SEARCH_SERVICE_URL=https://api.semantix-ai.com`, `REPROCESS_SERVICE_URL=https://onboarding-lh63.onrender.com`, `NODE_ENV=production`, `ENABLE_CRONS=false`, `AGENT_NIGHTLY=false`. These flags keep dashboard requests and manual chat available without enabling unattended catalog changes or model runs. The initial agent monthly budget is $20 in the existing Blueprint; confirm the existing service's budget when configuring it.
+Use the existing Render services and production MongoDB. The optimizer's `render.yaml` defines its build and health checks. Required optimizer secrets are `MONGODB_URI`, `REDIS_URL`, `OPS_PASSWORD` and the Studio integration token described above. `ANTHROPIC_API_KEY` is only needed for the legacy optimizer agent or scheduled Claude work; Studio uses its existing Gemini configuration. **Use the same Redis deployment as the live search engine**, never the laptop Redis. Set `SEARCH_SERVICE_URL=https://api.semantix-ai.com`, `REPROCESS_SERVICE_URL=https://onboarding-lh63.onrender.com`, `NODE_ENV=production`, `ENABLE_CRONS=false`, `AGENT_NIGHTLY=false`. These flags keep dashboard requests and manual chat available without enabling unattended catalog changes or model runs. The initial agent monthly budget is $20 in the existing Blueprint; confirm the existing service's budget when configuring it.
 
 In the Vercel frontend, set `OPTIMIZER_SERVICE_URL` to the actual deployed HTTPS optimizer URL and `OPTIMIZER_OPS_PASSWORD` to its `OPS_PASSWORD`. Apply to Production and Preview if testing a preview. Keep the existing MongoDB, NextAuth, OAuth and other application settings. Production `NEXTAUTH_URL` must be the actual frontend origin, such as `https://www.semantix.co.il`, never localhost. Redeploy after changing environment variables. No optimizer secrets are browser variables.
 
