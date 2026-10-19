@@ -7,6 +7,7 @@ import MenuConnector from '../components/MenuConnector';
 import ProductsPanel from '../components/ProductsPanel';
 import CategoryBoostsPanel from '../components/CategoryBoostsPanel';
 import AdminPanel from '../components/AdminPanel';
+import AdminTenantDashboardPicker from '../components/AdminTenantDashboardPicker';
 import DemoPanel from '../components/DemoPanel';
 import DataAgentPanel from '../components/DataAgentPanel';
 import PinnedResultsPanel from '../components/PinnedResultsPanel';
@@ -15,6 +16,7 @@ import { useUserDetails } from '../hooks/useUserDetails';
 import { SUBSCRIPTION_TIERS } from '/lib/paddle-config';
 import CancellationModal from '../components/CancellationModal';
 import AnalyticsPanel from '../components/AnalyticsPanel';
+import ClientDashboardPage from './client/page';
 
 // Charts
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -2389,6 +2391,7 @@ const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", component: AnalyticsPanel, icon: BarChart3 },
   { id: "agent", label: "סוכן נתונים", component: DataAgentPanel, icon: Sparkles, adminOnly: true },
+  { id: "client-demo", label: "דאשבורד לקוח", icon: LayoutDashboard, external: true, link: "/dashboard/client", adminOnly: true },
   { id: "products", label: "מוצרים", component: ProductsPanel, icon: Package },
   { id: "boosts", label: "ניהול בוסטים", component: CategoryBoostsPanel, icon: TrendingUp },
   { id: "pinned-results", label: "תוצאות מקודמות", component: DashboardPinnedResultsPanel, icon: Pin },
@@ -2403,6 +2406,23 @@ const PANELS = [
 /*  MAIN PAGE – handles auth & panel switching                         */
 /* =================================================================== */
 export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/login");
+  }, [status, router]);
+
+  if (status !== "authenticated") {
+    return <FullScreenMsg>טוען את הפעלת המשתמש...</FullScreenMsg>;
+  }
+
+  return session?.user?.email?.toLowerCase() === ADMIN_EMAIL
+    ? <AdminDashboardPage />
+    : <ClientDashboardPage />;
+}
+
+function AdminDashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL;
@@ -2802,6 +2822,7 @@ export default function DashboardPage() {
 
         {/* Page content */}
         <main className="pt-16 p-4 md:p-8 max-w-7xl mx-auto">
+          {isAdmin && <AdminTenantDashboardPicker />}
           <Panel session={session} onboarding={onboarding} />
         </main>
       </div>

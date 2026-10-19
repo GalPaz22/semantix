@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useId } from 'react';
 import {
   Pin,
   Save,
@@ -23,7 +23,11 @@ import {
  * In the regular dashboard it operates on the logged-in user's store. In the
  * admin panel it can operate on a selected store via `apiKey`.
  */
-export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }) {
+export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false, transport, initialQuery, title = 'תוצאות מקודמות' }) {
+  const instanceId = useId();
+  const searchSequence = useRef(0), loadedRequest = useRef(null), isMounted = useRef(false);
+  const [revision, setRevision] = useState(null);
+  useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; searchSequence.current++; }; }, []);
   const [rules, setRules] = useState([]); // [{ query, productIds:[], products:[{_id,name,image,price}], enabled }]
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,14 +54,20 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
     setLoading(true);
     setError('');
     try {
-      const endpoint = adminMode
-        ? `/api/admin/pinned-results?apiKey=${encodeURIComponent(apiKey)}`
-        : '/api/pinned-results';
-      const res = await fetch(endpoint, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      let data;
+      if (transport) data = await transport.load();
+      else {
+        const endpoint = adminMode ? `/api/admin/pinned-results?apiKey=${encodeURIComponent(apiKey)}` : '/api/pinned-results';
+        const res = await fetch(endpoint, { method: 'GET' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+      }
+      if (!isMounted.current) return;
+      setRevision(data.revision || null);
+      setPickerIndex(null); setTermDrafts({});
       setRules(
         (data.pinnedResults || []).map((r) => ({
+          ...(r.ruleId ? { ruleId: r.ruleId, matchType: 'exact' } : {}),
           query: r.query || '',
           productIds: Array.isArray(r.productIds) ? r.productIds : [],
           products: Array.isArray(r.products) ? r.products : [],
@@ -70,11 +80,27 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
     } finally {
       setLoading(false);
     }
-  }, [adminMode, apiKey]);
+  }, [adminMode, apiKey, transport]);
 
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const warn = e => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasChanges]);
+  useEffect(() => {
+    if (loading || error || !initialQuery?.query || loadedRequest.current === initialQuery.nonce) return;
+    loadedRequest.current = initialQuery.nonce;
+    const query = initialQuery.query.trim();
+    if (!rules.some(rule => rule.query.split(',').some(term => term.trim().toLowerCase() === query.toLowerCase()))) {
+      setRules(prev => [...prev, { query, productIds: [], products: [], enabled: true }]);
+      setHasChanges(true); setSuccess('');
+    }
+  }, [initialQuery, loading, error, rules]);
 
   const markChanged = () => {
     setHasChanges(true);
@@ -89,7 +115,8 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
 
   const removeRule = (idx) => {
     setRules((prev) => prev.filter((_, i) => i !== idx));
-    if (pickerIndex === idx) setPickerIndex(null);
+    setPickerIndex(null); searchSequence.current++;
+    setTermDrafts({});
     markChanged();
   };
 
@@ -119,7 +146,8 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
       prev.map((r, i) => {
         if (i !== idx) return r;
         const terms = (r.query || '').split(',').map((t) => t.trim()).filter(Boolean);
-        if (terms.includes(term)) return r;
+        if (terms.some(value => value.toLowerCase() === term.toLowerCase())) return r;
+        if (r.ruleId && terms.length) return r;
         return { ...r, query: [...terms, term].join(', ') };
       })
     );
@@ -220,23 +248,25 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
   };
 
   const runProductSearch = async (term) => {
-    if (!dbName) {
+    if (!dbName && !transport) {
       setError('לא נמצא שם מסד נתונים (dbName) עבור המשתמש');
       return;
     }
+    const sequence = ++searchSequence.current;
     if (!term || term.trim().length < 2) {
-      setSearchResults([]);
+      setSearching(false); setSearchResults([]);
       return;
     }
     setSearching(true);
     try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dbName, search: term.trim(), page: 1, limit: 12, excludeHidden: true }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      let data;
+      if (transport) data = await transport.search(term.trim());
+      else {
+        const res = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dbName, search: term.trim(), page: 1, limit: 12, excludeHidden: true }) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+      }
+      if (sequence !== searchSequence.current || !isMounted.current) return;
       // Defensive: also drop products marked hidden as 1 / "true" (not just boolean true).
       const visible = (data.products || []).filter((p) => {
         const h = p?.hidden;
@@ -244,15 +274,16 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
       });
       setSearchResults(visible);
     } catch (e) {
-      setError('שגיאה בחיפוש מוצרים: ' + e.message);
+      if (sequence === searchSequence.current && isMounted.current) setError('שגיאה בחיפוש מוצרים: ' + e.message);
     } finally {
-      setSearching(false);
+      if (sequence === searchSequence.current && isMounted.current) setSearching(false);
     }
   };
 
   // debounce the product search
   useEffect(() => {
     if (pickerIndex === null) return;
+    searchSequence.current++;
     const t = setTimeout(() => runProductSearch(searchTerm), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,8 +295,14 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
       setError('יש לבחור משתמש/חנות תחילה');
       return;
     }
+    const prepared = rules.map((rule, index) => {
+      const pending = (termDrafts[index] || '').trim();
+      if (!pending || rule.ruleId) return rule;
+      const terms = [...new Set([...getTerms(rule), pending])];
+      return { ...rule, query: terms.join(', ') };
+    });
     // Basic validation
-    for (const r of rules) {
+    for (const r of prepared) {
       if (!r.query || r.query.trim() === '') {
         setError('לכל כלל חייב להיות ביטוי חיפוש');
         return;
@@ -275,14 +312,16 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
     setError('');
     setSuccess('');
     try {
-      const res = await fetch(adminMode ? '/api/admin/pinned-results' : '/api/pinned-results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(adminMode ? { apiKey, pinnedResults: rules } : { pinnedResults: rules }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setSuccess('התצורה נשמרה בהצלחה! השינויים ייכנסו לתוקף תוך עד 5 דקות.');
+      let data;
+      if (transport) data = await transport.save({ pinnedResults: prepared, revision });
+      else {
+        const res = await fetch(adminMode ? '/api/admin/pinned-results' : '/api/pinned-results', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminMode ? { apiKey, pinnedResults: prepared } : { pinnedResults: prepared }) });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      if (!isMounted.current) return;
+      setRules(data.pinnedResults || prepared); setRevision(data.revision || revision); setTermDrafts({});
+      setSuccess(data.message || 'התצורה נשמרה בהצלחה! השינויים ייכנסו לתוקף תוך עד 5 דקות.');
       setHasChanges(false);
     } catch (e) {
       setError('שגיאה בשמירה: ' + e.message);
@@ -310,13 +349,13 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
   }
 
   return (
-    <div dir="rtl" className="space-y-6">
+    <fieldset dir="rtl" className="space-y-6 min-w-0" disabled={saving}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Pin className="h-6 w-6 text-indigo-600" />
-            תוצאות מקודמות
+            {title}
           </h2>
           <p className="text-gray-500 mt-1 max-w-2xl text-sm">
             הגדירו ביטויי חיפוש, ובחרו אילו מוצרים יופיעו <b>ראשונים</b> עבורם. כשלקוח מחפש
@@ -325,8 +364,10 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {hasChanges && <button type="button" onClick={fetchRules} disabled={saving} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-900">ביטול שינויים</button>}
           <button
-            onClick={fetchRules}
+            onClick={() => { if (!hasChanges || window.confirm('יש שינויים שלא נשמרו. לרענן ולוותר עליהם?')) fetchRules(); }}
+            disabled={saving}
             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg"
           >
             <RefreshCw className="h-4 w-4" /> רענון
@@ -344,16 +385,16 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
 
       {/* Alerts */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 text-sm">
+        <div role="status" className="flex items-center gap-2 p-3 rounded-lg bg-green-50 text-green-700 text-sm">
           <CheckCircle className="h-4 w-4 shrink-0" /> {success}
         </div>
       )}
-      {!dbName && (
+      {!dbName && !transport && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 text-amber-700 text-sm">
           <Info className="h-4 w-4 shrink-0" /> לא נמצא מסד נתונים למשתמש — בורר המוצרים לא יעבוד.
         </div>
@@ -370,12 +411,12 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
         {rules.map((rule, idx) => (
           <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
             <div className="flex items-start gap-3 flex-wrap">
-              <div className="flex-1 min-w-[220px]">
+              <div className="flex-1 min-w-0 w-full sm:w-auto sm:min-w-[220px]">
                 <label className="block text-xs font-medium text-gray-500 mb-1">
                   ביטויי החיפוש (כל מונח מקפיץ את אותם מוצרים)
                 </label>
                 <div
-                  onClick={() => document.getElementById(`term-input-${idx}`)?.focus()}
+                  onClick={() => document.getElementById(`term-input-${instanceId}-${idx}`)?.focus()}
                   className="w-full min-h-[42px] px-2 py-1.5 border border-gray-300 rounded-lg text-sm flex flex-wrap items-center gap-1.5 cursor-text focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500"
                 >
                   {getTerms(rule).map((term) => (
@@ -385,6 +426,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                     >
                       {term}
                       <button
+                        aria-label={`הסר ביטוי: ${term}`}
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -398,7 +440,10 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                     </span>
                   ))}
                   <input
-                    id={`term-input-${idx}`}
+                    id={`term-input-${instanceId}-${idx}`}
+                    aria-label={`ביטויי חיפוש לכלל ${idx + 1}`}
+                    maxLength={200}
+                    disabled={!!rule.ruleId && getTerms(rule).length > 0}
                     type="text"
                     value={termDrafts[idx] || ''}
                     onChange={(e) => setTermDrafts((prev) => ({ ...prev, [idx]: e.target.value }))}
@@ -409,12 +454,13 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                   />
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">
-                  הקלידו מונח ולחצו Enter או פסיק כדי להוסיף אותו לרשימה.
+                  {rule.ruleId ? 'כלל קיים לחיפוש מדויק. להסרת הביטוי לחצו על ×, ואז הזינו ביטוי חדש.' : 'הקלידו מונח ולחצו Enter או פסיק כדי להוסיף אותו לרשימה.'}
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-600 mt-6 cursor-pointer">
                 <input
                   type="checkbox"
+                  aria-label={`הפעלת כלל ${idx + 1}`}
                   checked={rule.enabled}
                   onChange={() => toggleRuleEnabled(idx)}
                   className="h-4 w-4 rounded border-gray-300 text-indigo-600"
@@ -424,6 +470,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
               <button
                 onClick={() => removeRule(idx)}
                 className="mt-5 inline-flex items-center gap-1 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                aria-label={`מחק כלל ${idx + 1}`}
                 title="מחיקת כלל"
               >
                 <Trash2 className="h-4 w-4" />
@@ -434,7 +481,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-gray-500">
-                  מוצרים מקודמים ({rule.products.length})
+                  מוצרים מקודמים ({rule.products.length}/20)
                 </span>
                 <button
                   onClick={() => openPicker(idx)}
@@ -461,6 +508,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-gray-800 truncate">{p.name || p._id}</div>
+                        {(p.hidden || p.unavailable) && <div className="text-xs text-amber-700">{p.hidden ? 'מוצר מוסתר מהחיפוש' : 'מוצר שאינו זמין בקטלוג'}</div>}
                         {p.price !== '' && p.price != null && (
                           <div className="text-xs text-gray-400">{p.price}</div>
                         )}
@@ -468,6 +516,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => moveProduct(idx, p._id, -1)}
+                          aria-label={`הזז מעלה: ${p.name}`}
                           disabled={pIdx === 0}
                           className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
                           title="הזז מעלה"
@@ -476,6 +525,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                         </button>
                         <button
                           onClick={() => moveProduct(idx, p._id, 1)}
+                          aria-label={`הזז מטה: ${p.name}`}
                           disabled={pIdx === rule.products.length - 1}
                           className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
                           title="הזז מטה"
@@ -485,6 +535,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                         <button
                           onClick={() => removeProductFromRule(idx, p._id)}
                           className="p-1 text-red-500 hover:text-red-700"
+                          aria-label={`הסר מוצר: ${p.name}`}
                           title="הסרה"
                         >
                           <X className="h-4 w-4" />
@@ -514,12 +565,13 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
         >
           <div
             dir="rtl"
+            role="dialog" aria-modal="true" aria-label="בחירת מוצרים"
             className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <h3 className="font-semibold text-gray-900">בחירת מוצרים</h3>
-              <button onClick={() => setPickerIndex(null)} className="text-gray-400 hover:text-gray-700">
+              <button aria-label="סגור בחירת מוצרים" onClick={() => setPickerIndex(null)} className="text-gray-400 hover:text-gray-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -528,6 +580,8 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   autoFocus
+                  aria-label="חיפוש מוצר לכלל"
+                  maxLength={200}
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -567,7 +621,8 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
                         </div>
                         <button
                           onClick={() => addProductToRule(pickerIndex, product)}
-                          disabled={already}
+                          aria-label={`הוסף מוצר: ${product.name}`}
+                          disabled={already || rules[pickerIndex]?.productIds.length >= 20}
                           className="px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-40 disabled:cursor-default text-indigo-600 border-indigo-200 hover:bg-indigo-50"
                         >
                           {already ? 'נבחר' : 'הוסף'}
@@ -589,6 +644,6 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false }
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }

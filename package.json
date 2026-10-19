@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-with-optimizer.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "optimizer:local": "node scripts/start-local-optimizer.mjs",
+    "test:optimizer": "node --test test/*.test.mjs",
+    "dev:demo": "NEXT_DEMO_DIST_DIR=.next-demo next dev --port 3100"
   },
   "dependencies": {
     "@google/genai": "^1.20.0",
