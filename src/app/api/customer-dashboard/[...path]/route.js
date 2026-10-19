@@ -7,6 +7,7 @@ import { getUserBySession } from '/lib/getUserBySession';
 import { optimizerRouteAllowed, ownershipFilter, publicOptimizerData } from '/lib/optimizer-access';
 import { getDashboardMerchandising, saveDashboardMerchandising } from '/lib/dashboard-merchandising';
 import { optimizerServiceConfig } from '/lib/optimizer-config';
+import { readStudioJson } from '/lib/studio-response';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,7 @@ async function handle(request, { params }) {
         const publication = new URL(`${config.prefix}/dashboard/merchandising/publish`, config.endpoint);
         publication.searchParams.set('tenant', user.apiKey);
         const response = await fetch(publication, { method: 'POST', headers: config.headers, signal: AbortSignal.timeout(15000), cache: 'no-store' });
-        if (response.ok) published = (await response.json()).published === true;
+        if (response.ok) published = (await readStudioJson(response)).published === true;
       } catch { /* The transaction committed; publishing is reported separately. */ }
       return NextResponse.json({ ...data, saved: true, published, message: published ? 'הכללים נשמרו. השינויים בכללים מהאדמין יופיעו בחיפוש תוך עד 5 דקות.' : 'הכללים נשמרו. הסנכרון עם מנוע החיפוש טרם אומת; יש לרענן ולבדוק.' });
     }
@@ -88,7 +89,7 @@ async function handle(request, { params }) {
       // Strict optimizer schemas reject extra fields.
       if (path === 'optimization/actions' || path === 'optimization/policy' || path === 'agent/run' || path === 'dashboard/pins' || path === 'dashboard/search' || path === 'dashboard/products/visibility' || path === 'dashboard/products/boost') delete body.by;
     }
-    const headers = { ...(body ? { 'content-type': 'application/json' } : {}) };
+    const headers = { accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) };
     Object.assign(headers, config.headers);
     if (/^agent\/runs\/[a-f\d]{24}\/stream$/i.test(path)) {
       const upstream = await fetch(url, { headers, cache: 'no-store', redirect: 'error', signal: request.signal });
@@ -96,7 +97,7 @@ async function handle(request, { params }) {
       return new Response(upstream.body, { headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', 'x-accel-buffering': 'no' } });
     }
     const response = await fetch(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(120000) });
-    const data = await response.json();
+    const data = await readStudioJson(response);
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
   } catch (error) {
     if (error.status) return fail(error.message, error.status);
