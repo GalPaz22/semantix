@@ -1,6 +1,6 @@
 'use client';
 import React,{useEffect,useRef,useState} from 'react';
-import {Search,Save,Plus,ArrowUp,ArrowDown,GripVertical,RotateCcw,Trash2,Loader2,CheckCircle2} from 'lucide-react';
+import {Search,Save,Plus,ArrowUp,ArrowDown,GripVertical,RotateCcw,Trash2,Loader2,CheckCircle2,AlertCircle} from 'lucide-react';
 import {useOptimizer,buttonClass,ResourceState} from './OptimizerContext';
 import {Card,PageHeader} from './ui';
 import {demoProductId,moveDemoProduct,searchDemoBody} from '/lib/search-demo';
@@ -9,7 +9,7 @@ const priceOf=p=>p.price!==null&&p.price!==''&&Number.isFinite(Number(p.price))?
 export default function SearchDemoPanel({visible}){
  const {request,ready}=useOptimizer();
  const [query,setQuery]=useState(''),[snapshot,setSnapshot]=useState(null),[products,setProducts]=useState([]),[excluded,setExcluded]=useState([]);
- const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[published,setPublished]=useState(false);
  const [picker,setPicker]=useState(false),[term,setTerm]=useState(''),[suggestions,setSuggestions]=useState([]),[picking,setPicking]=useState(false),[pickError,setPickError]=useState('');
  const sequence=useRef(0),dragged=useRef(null),alive=useRef(false),pickerSequence=useRef(0);
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;sequence.current++;pickerSequence.current++;};},[]);
@@ -29,14 +29,14 @@ export default function SearchDemoPanel({visible}){
  const remove=p=>{const id=demoProductId(p);setProducts(current=>current.filter(x=>demoProductId(x)!==id));setExcluded(current=>current.some(x=>demoProductId(x)===id)?current:[...current,p]);changed();};
  const add=p=>{const id=demoProductId(p);if(!id||products.some(x=>demoProductId(x)===id))return;setProducts(current=>[...current,{...p,_id:id,editable:true,image:imageOf(p)}]);setExcluded(current=>current.filter(x=>demoProductId(x)!==id));changed();};
  const submit=e=>{e.preventDefault();if(dirty&&!window.confirm('יש שינויים שלא נשמרו. לעבור לחיפוש החדש?'))return;load(query);};
- const save=async()=>{if(!snapshot||saving)return;setSaving(true);setError('');setNotice('');try{const body=searchDemoBody(snapshot,products,excluded);const result=await request('dashboard/search-layout',{method:'PUT',body:JSON.stringify(body)});if(!alive.current)return;setSnapshot(current=>({...current,revision:result.revision,products,excludedProducts:excluded}));setDirty(false);setNotice(result.published?'הסידור נשמר ופורסם לחיפוש. אפשר להריץ שוב כדי לבדוק את התוצאה.':'הסידור נשמר. הסנכרון למנוע החיפוש עדיין לא אומת.');}catch(e){if(alive.current)setError(e.message);}finally{if(alive.current)setSaving(false);}};
+ const save=async()=>{if(!snapshot||saving)return;setSaving(true);setError('');setNotice('');try{const body=searchDemoBody(snapshot,products,excluded);const result=await request('dashboard/search-layout',{method:'PUT',body:JSON.stringify(body)});if(!alive.current)return;setSnapshot(current=>({...current,revision:result.revision,products,excludedProducts:excluded}));setDirty(false);setPublished(result.published===true);setNotice(result.published?'הסידור נשמר ופורסם לחיפוש. אפשר להריץ שוב כדי לבדוק את התוצאה.':'הסידור נשמר. הסנכרון למנוע החיפוש עדיין לא אומת.');}catch(e){if(alive.current)setError(e.message);}finally{if(alive.current)setSaving(false);}};
  if(!ready)return <ResourceState/>;
  const blocked=loading||saving,unresolved=products.some(p=>!demoProductId(p)||p.editable===false);
  return <div dir="rtl" className="space-y-5">
   <PageHeader eyebrow="חיפוש חי בחנות" title="דמו חיפוש" subtitle="בדקו מה המנוע מציג וסדרו את התוצאות ישירות. השינויים נשמרים עבור השאילתה המדויקת בלבד."/>
   <Card className="p-4 sm:p-5"><form onSubmit={submit} className="flex gap-3"><div className="relative flex-1"><Search className="absolute right-3 top-3 h-5 w-5 text-slate-400"/><input aria-label="שאילתת דמו חיפוש" maxLength={200} value={query} onChange={e=>setQuery(e.target.value)} disabled={blocked} placeholder="מה הלקוחות מחפשים? למשל: סרום לפנים" className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pr-10 pl-3 text-sm outline-none focus:border-indigo-400"/></div><button className={buttonClass} disabled={blocked||!query.trim()}>{loading?<Loader2 className="h-4 w-4 animate-spin"/>:<Search className="h-4 w-4"/>}חיפוש</button></form></Card>
   {error&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
-  {notice&&<div role="status" className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 className="h-5 w-5 shrink-0"/>{notice}</div>}
+  {notice&&<div role="status" className={`flex gap-2 rounded-xl border p-4 text-sm ${published?'border-emerald-200 bg-emerald-50 text-emerald-800':'border-amber-200 bg-amber-50 text-amber-800'}`}>{published?<CheckCircle2 className="h-5 w-5 shrink-0"/>:<AlertCircle className="h-5 w-5 shrink-0"/>}{notice}</div>}
   {!snapshot&&!loading&&<Card className="p-12 text-center text-slate-500"><Search className="mx-auto mb-4 h-9 w-9 text-indigo-300"/><p className="font-medium text-slate-700">החיפוש של החנות, עם שליטה בסדר התוצאות</p><p className="mt-2 text-sm">חפשו ביטוי כדי לראות את התוצאות האמיתיות, להזיז מוצרים ולהוסיף מוצרים מהקטלוג.</p></Card>}
   {snapshot&&<div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
    <Card className="overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4"><div><h2 className="font-semibold">תוצאות עבור ״{snapshot.query}״</h2><p className="mt-1 text-xs text-slate-500">{products.length} מוצרים בתצוגה · גררו לשינוי הסדר או השתמשו בחצים{dirty?' · שינויים שלא נשמרו':''}</p></div><button type="button" className={buttonClass} onClick={save} disabled={blocked||!dirty||unresolved}>{saving?<Loader2 className="h-4 w-4 animate-spin"/>:<Save className="h-4 w-4"/>}שמירת הסידור</button></div>
