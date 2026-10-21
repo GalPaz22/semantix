@@ -96,3 +96,9 @@ test('shared accounts carrying credentials from another store retain their origi
   assert.deepEqual(f.data['users.users'][3], original);
   assert.deepEqual(f.data['users.users'][0].credentials.pinnedResults, []);
 });
+test('admin-style arrangement preserves query-specific exclusions when another rule is edited',async()=>{
+ const f=fixture(),rule=f.data['control_plane.rules'][0];rule.patch.excludedProductIds=[String(id(10))];
+ const initial=await getDashboardMerchandising(f.client,'store-a');assert.deepEqual(initial.pinnedResults[1].excludedProductIds,[String(id(10))]);
+ await saveDashboardMerchandising(f.client,{dbName:'store-a',actor:'owner',body:initial});
+ assert.deepEqual(f.data['control_plane.rules'].find(r=>String(r._id)===String(id(20))).patch.excludedProductIds,[String(id(10))]);
+});

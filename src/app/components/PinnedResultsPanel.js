@@ -68,6 +68,7 @@ export default function PinnedResultsPanel({ apiKey, dbName, adminMode = false, 
       setRules(
         (data.pinnedResults || []).map((r) => ({
           ...(r.ruleId ? { ruleId: r.ruleId, matchType: 'exact' } : {}),
+          ...(r.excludedProductIds?.length ? {excludedProductIds:r.excludedProductIds} : {}),
           query: r.query || '',
           productIds: Array.isArray(r.productIds) ? r.productIds : [],
           products: Array.isArray(r.products) ? r.products : [],
