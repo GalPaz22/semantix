@@ -3,9 +3,10 @@ import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search } from "lucide-react";
+import { BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search, Sparkles } from "lucide-react";
 import ClientAnalyticsPanel from "../../components/client-demo/ClientAnalyticsPanel";
 import ClientChatbotPanel from "../../components/client-demo/ClientChatbotPanel";
+import WeeklySuggestionsPanel from '../../components/client-demo/WeeklySuggestionsPanel';
 import SearchDemoPanel from '../../components/client-demo/SearchDemoPanel';
 import ResultsPanel from "../../components/client-demo/ResultsPanel";
 import ClientProductsPanel from "../../components/client-demo/ClientProductsPanel";
@@ -15,6 +16,7 @@ import { OptimizerProvider, useOptimizer } from "../../components/client-demo/Op
 const ADMIN_EMAIL = "galpaz2210@gmail.com";
 const PANELS = [
   { id: "analytics", label: "אנליטיקות", icon: BarChart3 },
+  { id: "suggestions", label: "הצעות תיקון", icon: Sparkles },
   { id: "search-demo", label: "דמו חיפוש", icon: Search },
   { id: "results", label: "סידור תוצאות", icon: ListOrdered },
   { id: "products", label: "ניהול מוצרים", icon: Package },
@@ -59,7 +61,7 @@ function ClientDashboard() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("panel");
     if (PANELS.some(x => x.id === p)) setActive(p);
-    else if (p === 'suggestions' || p === 'plans') setActive('agent');
+    else if (p === 'plans') setActive('suggestions');
   }, []);
 
   if (status !== "authenticated" || session?.user?.onboardingComplete === false) {
@@ -171,6 +173,7 @@ function ClientDashboard() {
         {/* Panels stay mounted so approvals and chat survive switching tabs. */}
         <main className="max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
           <div className={active === "analytics" ? "" : "hidden"}><ClientAnalyticsPanel onNavigate={select} /></div>
+          <div className={active === "suggestions" ? "" : "hidden"}><WeeklySuggestionsPanel visible={active === "suggestions"} /></div>
           <div className={active === "search-demo" ? "" : "hidden"}><SearchDemoPanel visible={active === "search-demo"} /></div>
           <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
           <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>

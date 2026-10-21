@@ -68,6 +68,7 @@ async function handle(request, { params }) {
     // Never accept a browser-supplied tenant, API key or database name.
     url.searchParams.set('tenant', user.apiKey);
     for (const key of ['days', 'status']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));
+    if (path === 'optimization/weekly-review/queries') for (const key of ['query','page']) if (incoming.searchParams.has(key)) url.searchParams.set(key,incoming.searchParams.get(key));
     if (path === 'dashboard/catalog') url.searchParams.set('query', incoming.searchParams.get('query') || '');
     if (path === 'dashboard/products') {
       for (const key of ['query', 'visibility', 'promotion', 'page']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));

@@ -46,3 +46,9 @@ test('arrangement supports scoped reads and saves without exposing internal publ
   assert.equal(optimizerRouteAllowed('POST', 'dashboard/merchandising'), false);
   assert.equal(optimizerRouteAllowed('POST', 'dashboard/merchandising/publish'), false);
 });
+test('weekly review offers only scoped decisions and monitoring with valid proposal IDs',()=>{
+ assert.equal(optimizerRouteAllowed('GET','optimization/weekly-review/queries'),true);
+ assert.equal(optimizerRouteAllowed('GET',`proposals/${id}/monitor`),true);
+ for(const action of ['approve','test','reject','stop','promote'])assert.equal(optimizerRouteAllowed('POST',`proposals/${id}/weekly/${action}`),true);
+ for(const path of ['proposals/foreign/weekly/approve',`proposals/${id}/weekly/delete`,`proposals/${id}/monitor/secret`])assert.equal(optimizerRouteAllowed('POST',path),false);
+});
