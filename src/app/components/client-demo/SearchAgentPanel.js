@@ -17,7 +17,7 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
     'אילו מוצרים כדאי לקדם ולמה?', 'עזור לי לנעוץ מוצרים בחיפוש מסוים',
   ];
   const [runs, setRuns] = useState(null), [conversation, setConversation] = useState(null), [live, setLive] = useState(null), [stream, setStream] = useState(null);
-  const [text, setText] = useState(''), [focus, setFocus] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [text, setText] = useState(''), [focus, setFocus] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [streaming, setStreaming] = useState(false);
   const [loadError, setLoadError] = useState(''), [loading, setLoading] = useState(false), [stopping, setStopping] = useState(false);
   const launched = useRef(null), bottom = useRef(null), chose = useRef(false), sending = useRef(false), mounted = useRef(false), loadSequence = useRef(0);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; loadSequence.current++; }; }, []);
@@ -35,10 +35,11 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
   useEffect(() => {
     if (!ready || !visible) return;
     let live = true, timer;
-    const poll = async () => { await loadRuns(); if (live) timer = setTimeout(poll, 5000); };
-    timer = setTimeout(poll, 5000);
+    const interval = streaming ? 15000 : 5000;
+    const poll = async () => { await loadRuns(); if (live) timer = setTimeout(poll, interval); };
+    timer = setTimeout(poll, interval);
     return () => { live = false; clearTimeout(timer); };
-  }, [ready, visible, loadRuns]);
+  }, [ready, visible, loadRuns, streaming]);
 
   const conversations = useMemo(() => {
     const map = new Map();
@@ -62,28 +63,31 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
         const run = await request(`agent/runs/${activeRun._id}`);
         if (!on) return;
         setLive(run);
-        if (isActive(run)) timer = setTimeout(tick, 3000); else loadRuns();
-      } catch { if (on) timer = setTimeout(tick, 3000); }
+        if (isActive(run)) timer = setTimeout(tick, streaming ? 15000 : 3000); else loadRuns();
+      } catch { if (on) timer = setTimeout(tick, streaming ? 15000 : 3000); }
     };
     tick();
     return () => { on = false; clearTimeout(timer); };
-  }, [activeRun?._id, visible, request, loadRuns]);
+  }, [activeRun?._id, visible, request, loadRuns, streaming]);
 
   useEffect(() => {
-    setStream(null);
+    setStream(null); setStreaming(false);
     if (!activeRun || !visible || typeof EventSource === 'undefined') return;
     const source = new EventSource(streamUrl(`agent/runs/${activeRun._id}/stream`));
+    source.onopen = () => setStreaming(true);
     source.onmessage = message => {
       let e;
       try { e = JSON.parse(message.data); } catch { return; }
-      if (e.type === 'snapshot') setStream({ text: e.text, step: e.step });
-      else if (e.type === 'text') setStream(s => ({ step: s?.step ?? null, text: (s?.text || '') + e.delta }));
-      else if (e.type === 'reset') setStream(s => ({ step: s?.step ?? null, text: '' }));
-      else if (e.type === 'step') setStream({ text: '', step: e.name });
-      else if (e.type === 'done') { source.close(); loadRuns(); }
+      if (e.type === 'snapshot') setStream({ text: e.text, step: e.step, note: e.note, provisional: e.provisional });
+      else if (e.type === 'text') setStream(s => ({ ...s, text: (s?.text || '') + e.delta, provisional: e.provisional }));
+      else if (e.type === 'answer') setStream(s => ({ ...s, text: e.text, provisional: false }));
+      else if (e.type === 'reset') setStream(s => ({ ...s, text: '', provisional: false }));
+      else if (e.type === 'note') setStream(s => ({ ...s, note: e.text }));
+      else if (e.type === 'step') setStream({ text: '', step: e.name, provisional: false });
+      else if (e.type === 'done') { source.close(); setStreaming(false); loadRuns(); }
     };
-    source.onerror = () => source.close();
-    return () => source.close();
+    source.onerror = () => { source.close(); setStreaming(false); };
+    return () => { source.close(); };
   }, [activeRun?._id, visible, streamUrl, loadRuns]);
 
   useEffect(() => {
@@ -98,7 +102,7 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
     sending.current = true;
     setBusy(true); setError('');
     try {
-      const result = await mutate('agent/run', { ...body, days, ...(conversation ? { conversationId: conversation } : {}) });
+      const result = await request('agent/run', { method: 'POST', body: JSON.stringify({ ...body, days, ...(conversation ? { conversationId: conversation } : {}) }) });
       if (!mounted.current) return;
       chose.current = true; setConversation(result.conversationId || result.runId);
       setText(''); setFocus(null);
@@ -170,11 +174,11 @@ export default function SearchAgentPanel({ request: incoming, visible }) {
 function Turn({ run, stream, onReview }) {
   const steps = (run.steps || []).filter(s => s.type === 'tool');
   const step = stream?.step || steps[steps.length - 1]?.name;
-  const doing = step ? STEP_LABELS[step] || 'עובד' : 'חושב';
+  const doing = stream?.note || (step ? STEP_LABELS[step] || 'בודק את הבקשה' : 'מכין תשובה');
   return <>
     {run.request && <div className="flex justify-start"><div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-indigo-600 text-white px-4 py-2.5 text-sm whitespace-pre-wrap">{run.request}</div></div>}
     <div className="flex justify-end"><div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 text-sm text-slate-800 shadow-sm">
-      {isActive(run) && stream?.text ? <Markdown text={stream.text} />
+      {isActive(run) && stream?.text ? <><Markdown text={stream.text} />{stream.provisional && <span role="status" className="text-[11px] text-slate-400">כותב תשובה…</span>}</>
         : isActive(run) ? <span className="inline-flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />{doing}…</span>
         : run.summary ? <Markdown text={run.summary} />
           : <span className="text-slate-500">{run.error || actionStatus(run.status)}</span>}
