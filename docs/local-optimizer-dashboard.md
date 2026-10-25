@@ -25,3 +25,12 @@ rules are retained. Changes apply to new searches, while existing pagination
 cursors keep their original result snapshots.
 
 See [production setup](manovino-production.md) for deployment and verification.
+
+The **קמפיינים פעילים** panel (`?panel=campaigns`, also accepts the former
+`?panel=plans` link) shows running/applied weekly suggestions, legacy experiments
+and saved search rules. Its authenticated `GET dashboard/campaigns` read selects
+the store server-side and reads all live weekly suggestions separately from the
+30-item weekly history. Weekly performance uses Studio's proposal monitor. Legacy
+experiments show their latest saved snapshot and its timestamp; promoted tests
+explicitly retain their earlier test measurements. Rules without independent
+measurement, missing snapshots and partial tracking are shown as unavailable.

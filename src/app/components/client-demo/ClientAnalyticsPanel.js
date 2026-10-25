@@ -5,6 +5,7 @@ import { Search, SearchX, Wallet, ShoppingCart, Percent, ShieldCheck, AlertTrian
 import { Card, CardHeader, Segmented, PageHeader } from './ui';
 import { ResourceState, useOptimizer, buttonClass } from './OptimizerContext';
 import { analyticsMeasurement, headlineConversion } from '../../../../lib/dashboard-analytics';
+import ConciergeImpact from './ConciergeImpact';
 const number = n => n == null ? '—' : n.toLocaleString('he-IL');
 const rate = n => n == null ? '—' : `${(n * 100).toFixed(1)}%`;
 const money = rows => rows?.length ? rows.map(r => `${number(r.amount)} ${r.currency || '(מטבע לא דווח)'}`).join(' · ') : '—';
@@ -27,6 +28,7 @@ export default function ClientAnalyticsPanel({ onNavigate }) {
       right={<div className="flex flex-wrap gap-2"><Segmented options={ranges} value={days} onChange={setDays} /><button className={buttonClass} onClick={refresh} disabled={loading}>רענון</button></div>} />
     <ResourceState loading={loading} error={error} />
     {r && <>
+      <ConciergeImpact data={r.concierge} />
       <div className={`rounded-xl border p-4 mb-5 ${issues.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
         <div className="flex gap-2 items-center text-sm font-semibold">{issues.length ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <ShieldCheck className="h-4 w-4 shrink-0" />}{issues.length ? `המדידה חלקית · ${issues.length} נושאים לבדיקה` : 'הנתונים נקלטו · לא זוהו פערי מדידה'}</div>
         <p className="text-xs mt-2 leading-relaxed">כיסוי מזהי סשן בחיפושים: {rate(m.sessionCoverage)} · כיסוי מספר תוצאות: {rate(m.resultCoverage)}. {(!m.cartRates || !m.purchaseRates) && 'שיעור שתלוי במדידה חסרה מסומן בקו, גם אם נקלטו אירועים בודדים.'}</p>

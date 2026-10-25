@@ -3,6 +3,40 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle, XCircle, RefreshCw, Copy } from 'lucide-react';
 import PinnedResultsPanel from './PinnedResultsPanel';
+import { normalizeSemantixModule } from '/lib/semantixModule.js';
+
+const normalizeZeroResultsAbTest = (test = {}) => {
+  const variants = Array.isArray(test.variants) ? test.variants : [];
+  const control = variants.find((variant) => variant?.id === 'control') || {};
+  const zeroOnly = variants.find((variant) => variant?.id === 'zero_only') || {};
+  const clampWeight = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : fallback;
+  };
+
+  return {
+    enabled: test.enabled === true,
+    variants: [
+      {
+        id: 'control',
+        weight: clampWeight(control.weight, 50),
+        features: {
+          shadowMode: control.features?.shadowMode ?? true
+        }
+      },
+      {
+        id: 'zero_only',
+        weight: clampWeight(zeroOnly.weight, 50),
+        features: {
+          shadowMode: zeroOnly.features?.shadowMode ?? false,
+          rerankBoost: zeroOnly.features?.rerankBoost ?? false,
+          injectIntoGrid: zeroOnly.features?.injectIntoGrid ?? false,
+          zeroReplace: zeroOnly.features?.zeroReplace ?? true
+        }
+      }
+    ]
+  };
+};
 
 export default function AdminPanel({ session }) {
   const [apiKey, setApiKey] = useState('');
@@ -51,6 +85,7 @@ export default function AdminPanel({ session }) {
     enabled: true,
     domains: [],
     queryParams: [],
+    removeSelectors: [],
     selectors: {
       resultsGrid: [],
       productCard: [],
@@ -150,6 +185,9 @@ export default function AdminPanel({ session }) {
       disabled: false,
       shadowMode: false
     },
+    abTests: {
+      zero_results_only: normalizeZeroResultsAbTest()
+    },
     sessionModes: {},
     texts: {
       loader: ''
@@ -188,9 +226,17 @@ export default function AdminPanel({ session }) {
     debug: {
       enabled: false
     },
+    semantix: {
+      module: '',
+      enabled: false,
+      percent: 100
+    },
     zero: {
       replaceNoResultsText: "מחפש תוצאות חכמות...",
-      replaceNoResultsSelector: ""
+      replaceNoResultsSelector: "",
+      columns: {
+        desktop: 4
+      }
     }
   });
 
@@ -375,6 +421,7 @@ export default function AdminPanel({ session }) {
             enabled: savedConfig.enabled !== undefined ? savedConfig.enabled : true,
             domains: savedConfig.domains !== undefined ? savedConfig.domains : [],
             queryParams: savedConfig.queryParams !== undefined ? savedConfig.queryParams : [],
+            removeSelectors: safeGet(savedConfig, 'removeSelectors', []),
             selectors: {
               resultsGrid: safeGet(savedConfig, 'selectors.resultsGrid', []),
               productCard: safeGet(savedConfig, 'selectors.productCard', []),
@@ -463,6 +510,11 @@ export default function AdminPanel({ session }) {
               disabled: safeGet(savedConfig, 'features.disabled', false),
               shadowMode: safeGet(savedConfig, 'features.shadowMode', false)
             },
+            abTests: {
+              zero_results_only: normalizeZeroResultsAbTest(
+                safeGet(savedConfig, 'abTests.zero_results_only', {})
+              )
+            },
             sessionModes: safeGet(savedConfig, 'sessionModes', {}),
             texts: {
               loader: safeGet(savedConfig, 'texts.loader', '')
@@ -501,13 +553,26 @@ export default function AdminPanel({ session }) {
             debug: {
               enabled: safeGet(savedConfig, 'debug.enabled', false)
             },
+            semantix: normalizeSemantixModule(savedConfig.semantix, config.dbName || ''),
             zero: {
               replaceNoResultsText: safeGet(savedConfig, 'zero.replaceNoResultsText', "מחפש תוצאות חכמות..."),
-              replaceNoResultsSelector: safeGet(savedConfig, 'zero.replaceNoResultsSelector', "")
+              replaceNoResultsSelector: safeGet(savedConfig, 'zero.replaceNoResultsSelector', ""),
+              columns: {
+                desktop: safeGet(
+                  savedConfig,
+                  'zero.columns.desktop',
+                  safeGet(savedConfig, 'selectors.zero.columns.desktop', 4)
+                )
+              }
             }
           });
 
           console.log('✅ siteConfig loaded from DB');
+        } else {
+          setSiteConfig((prev) => ({
+            ...prev,
+            semantix: normalizeSemantixModule(prev.semantix, config.dbName || '')
+          }));
         }
 
         setFetchStatus('success');
@@ -555,6 +620,32 @@ export default function AdminPanel({ session }) {
     }
   };
 
+  const persistSemantixModule = async (nextSemantix) => {
+    if (!isAdmin || !apiKey) return false;
+    const normalized = normalizeSemantixModule(nextSemantix, dbName);
+    setSiteConfig((prev) => ({ ...prev, semantix: normalized }));
+    try {
+      const res = await fetch('/api/admin/update-user-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, semantix: normalized })
+      });
+      if (!res.ok) throw new Error('Save failed');
+      return true;
+    } catch (error) {
+      console.error('Failed to save Semantix module flag:', error);
+      return false;
+    }
+  };
+
+  const handleToggleSemantixModule = async (enabled) => {
+    const previous = normalizeSemantixModule(siteConfig.semantix, dbName);
+    const ok = await persistSemantixModule({ ...previous, enabled });
+    if (!ok) {
+      setSiteConfig((prev) => ({ ...prev, semantix: previous }));
+    }
+  };
+
   const handleSaveShopifyCreds = async () => {
     if (!isAdmin || !apiKey) return;
     const { shopifyDomain, shopifyClientId, shopifyClientSecret } = editCredForm;
@@ -599,6 +690,26 @@ export default function AdminPanel({ session }) {
         queryParams: Array.isArray(siteConfig.queryParams)
           ? siteConfig.queryParams
           : siteConfig.queryParams.split(',').map(p => p.trim()).filter(Boolean),
+        removeSelectors: Array.isArray(siteConfig.removeSelectors)
+          ? siteConfig.removeSelectors.map(s => String(s).trim()).filter(Boolean)
+          : (typeof siteConfig.removeSelectors === 'string'
+            ? siteConfig.removeSelectors.split('\n').map(s => s.trim()).filter(Boolean)
+            : []),
+        zero: {
+          ...siteConfig.zero,
+          columns: {
+            ...(siteConfig.zero?.columns || {}),
+            desktop: siteConfig.zero?.columns?.desktop
+              ?? siteConfig.selectors?.zero?.columns?.desktop
+              ?? 4
+          }
+        },
+        abTests: {
+          ...(siteConfig.abTests || {}),
+          zero_results_only: normalizeZeroResultsAbTest(
+            siteConfig.abTests?.zero_results_only
+          )
+        },
         // Drop unnamed test-mode rows (empty session_id keys)
         sessionModes: Object.fromEntries(
           Object.entries(siteConfig.sessionModes || {}).filter(([sid]) => sid.trim())
@@ -672,7 +783,8 @@ export default function AdminPanel({ session }) {
             : (typeof siteConfig.placeholderRotate?.placeholders === 'string'
               ? siteConfig.placeholderRotate.placeholders.split('\n').map(s => s.trim()).filter(Boolean)
               : [])
-        }
+        },
+        semantix: normalizeSemantixModule(siteConfig.semantix, dbName)
       };
 
       // Debug: Log cardTemplate and zero config before saving
@@ -715,6 +827,21 @@ export default function AdminPanel({ session }) {
     } finally {
       setTimeout(() => setSaveCredentialsStatus('idle'), 3000);
     }
+  };
+
+  const updateZeroResultsAbTest = (updater) => {
+    setSiteConfig((currentConfig) => {
+      const currentTest = normalizeZeroResultsAbTest(
+        currentConfig.abTests?.zero_results_only
+      );
+      return {
+        ...currentConfig,
+        abTests: {
+          ...(currentConfig.abTests || {}),
+          zero_results_only: updater(currentTest)
+        }
+      };
+    });
   };
 
   const handleProcessProducts = async () => {
@@ -1240,8 +1367,10 @@ export default function AdminPanel({ session }) {
       siteId: '',
       platform: 'woocommerce',
       enabled: true,
+      semantix: normalizeSemantixModule({}, dbName || ''),
       domains: [],
       queryParams: ["q", "s", "query", "search", "term"],
+      removeSelectors: [],
       selectors: {
         resultsGrid: ["ul.products", ".woocommerce ul.products", ".products", ".product-grid"],
         productCard: ["li.product", ".grid__item", ".product-card"],
@@ -1342,8 +1471,10 @@ export default function AdminPanel({ session }) {
       siteId: '',
       platform: 'shopify',
       enabled: true,
+      semantix: normalizeSemantixModule({}, dbName || ''),
       domains: [],
       queryParams: ["q", "s", "query", "search", "term"],
+      removeSelectors: [],
       selectors: {
         resultsGrid: ["ul.product-grid", ".product-grid", ".collection-grid", ".grid--uniform", ".product-grid-container", "[data-section-type='search'] .grid", "[data-section-type='collection'] .grid", "main .grid"],
         productCard: ["li.product-grid__item", "li.product", ".grid__item", ".product-card", ".card-wrapper", "[data-product-id]", "[data-product_id]", "product-card"],
@@ -1457,8 +1588,10 @@ export default function AdminPanel({ session }) {
       siteId: "semantix-test-myshopify",
       platform: "shopify",
       enabled: true,
+      semantix: normalizeSemantixModule({}, dbName || ''),
       domains: [],
       queryParams: ["q", "s", "query", "search", "term"],
+      removeSelectors: [],
       behavior: {
         injectPosition: "prepend",
         injectCount: 6,
@@ -1825,8 +1958,10 @@ export default function AdminPanel({ session }) {
         siteId: parsed.siteId || '',
         platform: parsed.platform || 'woocommerce',
         enabled: parsed.enabled !== undefined ? parsed.enabled : true,
+        semantix: normalizeSemantixModule(parsed.semantix, dbName),
         domains: parsed.domains || [],
         queryParams: parsed.queryParams || [],
+        removeSelectors: Array.isArray(parsed.removeSelectors) ? parsed.removeSelectors : [],
         selectors: {
           resultsGrid: parsed.selectors?.resultsGrid || [],
           productCard: parsed.selectors?.productCard || [],
@@ -1918,6 +2053,11 @@ export default function AdminPanel({ session }) {
           zeroReplace: parsed.features?.zeroReplace !== undefined ? parsed.features.zeroReplace : true,
           shadowMode: parsed.features?.shadowMode !== undefined ? parsed.features.shadowMode : false
         },
+        abTests: {
+          zero_results_only: normalizeZeroResultsAbTest(
+            parsed.abTests?.zero_results_only
+          )
+        },
         sessionModes: parsed.sessionModes || {},
         texts: {
           loader: parsed.texts?.loader || 'טוען תוצאות חכמות'
@@ -1951,6 +2091,15 @@ export default function AdminPanel({ session }) {
         },
         debug: {
           enabled: parsed.debug?.enabled || false
+        },
+        zero: {
+          replaceNoResultsText: parsed.zero?.replaceNoResultsText || 'מחפש תוצאות חכמות...',
+          replaceNoResultsSelector: parsed.zero?.replaceNoResultsSelector || '',
+          columns: {
+            desktop: parsed.zero?.columns?.desktop
+              ?? parsed.selectors?.zero?.columns?.desktop
+              ?? 4
+          }
         }
       };
 
@@ -1998,7 +2147,8 @@ export default function AdminPanel({ session }) {
 
           setSiteConfig({
             ...data.siteConfig,
-            domains: [detectedDomain, `www.${detectedDomain}`]
+            domains: [detectedDomain, `www.${detectedDomain}`],
+            removeSelectors: data.siteConfig.removeSelectors || siteConfig.removeSelectors || []
           });
         }
       } else {
@@ -2052,6 +2202,13 @@ export default function AdminPanel({ session }) {
       </div>
     );
   }
+
+  const zeroResultsAbTest = normalizeZeroResultsAbTest(
+    siteConfig.abTests?.zero_results_only
+  );
+  const controlVariant = zeroResultsAbTest.variants[0];
+  const zeroOnlyVariant = zeroResultsAbTest.variants[1];
+  const abTestWeightTotal = controlVariant.weight + zeroOnlyVariant.weight;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-4">
@@ -2739,6 +2896,85 @@ export default function AdminPanel({ session }) {
         </div>
       )}
 
+      {/* Magento / tenant module rollout */}
+      {userData && (
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Tenant Module</p>
+              <p className={`text-xs mt-0.5 ${siteConfig.semantix?.enabled ? 'text-green-600' : 'text-gray-500'}`}>
+                {siteConfig.semantix?.enabled
+                  ? `On — ${siteConfig.semantix.percent ?? 100}% of shoppers use ${siteConfig.semantix.module || `${dbName}-semantix`}`
+                  : 'Off — Magento tenant module is not serving Semantix'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleToggleSemantixModule(!(siteConfig.semantix?.enabled === true))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${siteConfig.semantix?.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${siteConfig.semantix?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Module folder under tenants/
+              </label>
+              <input
+                type="text"
+                value={siteConfig.semantix?.module ?? ''}
+                onChange={(e) => setSiteConfig({
+                  ...siteConfig,
+                  semantix: {
+                    ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                    module: e.target.value
+                  }
+                })}
+                onBlur={() => persistSemantixModule({
+                  ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                  module: siteConfig.semantix?.module
+                })}
+                placeholder={`${dbName || 'client'}-semantix`}
+                className="w-full p-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Shopper percent ({siteConfig.semantix?.percent ?? 100}%)
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={siteConfig.semantix?.percent ?? 100}
+                onChange={(e) => setSiteConfig({
+                  ...siteConfig,
+                  semantix: {
+                    ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                    percent: Number(e.target.value)
+                  }
+                })}
+                onMouseUp={(e) => persistSemantixModule({
+                  ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                  percent: Number(e.target.value)
+                })}
+                onTouchEnd={(e) => persistSemantixModule({
+                  ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                  percent: Number(e.target.value)
+                })}
+                onBlur={(e) => persistSemantixModule({
+                  ...normalizeSemantixModule(siteConfig.semantix, dbName),
+                  percent: Number(e.target.value)
+                })}
+                className="w-full mt-2"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User Credentials Editor */}
       {userData && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
@@ -3162,6 +3398,35 @@ export default function AdminPanel({ session }) {
                 />
               </div>
 
+              {/* Remove Selectors */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Remove Selectors (one CSS selector per line)
+                </label>
+                <textarea
+                  value={Array.isArray(siteConfig.removeSelectors)
+                    ? siteConfig.removeSelectors.join('\n')
+                    : (siteConfig.removeSelectors || '')}
+                  onChange={(e) => setSiteConfig({
+                    ...siteConfig,
+                    removeSelectors: e.target.value
+                  })}
+                  onBlur={(e) => setSiteConfig({
+                    ...siteConfig,
+                    removeSelectors: e.target.value
+                      .split('\n')
+                      .map(selector => selector.trim())
+                      .filter(Boolean)
+                  })}
+                  rows={4}
+                  placeholder={'.selector-to-remove\n#another-selector'}
+                  className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  These values are saved as <code>removeSelectors: [&quot;...&quot;]</code> in the site configuration.
+                </p>
+              </div>
+
               {/* Selectors */}
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">CSS Selectors</h4>
@@ -3562,20 +3827,32 @@ export default function AdminPanel({ session }) {
                       <label className="block text-xs font-medium text-orange-700 mb-1">Desktop Cols</label>
                       <input
                         type="number"
-                        value={siteConfig.selectors?.zero?.columns?.desktop || 4}
-                        onChange={(e) => setSiteConfig({
-                          ...siteConfig,
-                          selectors: {
-                            ...siteConfig.selectors,
+                        min="1"
+                        max="12"
+                        value={siteConfig.zero?.columns?.desktop ?? siteConfig.selectors?.zero?.columns?.desktop ?? 4}
+                        onChange={(e) => {
+                          const desktop = Math.max(1, parseInt(e.target.value, 10) || 4);
+                          setSiteConfig({
+                            ...siteConfig,
                             zero: {
-                              ...siteConfig.selectors.zero,
+                              ...siteConfig.zero,
                               columns: {
-                                ...siteConfig.selectors.zero.columns,
-                                desktop: parseInt(e.target.value) || 4
+                                ...(siteConfig.zero?.columns || {}),
+                                desktop
+                              }
+                            },
+                            selectors: {
+                              ...siteConfig.selectors,
+                              zero: {
+                                ...siteConfig.selectors.zero,
+                                columns: {
+                                  ...siteConfig.selectors.zero.columns,
+                                  desktop
+                                }
                               }
                             }
-                          }
-                        })}
+                          });
+                        }}
                         className="w-full p-2 border border-orange-200 rounded text-sm"
                       />
                     </div>
@@ -4221,6 +4498,132 @@ export default function AdminPanel({ session }) {
                   </label>
                 </div>
               </div>
+            </div>
+
+            {/* Zero-results A/B Test */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-cyan-900">🧪 Zero Results A/B Test</h4>
+                  <p className="text-xs text-cyan-700 mt-1">
+                    Split traffic between the regular experience and zero-results replacement only.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-medium text-cyan-800">
+                  <input
+                    type="checkbox"
+                    checked={zeroResultsAbTest.enabled}
+                    onChange={(e) => updateZeroResultsAbTest((test) => ({
+                      ...test,
+                      enabled: e.target.checked
+                    }))}
+                    className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
+                  />
+                  Enabled
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-white border border-cyan-200 rounded-lg">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Control</div>
+                  <label className="block text-xs text-gray-600 mb-1">Traffic weight (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={controlVariant.weight}
+                    onChange={(e) => updateZeroResultsAbTest((test) => ({
+                      ...test,
+                      variants: test.variants.map((variant) => (
+                        variant.id === 'control'
+                          ? { ...variant, weight: e.target.value }
+                          : variant
+                      ))
+                    }))}
+                    className="w-full p-2 border border-cyan-200 rounded text-sm"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-gray-700 mt-3">
+                    <input
+                      type="checkbox"
+                      checked={controlVariant.features.shadowMode}
+                      onChange={(e) => updateZeroResultsAbTest((test) => ({
+                        ...test,
+                        variants: test.variants.map((variant) => (
+                          variant.id === 'control'
+                            ? {
+                                ...variant,
+                                features: {
+                                  ...variant.features,
+                                  shadowMode: e.target.checked
+                                }
+                              }
+                            : variant
+                        ))
+                      }))}
+                      className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
+                    />
+                    Shadow Mode
+                  </label>
+                </div>
+
+                <div className="p-3 bg-white border border-cyan-200 rounded-lg">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Zero Only</div>
+                  <label className="block text-xs text-gray-600 mb-1">Traffic weight (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={zeroOnlyVariant.weight}
+                    onChange={(e) => updateZeroResultsAbTest((test) => ({
+                      ...test,
+                      variants: test.variants.map((variant) => (
+                        variant.id === 'zero_only'
+                          ? { ...variant, weight: e.target.value }
+                          : variant
+                      ))
+                    }))}
+                    className="w-full p-2 border border-cyan-200 rounded text-sm"
+                  />
+
+                  <div className="mt-3 space-y-2">
+                    {[
+                      ['shadowMode', 'Shadow Mode'],
+                      ['rerankBoost', 'Rerank Boost'],
+                      ['injectIntoGrid', 'Inject Into Grid'],
+                      ['zeroReplace', 'Zero Replace']
+                    ].map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={zeroOnlyVariant.features[key]}
+                          onChange={(e) => updateZeroResultsAbTest((test) => ({
+                            ...test,
+                            variants: test.variants.map((variant) => (
+                              variant.id === 'zero_only'
+                                ? {
+                                    ...variant,
+                                    features: {
+                                      ...variant.features,
+                                      [key]: e.target.checked
+                                    }
+                                  }
+                                : variant
+                            ))
+                          }))}
+                          className="h-4 w-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {abTestWeightTotal !== 100 && (
+                <p className="mt-3 text-xs font-medium text-red-600">
+                  Variant weights must total 100% (currently {abTestWeightTotal}%).
+                </p>
+              )}
             </div>
 
             {/* Test Modes (per session_id) */}

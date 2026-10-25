@@ -11,6 +11,8 @@ test('concierge exposes read-only history and explicit settings PUT without arbi
 });
 test('proxy accepts scoped dashboard operations and rejects arbitrary admin and traversal paths',()=>{
   assert.equal(optimizerRouteAllowed('GET','dashboard'),true);
+  assert.equal(optimizerRouteAllowed('GET','dashboard/campaigns'),true);
+  assert.equal(optimizerRouteAllowed('POST','dashboard/campaigns'),false);
   assert.equal(optimizerRouteAllowed('PUT','dashboard/pins'),true);
   assert.equal(optimizerRouteAllowed('GET','dashboard/products'),true);
   assert.equal(optimizerRouteAllowed('PUT','dashboard/products/visibility'),true);

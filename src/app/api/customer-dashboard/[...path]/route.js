@@ -8,6 +8,8 @@ import { optimizerRouteAllowed, ownershipFilter, publicOptimizerData } from '/li
 import { getDashboardMerchandising, saveDashboardMerchandising } from '/lib/dashboard-merchandising';
 import { optimizerServiceConfig } from '/lib/optimizer-config';
 import { readStudioJson } from '/lib/studio-response';
+import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
+import { getDashboardConcierge } from '/lib/dashboard-concierge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +44,7 @@ async function handle(request, { params }) {
     if (!user?.dbName) return fail(isAdmin ? 'יש לבחור חנות לצפייה' : 'לא נמצאה חנות מחוברת לחשבון', 409);
     const siblings = await users.find({ dbName: user.dbName }).project({ apiKey: 1 }).toArray();
     const keys = siblings.map(u => u.apiKey).filter(Boolean);
+    if (path === 'dashboard/campaigns') return NextResponse.json(await getDashboardCampaigns(client, user.dbName));
     if (path === 'dashboard/merchandising') {
       if (method === 'GET') return NextResponse.json(await getDashboardMerchandising(client, user.dbName));
       const data = await saveDashboardMerchandising(client, { dbName: user.dbName, actor: session.user.email || session.user.id, body: await request.json() });
@@ -95,6 +98,9 @@ async function handle(request, { params }) {
     }
     const response = await fetch(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(120000) });
     const data = await readStudioJson(response);
+    if (path === 'dashboard' && response.ok && data.report) {
+      data.report.concierge = await getDashboardConcierge(client, user.dbName, data.report.window);
+    }
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
   } catch (error) {
     if (error.status) return fail(error.message, error.status);

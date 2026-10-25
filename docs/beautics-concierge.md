@@ -31,6 +31,29 @@ Deploy Studio and the search server before the frontend. No database migration i
   metadata. Their missing messages cannot be recovered by this feature. Full
   transcripts require new conversations after the updated search server is deployed.
 
+## Dashboard performance
+
+The analytics overview includes **ביצועי הקונסיירז׳** for
+`woo-beautics-shop-co-il`. The authenticated dashboard response adds live,
+aggregate-only data from that store's MongoDB, using the report's exact date
+window (7/30/90 days). Other stores are unaffected; Studio requires no change.
+
+`session_id` is a persistent browser ID in this store. Visits are reconstructed
+with gaps of more than 30 minutes between observed searches, clicks, successful
+carts, checkout events, activations and recorded conversation turns. Multiple
+activations count once per visit. Only actions after its first activation count;
+each stage is independent. Cart counts require `woocommerce_add_to_cart`, and
+purchases require `checkout_completed` from `woocommerce_order_completed` with
+a deduplicated order ID. Only `vis-` browser IDs participate in attribution.
+
+The cards show visits, recorded cart/purchase rates and visits with dialogue.
+They describe subsequent activity in the same visit, including products outside
+the chat. They do not claim direct chat clicks, confirmed reading or causal lift.
+Identity coverage is available under **איך נספרים הביקורים**. Missing, failed or
+truncated sources display an unavailable state instead of zero. No paid orders
+in the window yields an unavailable purchase rate. Results are cached for up to
+60 seconds, with bounded reads and no messages or shopper identifiers returned.
+
 ## Validation
 
 Frontend: `npm run test:optimizer` and `npm run build`.

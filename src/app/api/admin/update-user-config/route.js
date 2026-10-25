@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { normalizeSemantixModule } from "/lib/semantixModule.js";
 
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -44,14 +45,14 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active, shopifyCreds, showOutOfStock } = body;
+    const { apiKey, categories, types, softCategories, colors, softCategoryBoosts, siteConfig, active, shopifyCreds, showOutOfStock, semantix } = body;
 
     if (!apiKey) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
     }
 
-    // Allow partial updates (shopifyCreds patch / showOutOfStock toggle) without requiring categories
-    const categoriesOnlyUpdate = !categories && !types && !softCategories && (shopifyCreds || showOutOfStock !== undefined);
+    // Allow partial updates (shopifyCreds patch / showOutOfStock / tenant module) without requiring categories
+    const categoriesOnlyUpdate = !categories && !types && !softCategories && (shopifyCreds || showOutOfStock !== undefined || semantix !== undefined);
 
     if (!categoriesOnlyUpdate && (!Array.isArray(categories) || !Array.isArray(types) || !Array.isArray(softCategories))) {
       return NextResponse.json({
@@ -98,9 +99,16 @@ export async function POST(request) {
       if (shopifyCreds.shopifyClientSecret) updateFields["credentials.shopifyClientSecret"] = shopifyCreds.shopifyClientSecret.trim();
     }
 
+    const dbName = user.credentials?.dbName || user.dbName || '';
+
     // Add siteConfig if provided
     if (siteConfig) {
-      updateFields["credentials.siteConfig"] = siteConfig;
+      updateFields["credentials.siteConfig"] = {
+        ...siteConfig,
+        semantix: normalizeSemantixModule(siteConfig.semantix || semantix, dbName)
+      };
+    } else if (semantix !== undefined) {
+      updateFields["credentials.siteConfig.semantix"] = normalizeSemantixModule(semantix, dbName);
     }
 
     // Add active flag if provided
@@ -129,6 +137,9 @@ export async function POST(request) {
     console.log(`   Categories: ${(categories || []).length}, Types: ${(types || []).length}, Soft Categories: ${(softCategories || []).length}, Colors: ${(colors || []).length}`);
     if (showOutOfStock !== undefined) {
       console.log(`   Show out-of-stock: ${showOutOfStock === true}`);
+    }
+    if (semantix !== undefined || siteConfig?.semantix) {
+      console.log(`   Semantix module:`, updateFields["credentials.siteConfig"]?.semantix || updateFields["credentials.siteConfig.semantix"]);
     }
     if (siteConfig) {
       console.log(`   Site Config: Updated with ${siteConfig.domains?.length || 0} domains`);

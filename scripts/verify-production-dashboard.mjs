@@ -19,7 +19,7 @@ try {
     if (!response.ok) throw Error(`Readiness check failed for ${path}: HTTP ${response.status}`);
     return response.json();
   };
-  const health = await read('health', false);
+  const health = await read('health');
   if (!health.ok || health.engine !== 'tenant-studio') throw Error('Production dependencies are not ready');
   const unauthenticated = await fetch(new URL(`${config.prefix}/dashboard`, config.endpoint), { signal: AbortSignal.timeout(15000), redirect: 'error' });
   if (unauthenticated.status !== 401) throw Error('Studio dashboard authentication is not enforced');
