@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { ObjectId } from 'mongodb';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import clientPromise from '/lib/mongodb';
-import { getUserBySession } from '/lib/getUserBySession';
+import { getDashboardStoreBySession } from '/lib/getDashboardStoreBySession';
 import { optimizerRouteAllowed, ownershipFilter, publicOptimizerData } from '/lib/optimizer-access';
 import { getDashboardMerchandising, saveDashboardMerchandising } from '/lib/dashboard-merchandising';
 import { optimizerServiceConfig } from '/lib/optimizer-config';
@@ -29,7 +29,7 @@ async function handle(request, { params }) {
     const users = client.db('users').collection('users');
     if (path === 'stores') {
       if (!isAdmin) return fail('Admin only', 403);
-      const rows = await users.find({ dbName: { $type: 'string', $ne: '' }, apiKey: { $type: 'string', $ne: '' } })
+      const rows = await users.find({ dbName: { $type: 'string', $ne: '' } })
         .project({ dbName: 1, name: 1, platform: 1, wooSiteUrl: 1, shopifyDomain: 1 }).toArray();
       const stores = new Map();
       for (const row of rows) if (!stores.has(row.dbName) || row.platform) stores.set(row.dbName, { dbName: row.dbName, name: row.wooSiteUrl || row.shopifyDomain || row.dbName });
@@ -37,9 +37,9 @@ async function handle(request, { params }) {
     }
     const selectedStore = incoming.searchParams.get('store');
     const user = isAdmin && selectedStore
-      ? await users.findOne({ dbName: selectedStore, apiKey: { $type: 'string', $ne: '' } }, { sort: { platform: -1 } })
-      : await getUserBySession(client.db('users'), session.user);
-    if (!user?.apiKey || !user.dbName) return fail(isAdmin ? 'יש לבחור חנות לצפייה' : 'לא נמצאה חנות מחוברת לחשבון', 409);
+      ? await users.findOne({ dbName: selectedStore }, { sort: { platform: -1 }, projection: { dbName: 1 } })
+      : await getDashboardStoreBySession(client.db('users'), session.user);
+    if (!user?.dbName) return fail(isAdmin ? 'יש לבחור חנות לצפייה' : 'לא נמצאה חנות מחוברת לחשבון', 409);
     const siblings = await users.find({ dbName: user.dbName }).project({ apiKey: 1 }).toArray();
     const keys = siblings.map(u => u.apiKey).filter(Boolean);
     if (path === 'dashboard/merchandising') {
@@ -49,7 +49,7 @@ async function handle(request, { params }) {
       try {
         const config = optimizerServiceConfig();
         const publication = new URL(`${config.prefix}/dashboard/merchandising/publish`, config.endpoint);
-        publication.searchParams.set('tenant', user.apiKey);
+        publication.searchParams.set('dbName', user.dbName);
         const response = await fetch(publication, { method: 'POST', headers: config.headers, signal: AbortSignal.timeout(15000), cache: 'no-store' });
         if (response.ok) published = (await readStudioJson(response)).published === true;
       } catch { /* The transaction committed; publishing is reported separately. */ }
@@ -66,7 +66,7 @@ async function handle(request, { params }) {
     const config = optimizerServiceConfig();
     const url = new URL(`${config.prefix}/${path}`, config.endpoint);
     // Never accept a browser-supplied tenant, API key or database name.
-    url.searchParams.set('tenant', user.apiKey);
+    url.searchParams.set('dbName', user.dbName);
     for (const key of ['days', 'status']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));
     if (path === 'optimization/weekly-review/queries') for (const key of ['query','page']) if (incoming.searchParams.has(key)) url.searchParams.set(key,incoming.searchParams.get(key));
     if (path === 'dashboard/catalog') url.searchParams.set('query', incoming.searchParams.get('query') || '');
@@ -82,10 +82,6 @@ async function handle(request, { params }) {
       body = raw ? JSON.parse(raw) : {};
       if (!body || typeof body !== 'object' || Array.isArray(body)) return fail('Invalid body', 400);
       delete body.tenant; delete body.tenantApiKey; delete body.apiKey; delete body.dbName;
-      if (path === 'rules' || path === 'rules/parse') {
-        body.tenantApiKey = user.apiKey;
-        if (path === 'rules') body.dbName = user.dbName;
-      }
       body.by = session.user.email || session.user.id;
       // Strict optimizer schemas reject extra fields.
       if (path === 'optimization/actions' || path === 'optimization/policy' || path === 'agent/run' || path === 'dashboard/pins' || path === 'dashboard/search' || path === 'dashboard/products/visibility' || path === 'dashboard/products/boost') delete body.by;

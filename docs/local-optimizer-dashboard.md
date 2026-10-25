@@ -16,7 +16,10 @@ alias and forwards to Studio as well.
 
 The frontend session selects the store; browser-supplied API keys/database names
 are ignored. Only the administrator can choose another store. Studio independently
-checks its service token, the selected store key and each requested resource.
+checks its service token, the selected `dbName` and each requested resource.
+Dashboard access does not require an API key on the login or store account.
+The frontend reads the assignment from the user's current Mongo record and sends
+`dbName` to Studio; only administrators can override the selected store.
 Manual arrangement writes use revision checking and an audit; other manual/agent
 rules are retained. Changes apply to new searches, while existing pagination
 cursors keep their original result snapshots.

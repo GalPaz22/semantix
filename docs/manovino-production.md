@@ -8,7 +8,7 @@ credentials are required for the four customer panels.
 
 ## Deploy
 
-1. Deploy `tenant-studio` from main, retaining its existing persistent
+1. Deploy `tenant-studio` with `dbName` dashboard support first, retaining its existing persistent
    `STUDIO_DATA_DIR`, customer projects and model credentials.
 2. Deploy the `semantix` frontend from main (Node.js 24).
 3. Keep `dashboard-server` deployed with live merchant ranking, concierge
@@ -21,6 +21,12 @@ HTTPS origin). This is also the frontend's production default. The token is
 server-only; the operator Studio token is not accepted. Redeploy after changing
 environment variables. Existing MongoDB/NextAuth/OAuth settings stay in place.
 `OPTIMIZER_SERVICE_URL` and `OPTIMIZER_OPS_PASSWORD` are not used by this dashboard.
+
+Customer requests are scoped by the logged-in user's stored `dbName`, not their
+API key. Next.js sends that database name to Studio with the private service
+token. Studio keeps legacy `tenant` key calls for older frontends during rollout;
+the new frontend requires the Studio update before deployment. Search engine
+publication can still use the store's existing private integration keys internally.
 
 Studio uses `STUDIO_DASHBOARD_MONGODB_URI`, falling back to `MONGODB_URI`, for the
 same customer/control-plane database that the frontend and search service use.

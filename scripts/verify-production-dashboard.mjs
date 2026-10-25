@@ -10,12 +10,11 @@ try {
   const config = optimizerServiceConfig({ ...process.env, NODE_ENV: 'production' });
   if (!process.env.MONGODB_URI) throw Error('MONGODB_URI is required');
   client = await MongoClient.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
-  const users = await client.db('users').collection('users').find({ dbName: store, apiKey: { $type: 'string', $ne: '' } }, { projection: { apiKey: 1, platform: 1 } }).toArray();
-  const account = users.find(user => user.platform) || users[0];
+  const account = await client.db('users').collection('users').findOne({ dbName: store }, { projection: { dbName: 1 } });
   if (!account) throw Error('Store is not connected');
   const read = async (path, authenticated = true) => {
     const url = new URL(`${config.prefix}/${path}`, config.endpoint);
-    if (authenticated) url.searchParams.set('tenant', account.apiKey);
+    if (authenticated) url.searchParams.set('dbName', account.dbName);
     const response = await fetch(url, { headers: config.headers, signal: AbortSignal.timeout(60000), redirect: 'error' });
     if (!response.ok) throw Error(`Readiness check failed for ${path}: HTTP ${response.status}`);
     return response.json();
