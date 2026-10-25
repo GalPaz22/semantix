@@ -1,9 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyticsMeasurement } from '../lib/dashboard-analytics.js';
+import { analyticsMeasurement, checkoutActivity } from '../lib/dashboard-analytics.js';
 const report = () => ({
   sources: Object.fromEntries(['queries', 'product_clicks', 'cart', 'checkout_events'].map(name => [name, { status: 'ok', truncated: false }])),
   funnel: { coverage: { queries: 100, queriesWithSession: 100, queriesWithResultCount: 100, purchases: 30, purchasesWithSession: 30, purchaseTracking: true, purchaseSessionsSeenBefore: 1 } },
+});
+test('checkout activity counts recorded starts across days independently of completed orders and attributed sessions', () => {
+  const r = report();
+  r.activity = { perDay: [{ day: '2026-10-01', checkouts: 8, purchases: 3 }, { day: '2026-10-02', checkouts: 4, purchases: 2 }] };
+  r.funnel.sessions = { checkout: 6, purchased: 3 };
+  assert.deepEqual(checkoutActivity(r), { events: 12, complete: true });
+  r.sources.checkout_events.truncated = true;
+  assert.deepEqual(checkoutActivity(r), { events: 12, complete: false });
+});
+test('missing checkout activity stays unavailable; a successfully read empty source is a measured zero', () => {
+  assert.deepEqual(checkoutActivity(null), { events: null, complete: false });
+  const r = report(); r.activity = { perDay: [] };
+  assert.deepEqual(checkoutActivity(r), { events: 0, complete: true });
+  r.sources.checkout_events.status = 'unavailable';
+  assert.deepEqual(checkoutActivity(r), { events: null, complete: false });
+  r.sources.checkout_events.status = 'ok'; r.activity.perDay = [{ purchases: 8 }];
+  assert.deepEqual(checkoutActivity(r), { events: null, complete: false });
 });
 test('missing sources and missing sessions never become a measured zero conversion', () => {
   const missing = analyticsMeasurement(null);

@@ -26,6 +26,12 @@ cursors keep their original result snapshots.
 
 See [production setup](manovino-production.md) for deployment and verification.
 
+Analytics includes a **התחלות צ׳קאאוט** count and daily chart option using recorded
+`checkout_initiated` events. Repeated starts remain events; the search funnel
+counts distinct attributed sessions separately. Completed purchases and revenue
+retain their existing definitions. Missing checkout data is unavailable, and a
+truncated source is explicitly shown as a lower bound.
+
 The **קמפיינים פעילים** panel (`?panel=campaigns`, also accepts the former
 `?panel=plans` link) shows running/applied weekly suggestions, legacy experiments
 and saved search rules. Its authenticated `GET dashboard/campaigns` read selects
