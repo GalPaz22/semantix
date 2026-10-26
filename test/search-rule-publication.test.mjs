@@ -39,3 +39,9 @@ test('transient publication failures retry, but persistent failures preserve the
 test('production configuration cannot send the private store key over HTTP',async()=>{
   let sent=false;const result=await publishSavedSearchRules(fixture().client,'own',{env:{NODE_ENV:'production',SEARCH_SERVICE_URL:'http://example.test'},request:async()=>{sent=true;return Response.json(ack);}});assert.equal(result.published,false);assert.equal(sent,false);
 });
+
+test('older search deployments automatically use the existing Vercel-to-Studio publication connection', async()=>{
+ const seen=[];const result=await publishSavedSearchRules(fixture().client,'own',{env:{NODE_ENV:'production',STUDIO_SERVICE_URL:'https://studio.example.test',STUDIO_CUSTOMER_API_TOKEN:'private-studio-token'},request:async(url,init)=>{seen.push({url,init});return url.pathname==='/rules/publication'?new Response('',{status:404}):Response.json({published:true});}});
+ assert.equal(result.published,true);assert.equal(seen.length,2);assert.equal(seen[1].url.origin,'https://studio.example.test');assert.equal(seen[1].url.searchParams.get('dbName'),'own');assert.equal(seen[1].init.headers['X-Studio-Customer-Token'],'private-studio-token');assert.equal(seen[1].init.headers['x-api-key'],undefined);assert.equal(seen[1].init.body,undefined);assert.equal(seen[1].init.redirect,'error');
+ const failed=await publishSavedSearchRules(fixture().client,'own',{env:{NODE_ENV:'production',STUDIO_SERVICE_URL:'https://studio.example.test',STUDIO_CUSTOMER_API_TOKEN:'token'},request:async url=>url.pathname==='/rules/publication'?new Response('',{status:404}):Response.json({published:false})});assert.equal(failed.published,false);
+});
