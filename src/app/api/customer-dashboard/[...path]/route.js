@@ -10,6 +10,7 @@ import { optimizerServiceConfig } from '/lib/optimizer-config';
 import { readStudioJson } from '/lib/studio-response';
 import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
+import { publishSavedSearchRules } from '/lib/search-rule-publication';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,15 +49,8 @@ async function handle(request, { params }) {
     if (path === 'dashboard/merchandising') {
       if (method === 'GET') return NextResponse.json(await getDashboardMerchandising(client, user.dbName));
       const data = await saveDashboardMerchandising(client, { dbName: user.dbName, actor: session.user.email || session.user.id, body: await request.json() });
-      let published = false;
-      try {
-        const config = optimizerServiceConfig();
-        const publication = new URL(`${config.prefix}/dashboard/merchandising/publish`, config.endpoint);
-        publication.searchParams.set('dbName', user.dbName);
-        const response = await fetch(publication, { method: 'POST', headers: config.headers, signal: AbortSignal.timeout(15000), cache: 'no-store' });
-        if (response.ok) published = (await readStudioJson(response)).published === true;
-      } catch { /* The transaction committed; publishing is reported separately. */ }
-      return NextResponse.json({ ...data, saved: true, published, message: published ? 'הכללים נשמרו. השינויים בכללים מהאדמין יופיעו בחיפוש תוך עד 5 דקות.' : 'הכללים נשמרו. הסנכרון עם מנוע החיפוש טרם אומת; יש לרענן ולבדוק.' });
+      const publication = await publishSavedSearchRules(client, user.dbName);
+      return NextResponse.json({ ...data, saved: true, ...publication });
     }
     const parts = path.split('/');
     // Concierge records live in the authenticated store DB, and are checked there.
@@ -98,6 +92,9 @@ async function handle(request, { params }) {
     }
     const response = await fetch(url, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(120000) });
     const data = await readStudioJson(response);
+    if (response.ok && data.saved === true && ['dashboard/search-layout', 'dashboard/pins'].includes(path)) {
+      Object.assign(data, await publishSavedSearchRules(client, user.dbName));
+    }
     if (path === 'dashboard' && response.ok && data.report) {
       data.report.concierge = await getDashboardConcierge(client, user.dbName, data.report.window);
     }

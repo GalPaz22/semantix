@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
-import { getUserBySession } from "/lib/getUserBySession";
+import { getDashboardStoreBySession } from "/lib/getDashboardStoreBySession";
+import { saveSharedPinnedResults } from "/lib/search-rule-publication";
 
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -52,8 +53,11 @@ async function getLoggedInUser() {
 
   const client = await clientPromise;
   const db = client.db("users");
-  const user = await getUserBySession(db, session.user);
-  return { db, user };
+  const store = await getDashboardStoreBySession(db, session.user);
+  const user = store ? await db.collection('users').findOne({ dbName: store.dbName,
+    $or: [{ 'credentials.dbName': store.dbName }, { 'credentials.dbName': { $exists: false } }],
+  }, { sort: { platform: -1, _id: 1 }, projection: { dbName: 1, 'credentials.pinnedResults': 1 } }) : null;
+  return { client, db, user };
 }
 
 export async function GET() {
@@ -78,26 +82,19 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { db, user } = await getLoggedInUser();
+    const { client, user } = await getLoggedInUser();
     if (!user) return unauth();
 
     const body = await request.json();
     const { cleaned, error } = normalizePinnedResults(body.pinnedResults);
     if (error) return NextResponse.json({ error }, { status: 400 });
 
-    await db.collection("users").updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          "credentials.pinnedResults": cleaned,
-          updatedAt: new Date(),
-        },
-      }
-    );
+    const publication = await saveSharedPinnedResults(client, user.dbName, cleaned);
 
     return NextResponse.json({
       success: true,
-      message: "Pinned results updated successfully",
+      saved: true,
+      ...publication,
       pinnedResults: cleaned,
     });
   } catch (error) {

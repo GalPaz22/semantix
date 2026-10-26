@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { saveSharedPinnedResults } from "/lib/search-rule-publication";
 
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -127,25 +128,16 @@ export async function POST(request) {
     const db = client.db("users");
     const users = db.collection("users");
 
-    const result = await users.updateOne(
-      { apiKey },
-      {
-        $set: {
-          "credentials.pinnedResults": cleaned,
-          updatedAt: new Date(),
-        },
-      }
-    );
-
-    if (result.matchedCount === 0) {
+    const account = await users.findOne({ apiKey }, { projection: { dbName: 1 } });
+    if (!account?.dbName) {
       return NextResponse.json({ error: "User not found with provided API key" }, { status: 404 });
     }
-
-    console.log(`✅ [ADMIN] Updated pinned results for apiKey ${apiKey.substring(0, 8)}… (${cleaned.length} rules)`);
+    const publication = await saveSharedPinnedResults(client, account.dbName, cleaned);
 
     return NextResponse.json({
       success: true,
-      message: "Pinned results updated successfully",
+      saved: true,
+      ...publication,
       pinnedResults: cleaned,
     });
   } catch (err) {
