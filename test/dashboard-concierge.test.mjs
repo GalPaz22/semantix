@@ -95,3 +95,87 @@ test('the reader is Beautics-only and missing collections never become a measure
   assert.deepEqual(await getDashboardConcierge(client, BEAUTICS_DB, window), { status: 'unavailable' });
   assert.deepEqual(await getDashboardConcierge(client, BEAUTICS_DB, null), { status: 'unavailable' });
 });
+
+test('revenue sums distinct paid orders after activation in the same visit using exact cents', () => {
+  const rows = fixture();
+  rows.concierge_conversations = [event(5), event(6)];
+  rows.checkout_events = [
+    paid(1, { order_id: 'before', order_total: 500, currency: 'ILS' }),
+    paid(7, { order_id: 'a', order_total: '19.90', currency: 'ILS' }),
+    paid(8, { order_id: 'a', order_total: 999, currency: 'ILS' }),
+    paid(9, { order_id: 'b', order_total: 0.2, currency: 'ILS' }),
+    paid(10, { order_id: 'unpaid', event_type: 'checkout_initiated', order_total: 500, currency: 'ILS' }),
+    paid(11, { order_id: 'browser', source: 'browser', order_total: 500, currency: 'ILS' }),
+    paid(12, { order_id: 'unknown', session_id: null, order_total: 500, currency: 'ILS' }),
+    paid(90, { order_id: 'later', order_total: 500, currency: 'ILS' }),
+    paid(1440, { order_id: 'future', order_total: 500, currency: 'ILS' }),
+  ];
+  const result = summarizeConciergeVisits(rows, window);
+  assert.equal(result.purchaseVisits, 1);
+  assert.deepEqual(result.revenue, { orders: 2, measuredOrders: 2, missingOrders: 0, totals: [{ currency: 'ILS', amount: 20.1, orders: 2 }] });
+  assert.ok(!JSON.stringify(result).includes('unknown'));
+});
+
+test('revenue preserves currencies, legacy totals, zero amounts, and identified duplicate attribution', () => {
+  const rows = fixture();
+  rows.concierge_conversations = [event(1)];
+  rows.checkout_events = [
+    paid(2, { session_id: null, order_total: 20, currency: 'ILS' }),
+    paid(3, { order_total: 20, currency: 'ILS' }),
+    paid(4, { order_id: 'usd', orderData: { total_price: '1,234.56', currency: 'USD' } }),
+    paid(5, { order_id: 'eur', total: 0, currency: 'EUR' }),
+  ];
+  const result = summarizeConciergeVisits(rows, window);
+  assert.deepEqual(result.revenue, { orders: 3, measuredOrders: 3, missingOrders: 0, totals: [
+    { currency: 'EUR', amount: 0, orders: 1 },
+    { currency: 'ILS', amount: 20, orders: 1 },
+    { currency: 'USD', amount: 1234.56, orders: 1 },
+  ] });
+});
+
+test('missing and invalid amounts or currencies stay explicit instead of silently becoming revenue', () => {
+  const rows = fixture();
+  rows.concierge_conversations = [event(1)];
+  rows.checkout_events = [
+    paid(2, { order_id: 'missing' }),
+    paid(3, { order_id: 'blank', order_total: ' ', currency: 'ILS' }),
+    paid(4, { order_id: 'negative', order_total: -20, currency: 'ILS' }),
+    paid(5, { order_id: 'invalid', order_total: 'bad', currency: 'ILS' }),
+    paid(6, { order_id: 'currency', order_total: 100, currency: '₪' }),
+  ];
+  assert.deepEqual(summarizeConciergeVisits(rows, window).revenue, { orders: 5, measuredOrders: 0, missingOrders: 5, totals: [] });
+  rows.checkout_events.push(paid(7, { order_id: 'measured', order_total: 42.5, currency: 'ILS' }));
+  assert.deepEqual(summarizeConciergeVisits(rows, window).revenue, { orders: 6, measuredOrders: 1, missingOrders: 5, totals: [{ currency: 'ILS', amount: 42.5, orders: 1 }] });
+});
+
+test('unavailable purchase tracking differs from zero attributed orders', () => {
+  const rows = fixture();
+  rows.concierge_conversations = [event(1)];
+  assert.equal(summarizeConciergeVisits(rows, window).revenue, null);
+  rows.checkout_events = [paid(90, { order_total: 100, currency: 'ILS' })];
+  assert.deepEqual(summarizeConciergeVisits(rows, window).revenue, { orders: 0, measuredOrders: 0, missingOrders: 0, totals: [] });
+});
+
+test('the scoped reader projects amounts and currencies without loading customer details', async () => {
+  const rows = fixture();
+  rows.concierge_conversations = [event(1)];
+  rows.checkout_events = [paid(2, { order_total: 89.9, currency: 'ILS' })];
+  const client = { db(name) {
+    assert.equal(name, BEAUTICS_DB);
+    return {
+      listCollections: () => ({ toArray: async () => Object.keys(rows).map(name => ({ name })) }),
+      collection(name) { return {
+        findOne: async () => null,
+        find(_filter, { projection }) {
+          if (name === 'checkout_events') {
+            for (const key of ['order_total', 'currency', 'orderData.total_price', 'orderData.currency']) assert.equal(projection[key], 1);
+            assert.equal(projection.orderData, undefined);
+            assert.equal(projection.email, undefined);
+          }
+          return { limit() { return this; }, toArray: async () => rows[name] };
+        },
+      }; },
+    };
+  } };
+  assert.deepEqual((await getDashboardConcierge(client, BEAUTICS_DB, window)).revenue.totals, [{ currency: 'ILS', amount: 89.9, orders: 1 }]);
+});

@@ -46,7 +46,13 @@ each stage is independent. Cart counts require `woocommerce_add_to_cart`, and
 purchases require `checkout_completed` from `woocommerce_order_completed` with
 a deduplicated order ID. Only `vis-` browser IDs participate in attribution.
 
-The cards show visits, recorded cart/purchase rates and visits with dialogue.
+The cards show gross recorded order amounts after activation, visits, recorded
+cart/purchase rates and visits with dialogue. Amounts include the entire paid
+order in the same visit, not just recommended items, without refund adjustment.
+Each order ID counts once. Amounts are summed in integer minor units and grouped
+by currency without currency conversion. Orders missing a valid nonnegative
+amount or currency are excluded from the sum with explicit coverage; if all
+amounts are missing the card shows unavailable instead of zero.
 They describe subsequent activity in the same visit, including products outside
 the chat. They do not claim direct chat clicks, confirmed reading or causal lift.
 Identity coverage is available under **איך נספרים הביקורים**. Missing, failed or
