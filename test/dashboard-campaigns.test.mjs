@@ -23,7 +23,7 @@ test('campaign reads scope each source to the store, keep live proposals unbound
       find(query) {
         assert.equal(query.dbName, 'store-a');
         const read = { collection, query, limit: null }; reads.push(read);
-        const rows = collection === 'proposals' && query.status.$in.includes('running') ? [{ _id: id, title: 'Older live campaign', status: 'running', tenantApiKey: 'secret', createdAt: new Date('2026-01-01') }] : collection === 'experiments' ? [{ _id: id, name: 'Legacy', status: 'running' }] : [];
+        const rows = collection === 'proposals' && query.kind === 'weeklyOptimization' && query.status.$in.includes('running') ? [{ _id: id, title: 'Older live campaign', status: 'running', tenantApiKey: 'secret', createdAt: new Date('2026-01-01') }] : collection === 'experiments' ? [{ _id: id, name: 'Legacy', status: 'running' }] : [];
         return { sort() { return this; }, limit(n) { read.limit = n; return this; }, async toArray() { return rows; } };
       },
       aggregate(pipeline) {

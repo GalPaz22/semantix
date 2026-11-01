@@ -45,12 +45,31 @@ export default function ActiveCampaignsPanel({ visible, onNavigate }) {
               <div className="flex-1 min-w-0"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold break-words">{p.title}</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{statuses[p.status]}</span></div><p className="text-xs text-slate-500 mt-2 break-words">{p.queries?.length ? p.queries.map(q => `״${q}״`).join(' · ') : 'כל החיפושים שבתחום הקמפיין'}</p><p className="text-xs text-indigo-600 mt-3">{open ? 'פידבק ופרטי הקמפיין' : 'לצפייה בפידבק ובביצועים'}</p></div>
               <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 mt-1 transition ${open ? 'rotate-180' : ''}`} />
             </button>
-            {open && <div id={`campaign-${p._id}`}>{p.source === 'rule' || p.source === 'experiment' ? <SavedCampaignFeedback campaign={p} /> : <WeeklyProposal p={p} index={index} onNotice={setNotice} feedbackFirst visible={visible} />}</div>}
+            {open && <div id={`campaign-${p._id}`}>{p.source === 'productBoost' ? <ProductPromotionFeedback campaign={p} /> : p.source === 'rule' || p.source === 'experiment' ? <SavedCampaignFeedback campaign={p} /> : <WeeklyProposal p={p} index={index} onNotice={setNotice} feedbackFirst visible={visible} />}</div>}
           </div>;
         })}
       </div>}
     </>}
   </section>;
+}
+
+function ProductPromotionFeedback({ campaign: p }) {
+  const date = value => new Date(value).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
+  const measurement = p.measurement;
+  const metrics = [['searchAppearances', 'חיפושים עם הופעה בתוצאות השמורות'], ['clicks', 'קליקים על המוצרים'], ['carts', 'אירועי הוספה לסל'], ['reportedOrders', 'הזמנות שדווחו וכוללות את המוצרים']];
+  return <article className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+    <h3 className="font-semibold text-sm">מעקב אחר המוצרים שקודמו</h3>
+    <p className="text-sm text-slate-600">{p.description} מתוך {number(p.productCount)} מוצרים שאושרו, {number(p.currentCount)} עדיין ברמת הקידום הזו ו־{number(p.availableCount)} מהם זמינים ומוצגים.</p>
+    {p.appliedAt && <p className="text-xs text-slate-500">הקידום הוחל ב־{date(p.appliedAt)}</p>}
+    {p.currentCount !== p.productCount && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 leading-6">חלק מהמוצרים הוסרו או שרמת הקידום שלהם השתנתה מאז האישור. הנתונים מתייחסים לקבוצת המוצרים המקורית.</p>}
+    <details className="text-sm text-slate-600"><summary className="cursor-pointer">המוצרים שנכללו באישור</summary><ul className="mt-3 space-y-2">{p.products.map((product, index) => <li key={index}>{product.name}{!product.current && ' · הקידום השתנה או שהמוצר הוסר'}</li>)}</ul></details>
+    {measurement ? <>
+      <p className="text-xs text-slate-500 leading-6">לפני: {date(measurement.before.from)} – {date(measurement.before.to)}<br />אחרי: {date(measurement.after.from)} – {date(measurement.after.to)}<br />חלונות באורך זהה, עד שבעה ימים. חלון ״אחרי״ מציג את הפעילות האחרונה מאז ההפעלה.</p>
+      <div className="overflow-x-auto"><table className="w-full text-right text-sm"><thead className="text-xs text-slate-400"><tr>{['מדד', 'לפני הקידום', 'אחרי הקידום'].map(label => <th key={label} className="p-3 font-medium">{label}</th>)}</tr></thead><tbody>{metrics.map(([key, label]) => <tr key={key} className="border-t border-slate-100"><td className="p-3">{label}</td><td className="p-3">{number(measurement.before[key])}</td><td className="p-3">{number(measurement.after[key])}</td></tr>)}</tbody></table></div>
+      <p className="text-xs text-slate-400">עודכן ב־{date(measurement.generatedAt)}. מקף מציין מקור חסר, לא זמין או חלקי.</p>
+      <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 leading-6">זו פעילות שנרשמה על המוצרים בכל האתר, כולל כניסות ישירות. הופעה נמדדת ברשימת התוצאות שנשמרה, ולא מעידה שהמוצר נצפה במסך. אירועי רכישה מדווחים אינם אימות תשלום. אין קבוצת ביקורת או שיוך לחשיפה לקידום, ולכן אין להסיק שהקידום גרם לשינוי במכירות. מוצרים שלא נכללו באישור לא יתווספו אוטומטית כשיחזרו למלאי.</p>
+    </> : <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">לא נמצא מועד החלה מתועד שמאפשר למדוד לפני ואחרי. אין לפרש מידע חסר כאפס פעילות.</p>}
+  </article>;
 }
 
 function SavedCampaignFeedback({ campaign: p }) {
