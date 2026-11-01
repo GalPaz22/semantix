@@ -23,8 +23,8 @@ try {
   const checks = [];
   async function expect(path, status, authenticated = true, init = {}) {
     const response = await fetch(base + path, { ...init, headers: { ...(authenticated ? headers : {}), ...init.headers }, redirect: 'error', signal: AbortSignal.timeout(60000) });
-    assert.equal(response.status, status, `${init.method || 'GET'} ${path}`);
-    checks.push({ path, method: init.method || 'GET', status });
+    assert.ok((Array.isArray(status) ? status : [status]).includes(response.status), `${init.method || 'GET'} ${path}: ${response.status}`);
+    checks.push({ path, method: init.method || 'GET', status: response.status });
     return response.json();
   }
   await expect('/api/customer-dashboard/dashboard/ab-test', 401, false);
@@ -33,8 +33,11 @@ try {
   assert.equal(metadata.access.mode, 'analytics-only');
   const live = await expect('/api/customer-dashboard/dashboard/ab-test?days=7', 200);
   assert.equal(live.experiment.key, 'semantix_takeover');
+  assert.equal(live.measurement.productAttribution, 'search-product-click-cart-v1');
+  assert.ok(live.groups.semantix.addedProducts <= live.groups.semantix.clickedProducts);
+  assert.ok(live.groups.native.addedProducts <= live.groups.native.clickedProducts);
   await expect('/api/customer-dashboard/dashboard/products', 423);
-  await expect('/api/customer-dashboard/dashboard/catalog-sync', 423);
+  await expect('/api/customer-dashboard/dashboard/catalog-sync', [404, 423]); // Unavailable tools may be absent from the deployed allowlist.
   await expect('/api/optimizer/dashboard/products', 423);
   await expect('/api/customer-dashboard/agent/run', 423, true, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' });
   await expect('/api/customer-dashboard/dashboard/pins', 423, true, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{' });
@@ -56,8 +59,10 @@ try {
   assert.equal(navigation.find(b => b.text === 'אנליטיקות').disabled, false);
   assert.ok(requests.every(p => ['/api/customer-dashboard/dashboard', '/api/customer-dashboard/dashboard/ab-test'].includes(p)), 'locked tools are never mounted or fetched');
   const text = await page.$eval('[data-testid="takeover-analytics"]', el => el.innerText);
-  assert.ok(text.includes('החיפוש הקיים') && text.includes('שיעור מחפשים שהגיעו לעגלה'));
+  assert.ok(text.includes('החיפוש הקיים') && text.includes('שיעור הוספה לסל מתוך המוצרים שהוקלקו'));
   assert.ok(text.includes('רכישות והכנסות אינן חלק מהמדדים'));
+  assert.ok(text.includes('כיסוי הקישור') && text.includes('מזהה מוצר'));
+  assert.ok(!text.includes('מחפשים שהגיעו לעגלה'));
   assert.ok(!text.includes('תקלה') && !text.includes('פאדיחה'));
   await page.screenshot({ path: output + '/takeover-preview.png', fullPage: false });
   await page.screenshot({ path: output + '/takeover-desktop.png', fullPage: true });

@@ -8,21 +8,28 @@ const stamp = minute => `2026-11-01T00:${String(minute).padStart(2, '0')}:00.000
 const event = (session, variant, minute, fields = {}) => ({ session_id: session, timestamp: stamp(minute), ...(variant ? { ab_tests: { semantix_takeover: variant } } : {}), ...fields });
 const options = { from: stamp(10), to: stamp(50), cohortFrom: stamp(0) };
 
-test('both groups use unique searcher outcomes after search, keeping native attribution distinct from direct tags', () => {
+const search = (session, arm, minute, fields = {}) => event(session, arm, minute, { search_id: `${session}-search`, query: 'Book', ...fields });
+const click = (session, arm, minute, fields = {}) => search(session, arm, minute, { product_id: '42', event_id: `${session}-click-${minute}`, search_link: 'results_page', interaction_type: 'click', ...fields });
+const cart = (session, arm, minute, fields = {}) => search(session, arm, minute, { product_id: '42', event_id: `${session}-cart-${minute}`, ...fields });
+
+test('counts products once per browser and search, with the same denominator in both groups', () => {
   const report = summarizeTakeover({
-    exposures: [event('s', 'semantix', 0), event('n', 'native', 0), event('b', 'native', 0)],
-    queries: [event('s', 'semantix', 12, { query: 'Book', search_id: 'one' }), event('s', 'semantix', 13, { query: 'Book' }), event('n', null, 12, { query: 'Book' }), event('b', null, 12, { query: 'Other' })],
-    carts: [event('s', 'semantix', 11), event('s', 'semantix', 14), event('s', 'semantix', 15), event('n', 'native', 13)], clicks: [event('s', null, 14)],
+    exposures: [event('s', 'semantix', 0), event('n', 'native', 0)],
+    queries: [search('s', 'semantix', 12), search('s', 'semantix', 13), search('n', null, 12)],
+    clicks: [click('s', null, 14), click('s', null, 15), click('n', 'native', 14), click('n', 'native', 15, { product_id: '43' })],
+    carts: [cart('s', 'semantix', 11), cart('s', 'semantix', 16, { quantity: 3 }), cart('s', 'semantix', 17), cart('n', 'native', 16)],
   }, options);
   assert.equal(report.groups.semantix.searches, 2);
-  assert.equal(report.groups.semantix.searchers, 1);
-  assert.equal(report.groups.semantix.cartersAfterSearch, 1);
-  assert.equal(report.groups.semantix.cartEventsAfterSearch, 2);
-  assert.equal(report.groups.semantix.cartRate, 1);
-  assert.equal(report.groups.native.cartRate, .5);
+  assert.equal(report.groups.semantix.clickedProducts, 1);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.linkedCartEvents, 2);
+  assert.equal(report.groups.semantix.productCartRate, 1);
+  assert.equal(report.groups.native.clickedProducts, 2);
+  assert.equal(report.groups.native.productCartRate, .5);
   assert.equal(report.groups.native.queryTagCoverage, 0);
-  assert.equal(report.groups.semantix.searchIdCoverage, .5);
   assert.deepEqual(report.topQueries[0], { query: 'book', semantix: 2, native: 1 });
+  assert.deepEqual(report.topProducts[0], { productId: '42', semantix: { clicked: 1, added: 1 }, native: { clicked: 1, added: 1 } });
+  assert.equal(report.groups.semantix.cartersAfterSearch, undefined);
   assert.equal(report.groups.semantix.purchases, null);
   assert.ok(!JSON.stringify(report).includes('session_id'));
 });
@@ -40,20 +47,22 @@ test('conflicts from any source exclude the whole ID; fallback and pinned traffi
   assert.equal(report.measurement.exposureCoverage, .25);
 });
 
-test('window boundaries are exclusive, pre-exposure activity is excluded and returning browsers can use earlier exposure', () => {
+test('window boundaries and pre-exposure activity apply to the whole product chain', () => {
   const report = summarizeTakeover({ exposures: [event('early', 'semantix', 1), event('late', 'native', 20)],
-    queries: [event('early', null, 10), event('early', null, 50), event('late', null, 15)],
-    clicks: [], carts: [event('early', 'semantix', 49), event('early', 'semantix', 50)],
+    queries: [search('early', null, 10), search('early', null, 50), search('late', null, 15)],
+    clicks: [click('early', 'semantix', 11), click('late', 'native', 21)],
+    carts: [cart('early', 'semantix', 49), cart('early', 'semantix', 50), cart('late', 'native', 22)],
   }, options);
   assert.equal(report.groups.semantix.searches, 1);
-  assert.equal(report.groups.semantix.cartEventsAfterSearch, 1);
-  assert.equal(report.groups.native.searches, 0);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.linkedCartEvents, 1);
+  assert.equal(report.groups.native.clickedProducts, 0);
 });
 
 test('empty and incomplete measurements do not fabricate conversion, revenue or a winning variant', () => {
   const report = summarizeTakeover({ exposures: [event('s', 'semantix', 11)], queries: [event('s', 'semantix', 12)], carts: [event('s', 'semantix', 13)], clicks: [] }, { ...options, complete: false });
-  assert.equal(report.groups.semantix.cartRate, null);
-  assert.equal(report.groups.native.cartRate, null);
+  assert.equal(report.groups.semantix.productCartRate, null);
+  assert.equal(report.groups.native.productCartRate, null);
   assert.equal(report.groups.semantix.revenue, null);
   assert.equal(report.measurement.status, 'incomplete');
   assert.equal(report.winner, undefined);
@@ -69,7 +78,7 @@ function clientFixture({ accounts, missing = [], queryRows, failQueries = false 
   const reads = [];
   const config = { enabled: true, sticky: false, updatedAt: stamp(0), variants: [{ id: 'semantix', weight: 10 }, { id: 'native', weight: 90 }] };
   const collections = ['tracking_events', 'queries', 'cart', 'product_clicks'].filter(n => !missing.includes(n));
-  const rows = { tracking_events: [event('s', 'semantix', 11)], queries: queryRows || [event('s', 'semantix', 12, { query: 'A' })], cart: [event('s', 'semantix', 13)], product_clicks: [] };
+  const rows = { tracking_events: [event('s', 'semantix', 11)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: [click('s', 'semantix', 13)] };
   return { reads, db(name) {
     reads.push({ database: name });
     return { listCollections() { return { async toArray() { return collections.map(name => ({ name })); } }; }, collection(collection) {
@@ -94,9 +103,10 @@ test('reader is bounded, uses the authenticated database, clamps to the current 
   const report = await readTakeoverAnalytics(client, 'steimatzky', { days: 7, now: new Date(stamp(50)), useCache: false });
   assert.equal(report.window.from, stamp(10));
   assert.deepEqual(report.experiment.configuredSplit, { semantix: .1, native: .9 });
-  assert.equal(report.groups.semantix.cartRate, 1);
+  assert.equal(report.groups.semantix.productCartRate, 1);
   assert.ok(client.reads.every(r => !r.database || ['users', 'steimatzky'].includes(r.database)));
   assert.ok(!JSON.stringify(report).includes('fixture-digest'));
+  assert.ok(JSON.stringify(client.reads.find(r => r.collection === 'product_clicks').filter).includes('received_at'));
 });
 
 test('other stores and invalid ranges are rejected before accessing data', async () => {
@@ -109,7 +119,7 @@ test('other stores and invalid ranges are rejected before accessing data', async
 test('a missing source suppresses rates instead of recording missing cart activity as zero', async () => {
   const report = await readTakeoverAnalytics(clientFixture({ missing: ['cart'] }), 'steimatzky', { days: 1, now: new Date(stamp(50)), useCache: false });
   assert.equal(report.measurement.complete, false);
-  assert.equal(report.groups.semantix.cartRate, null);
+  assert.equal(report.groups.semantix.productCartRate, null);
 });
 
 test('conflicting rollout configurations fail closed instead of choosing a flattering split', async () => {
@@ -131,4 +141,64 @@ test('legacy writes cannot bypass the lock by supplying another database or sign
   const client = { db() { return { collection() { return { async findOne() { return { dbName: 'steimatzky', credentials: { dbName: 'other' } }; } }; } }; } };
   await assert.rejects(assertCustomerWriteAccess(client, { email: 'customer@example.test', dbName: 'other' }, 'other'), e => e.status === 423);
   await assert.rejects(assertCustomerWriteAccess({ db() { throw Error('should not read'); } }, {}, 'steimatzky'), e => e.status === 423);
+});
+
+test('cart attribution requires the same product, search and browser; query text or a prior search alone is insufficient', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0), event('other', 'semantix', 0)],
+    queries: [search('s', 'semantix', 11), search('other', 'semantix', 11)],
+    clicks: [click('s', 'semantix', 12)],
+    carts: [cart('s', 'semantix', 13, { product_id: 'different' }), cart('s', 'semantix', 14, { search_id: 'different' }),
+      cart('other', 'semantix', 13), cart('s', 'semantix', 15, { search_id: undefined }), cart('s', 'semantix', 16, { product_id: undefined })],
+  }, options);
+  assert.equal(report.groups.semantix.clickedProducts, 1);
+  assert.equal(report.groups.semantix.addedProducts, 0);
+  assert.equal(report.groups.semantix.excludedCarts.noMatchingClick, 3);
+  assert.equal(report.groups.semantix.excludedCarts.missingIds, 2);
+});
+
+test('same product in different searches or browsers is a separate product opportunity, with duplicate retries removed', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0), event('t', 'semantix', 0)],
+    queries: [search('s', null, 11), search('s', null, 12, { search_id: 'second' }), search('t', null, 11)],
+    clicks: [click('s', null, 13), click('s', null, 14, { search_id: 'second' }), click('t', null, 13), click('t', null, 13)],
+    carts: [cart('s', null, 15), cart('s', null, 15)],
+  }, options);
+  assert.equal(report.groups.semantix.clickedProducts, 3);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.productCartRate, 1 / 3);
+  assert.equal(report.groups.semantix.linkedClickEvents, 3);
+  assert.equal(report.groups.semantix.linkedCartEvents, 1);
+});
+
+test('explicit click IDs and visits must agree; received-at timestamps enforce server-side order', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)],
+    queries: [search('s', null, 11, { visit_id: 'visit' })],
+    clicks: [click('s', null, 10, { visit_id: 'visit', received_at: stamp(13), _id: { toString: () => 'mongo-click' } })],
+    carts: [cart('s', null, 12), cart('s', null, 14, { click_id: 'wrong' }), cart('s', null, 15, { visit_id: 'other' }),
+      cart('s', null, 16, { click_id: 'mongo-click', visit_id: 'visit' })],
+  }, options);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.linkedCartEvents, 1);
+  assert.equal(report.groups.semantix.excludedCarts.noMatchingClick, 3);
+});
+
+test('ordinary browsing clicks, inferred query text and a stale search ID do not become search product clicks', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)], queries: [search('s', null, 11)],
+    clicks: [click('s', null, 12, { search_link: 'none' }), click('s', null, 13, { search_link: undefined, source: 'native', query_source: 'inferred_from_recent' }),
+      click('s', null, 14, { search_id: undefined }), click('s', null, 15, { interaction_type: 'view' }),
+      click('s', null, 16, { search_link: undefined, source: 'inject' })],
+    carts: [cart('s', null, 17, { search_link: 'none' })],
+  }, options);
+  assert.equal(report.groups.semantix.clickedProducts, 1);
+  assert.equal(report.groups.semantix.addedProducts, 0);
+  assert.equal(report.groups.semantix.clickEvents, 4);
+  assert.equal(report.groups.semantix.clickLinkCoverage, .25);
+});
+
+test('reused search IDs with conflicting queries cannot produce a product conversion', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)],
+    queries: [search('s', null, 11), search('s', null, 12, { query: 'Another query' })],
+    clicks: [click('s', null, 13)], carts: [cart('s', null, 14)],
+  }, options);
+  assert.equal(report.groups.semantix.clickedProducts, 0);
+  assert.equal(report.groups.semantix.productCartRate, null);
 });

@@ -10,7 +10,7 @@ try {
   await client.connect();
   const started = Date.now();
   const report = await readTakeoverAnalytics(client, 'steimatzky', { useCache: false });
-  for (const arm of Object.values(report.groups)) if (arm.cartRate != null && (arm.cartRate < 0 || arm.cartRate > 1)) throw Error('Invalid cart rate');
+  for (const arm of Object.values(report.groups)) if (arm.productCartRate != null && (arm.productCartRate < 0 || arm.productCartRate > 1)) throw Error('Invalid cart rate');
   if (output) await writeFile(output, JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ ok: true, durationMs: Date.now() - started, revision: report.experiment.revision, split: report.experiment.configuredSplit, window: report.window, measurement: report.measurement, groups: report.groups }));
 } finally { await client.close(); }
