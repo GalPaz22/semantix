@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
 import { getDashboardStoreBySession } from "/lib/getDashboardStoreBySession";
 import { saveSharedPinnedResults } from "/lib/search-rule-publication";
+import { assertCustomerWorkspaceWritable } from '/lib/customer-dashboard-access';
 
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -84,6 +85,7 @@ export async function POST(request) {
   try {
     const { client, user } = await getLoggedInUser();
     if (!user) return unauth();
+    assertCustomerWorkspaceWritable(user.dbName);
 
     const body = await request.json();
     const { cleaned, error } = normalizePinnedResults(body.pinnedResults);
@@ -99,6 +101,7 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("❌ Error in pinned-results POST:", error);
+    if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 });
     return NextResponse.json(
       { error: "Failed to update pinned results", details: error.message },
       { status: 500 }

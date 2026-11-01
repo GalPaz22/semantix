@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { assertCustomerWriteAccess } from '/lib/customer-workspace-guard';
 
 const unauth = () =>
   NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -83,6 +84,7 @@ export async function POST(request) {
     }
 
     const client = await clientPromise;
+    await assertCustomerWriteAccess(client, session.user);
     const db = client.db("users");
     const users = db.collection("users");
 
@@ -112,6 +114,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error("❌ Error in category-boosts POST:", error);
+    if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 });
     return NextResponse.json({
       error: "Failed to update category boosts",
       details: error.message

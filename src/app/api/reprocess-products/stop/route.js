@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { assertCustomerWorkspaceWritable } from '/lib/customer-dashboard-access';
 
 const LOCK_DIR = os.tmpdir(); // Use OS temp directory instead of hardcoded /tmp
 const getLockFilePath = (dbName) => path.join(LOCK_DIR, `reprocessing_${dbName}.lock`);
@@ -10,6 +11,7 @@ export async function POST(request) {
   console.log("STOP API: Received request.");
   try {
     const { dbName } = await request.json();
+    assertCustomerWorkspaceWritable(dbName);
     if (!dbName) {
       console.log("STOP API: dbName is required.");
       return NextResponse.json({ error: "dbName is required" }, { status: 400 });
@@ -20,6 +22,7 @@ export async function POST(request) {
     console.log("STOP API: Stop signal sent successfully.");
     return NextResponse.json({ message: "Stop signal sent." });
   } catch (error) {
+    if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 });
     console.error("STOP API ERROR:", error);
     if (error.code === "ENOENT") {
       console.log("STOP API: Lock file not found, process likely already stopped.");
@@ -27,4 +30,4 @@ export async function POST(request) {
     }
     return NextResponse.json({ error: `Server error: ${error.message}` }, { status: 500 });
   }
-} 
+}

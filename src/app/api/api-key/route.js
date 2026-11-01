@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
 import { getUserBySession } from "/lib/getUserBySession";
 import crypto from "crypto";
+import { assertCustomerWriteAccess } from '/lib/customer-workspace-guard';
 
 const unauth = () => NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
@@ -13,6 +14,8 @@ export async function GET() {
   if (!session?.user) return unauth();
 
   const client = await clientPromise;
+  try { await assertCustomerWriteAccess(client, session.user); }
+  catch (error) { if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 }); throw error; }
   const db = client.db("users");
   const user = await getUserBySession(db, session.user, { apiKey: 1 });
 
@@ -25,6 +28,8 @@ export async function POST() {
   if (!session?.user) return unauth();
 
   const client = await clientPromise;
+  try { await assertCustomerWriteAccess(client, session.user); }
+  catch (error) { if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 }); throw error; }
   const db = client.db("users");
   const user = await getUserBySession(db, session.user, { _id: 1 });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import clientPromise from "../../../../lib/mongodb.js";
+import { assertCustomerWorkspaceWritable } from '/lib/customer-dashboard-access';
 
 export async function POST(request) {
   console.log("🚀 REPROCESS API: Starting...");
@@ -32,6 +33,7 @@ export async function POST(request) {
       incrementalHardCategories,
       incrementalColors
     } = await request.json();
+    assertCustomerWorkspaceWritable(dbNameFromRequest);
 
     // Map the new parameter to the existing one
     const filterMissingSoftCategories = onlyWithoutSoftCategories || missingSoftCategoryOnly || false;
@@ -220,6 +222,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error("💥 MAIN ERROR:", error);
+    if (error.status === 423) return NextResponse.json({ error: error.message }, { status: 423 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

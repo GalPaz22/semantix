@@ -3,8 +3,9 @@ import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search, Sparkles } from "lucide-react";
+import { Activity, BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search, Sparkles, LockKeyhole } from "lucide-react";
 import ClientAnalyticsPanel from "../../components/client-demo/ClientAnalyticsPanel";
+import TakeoverAnalyticsPanel from "../../components/client-demo/TakeoverAnalyticsPanel";
 import ClientChatbotPanel from "../../components/client-demo/ClientChatbotPanel";
 import WeeklySuggestionsPanel from '../../components/client-demo/WeeklySuggestionsPanel';
 import ActiveCampaignsPanel from '../../components/client-demo/ActiveCampaignsPanel';
@@ -46,6 +47,9 @@ function ClientDashboard() {
   const [agentRequest, setAgentRequest] = useState(null);
   const [resultsRequest, setResultsRequest] = useState(null);
   const { dashboard, loading, error } = useOptimizer();
+  const analyticsOnly = dashboard?.access?.mode === 'analytics-only';
+  const workspaceReady = !!dashboard;
+  const activePanel = analyticsOnly ? 'analytics' : active;
   const store = dashboard?.store;
   const storeName = store?.name || store?.dbName || "החנות שלך";
   const storeDomain = store?.site || store?.platform || "";
@@ -66,12 +70,23 @@ function ClientDashboard() {
     else if (p === 'plans') setActive('campaigns');
   }, []);
 
+  useEffect(() => {
+    if (!analyticsOnly) return;
+    setActive('analytics');
+    setAgentRequest(null);
+    setResultsRequest(null);
+    const url = new URL(window.location.href);
+    url.searchParams.set('panel', 'analytics');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  }, [analyticsOnly]);
+
   if (status !== "authenticated" || session?.user?.onboardingComplete === false) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400 text-sm" dir="rtl">טוען…</div>;
   }
 
   const select = (id, prompt, options) => {
     if (!PANELS.some(panel => panel.id === id)) return;
+    if (id !== 'analytics' && (!workspaceReady || analyticsOnly)) return;
     setActive(id);
     setMenuOpen(false);
     if (prompt || options?.query) {
@@ -84,7 +99,7 @@ function ClientDashboard() {
     window.history.replaceState(null, "", url.pathname + url.search);
     window.scrollTo({ top: 0 });
   };
-  const current = PANELS.find(p => p.id === active);
+  const current = PANELS.find(p => p.id === activePanel);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased" dir="rtl">
@@ -114,12 +129,14 @@ function ClientDashboard() {
           <div className="px-3 pb-2 text-[11px] font-semibold tracking-wide text-slate-400">חיפוש חכם</div>
           <div className="space-y-0.5">
             {PANELS.map(p => {
-              const on = active === p.id;
+              const on = activePanel === p.id;
+              const locked = p.id !== 'analytics' && (!workspaceReady || analyticsOnly);
               return (
-                <button key={p.id} onClick={() => select(p.id)}
-                  className={`group flex items-center w-full gap-3 px-3 py-2 rounded-lg text-[14px] transition ${on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
+                <button key={p.id} onClick={() => select(p.id)} disabled={locked} title={locked ? 'יהיה זמין בהמשך' : undefined}
+                  className={`group flex items-center w-full gap-3 px-3 py-2 rounded-lg text-[14px] transition ${locked ? 'cursor-not-allowed text-slate-400' : on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
                   <p.icon className={`h-[18px] w-[18px] ${on ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-500"}`} />
                   {p.label}
+                  {locked && <LockKeyhole aria-label="נעול" className="mr-auto h-3.5 w-3.5 text-slate-300" />}
                 </button>
               );
             })}
@@ -174,13 +191,15 @@ function ClientDashboard() {
 
         {/* Panels stay mounted so approvals and chat survive switching tabs. */}
         <main className="max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
-          <div className={active === "analytics" ? "" : "hidden"}><ClientAnalyticsPanel onNavigate={select} /></div>
-          <div className={active === "suggestions" ? "" : "hidden"}><WeeklySuggestionsPanel visible={active === "suggestions"} onNavigate={select} /></div>
-          <div className={active === "campaigns" ? "" : "hidden"}><ActiveCampaignsPanel visible={active === "campaigns"} onNavigate={select} /></div>
-          <div className={active === "search-demo" ? "" : "hidden"}><SearchDemoPanel visible={active === "search-demo"} /></div>
-          <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
-          <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>
-          <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
+          <div className={activePanel === "analytics" ? "" : "hidden"}>{analyticsOnly ? <TakeoverAnalyticsPanel /> : <ClientAnalyticsPanel onNavigate={select} />}</div>
+          {workspaceReady && !analyticsOnly && <>
+            <div className={active === "suggestions" ? "" : "hidden"}><WeeklySuggestionsPanel visible={active === "suggestions"} onNavigate={select} /></div>
+            <div className={active === "campaigns" ? "" : "hidden"}><ActiveCampaignsPanel visible={active === "campaigns"} onNavigate={select} /></div>
+            <div className={active === "search-demo" ? "" : "hidden"}><SearchDemoPanel visible={active === "search-demo"} /></div>
+            <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
+            <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>
+            <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
+          </>}
         </main>
       </div>
     </div>

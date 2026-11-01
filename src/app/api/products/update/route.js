@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import clientPromise from "/lib/mongodb";
+import { assertCustomerWriteAccess } from '/lib/customer-workspace-guard';
 
 export async function POST(request) {
   try {
@@ -18,6 +19,7 @@ export async function POST(request) {
     }
 
     const client = await clientPromise;
+    await assertCustomerWriteAccess(client, session.user, dbName);
     const db = client.db(dbName);
     const collection = db.collection("products");
 
@@ -75,10 +77,11 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error.status === 423) return Response.json({ error: error.message }, { status: 423 });
     console.error("Error updating product:", error);
     return Response.json({ 
       error: "Failed to update product",
       details: error.message 
     }, { status: 500 });
   }
-} 
+}

@@ -36,3 +36,5 @@ shopify/semantix/node_modules/
 # Local dashboard demo
 .next-demo/
 .next-validation/
+.next-takeover-preview/
+.next-takeover-build/

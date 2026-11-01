@@ -11,6 +11,8 @@ import { readStudioJson } from '/lib/studio-response';
 import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
+import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
+import { readTakeoverAnalytics } from '/lib/takeover-analytics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,7 +28,7 @@ async function handle(request, { params }) {
   const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL;
   const incoming = new URL(request.url);
   if (method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== incoming.origin) return fail('Forbidden origin', 403);
-  if (!(path === 'stores' && method === 'GET') && !optimizerRouteAllowed(method, path)) return fail('Unsupported optimizer operation', 404);
+  if (!(path === 'stores' && method === 'GET') && !(path === 'dashboard/ab-test' && method === 'GET') && !optimizerRouteAllowed(method, path)) return fail('Unsupported optimizer operation', 404);
   try {
     const client = await clientPromise;
     const users = client.db('users').collection('users');
@@ -43,6 +45,15 @@ async function handle(request, { params }) {
       ? await users.findOne({ dbName: selectedStore }, { sort: { platform: -1 }, projection: { dbName: 1 } })
       : await getDashboardStoreBySession(client.db('users'), session.user);
     if (!user?.dbName) return fail(isAdmin ? 'יש לבחור חנות לצפייה' : 'לא נמצאה חנות מחוברת לחשבון', 409);
+    const access = customerDashboardAccess(user.dbName);
+    if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(ANALYTICS_ONLY_MESSAGE, 423);
+    if (path === 'dashboard/ab-test') {
+      const report = await readTakeoverAnalytics(client, user.dbName, { days: incoming.searchParams.get('days') || 7 });
+      return NextResponse.json(report, { headers: { 'cache-control': 'private, no-store' } });
+    }
+    if (path === 'dashboard' && access.mode === 'analytics-only') {
+      return NextResponse.json({ store: { dbName: user.dbName, name: 'סטימצקי', site: 'steimatzky.co.il', active: true }, access, report: null }, { headers: { 'cache-control': 'private, no-store' } });
+    }
     const siblings = await users.find({ dbName: user.dbName }).project({ apiKey: 1 }).toArray();
     const keys = siblings.map(u => u.apiKey).filter(Boolean);
     if (path === 'dashboard/campaigns') return NextResponse.json(await getDashboardCampaigns(client, user.dbName));

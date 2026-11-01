@@ -2,6 +2,7 @@
 import { getServerSession }  from "next-auth";
 import { authOptions }       from "../auth/[...nextauth]/route";
 import clientPromise         from "../../../../lib/mongodb.js";
+import { assertCustomerWriteAccess } from '/lib/customer-workspace-guard';
 import processShopify        from "../../../../lib/processShopify.js";
 import { processWooProducts } from "../../../../lib/processWoo.js";
 import processWooImages      from "../../../../lib/processWooImages.js";
@@ -433,6 +434,8 @@ export async function POST(req) {
     if (!dbName) {
       return Response.json({ error: "missing dbName" }, { status: 400 });
     }
+    const client = await clientPromise;
+    await assertCustomerWriteAccess(client, session.user, dbName);
 
     // Debug logging for type parameter
     console.log("🔍 [Onboarding API] Received parameters:");
@@ -488,7 +491,6 @@ export async function POST(req) {
     }
 
     /* 4)  persist the credentials  */
-    const client = await clientPromise;
     const users = client.db("users").collection("users");
 
     // Check if the user already has a record in the database
@@ -598,6 +600,7 @@ export async function POST(req) {
     }
   } catch (err) {
     console.error("[onboarding error]", err);
+    if (err.status === 423) return Response.json({ error: err.message }, { status: 423 });
     return Response.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
