@@ -29,7 +29,7 @@ test('counts products once per browser and search, with the same denominator in 
   assert.equal(report.groups.native.productCartRate, .5);
   assert.equal(report.groups.native.queryTagCoverage, 0);
   assert.deepEqual(report.topQueries[0], { query: 'book', semantix: 2, native: 1 });
-  assert.deepEqual(report.topProducts[0], { productId: '42', semantix: { clicked: 1, added: 1 }, native: { clicked: 1, added: 1 } });
+  assert.deepEqual(report.topProducts[0], { productId: '42', productName: null, semantix: { clicked: 1, added: 1 }, native: { clicked: 1, added: 1 } });
   assert.equal(report.groups.semantix.cartersAfterSearch, undefined);
   assert.equal(report.groups.semantix.purchases, null);
   assert.ok(!JSON.stringify(report).includes('session_id'));
@@ -245,7 +245,7 @@ test('a pre-reset search or click cannot attribute a post-reset confirmed cart',
 
 test('catalog IDs and Magento IDs resolve to one SKU product; confirmed cart and repeated actions count once', () => {
   const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)], queries: [search('s', null, 11)],
-    products: [{ id: 'online:iw:IL:015500317', sku: '015500317', siteCard: { productId: '82763' } }],
+    products: [{ id: 'online:iw:IL:015500317', sku: '015500317', name: 'נראה אותך מעז', siteCard: { productId: '82763' } }],
     clicks: [click('s', null, 12, { product_id: 'online:iw:IL:015500317' })],
     carts: [cart('s', null, 13, { product_id: '82763' }), cart('s', null, 14, { product_id: '86577', card_path: '/015500317', click_id: 's-click-12' }), cart('s', null, 15, { product_id: '015500317' })],
   }, options);
@@ -253,6 +253,7 @@ test('catalog IDs and Magento IDs resolve to one SKU product; confirmed cart and
   assert.equal(report.groups.semantix.addedProducts, 1);
   assert.equal(report.groups.semantix.linkedCartEvents, 3);
   assert.equal(report.topProducts[0].productId, 'sku:015500317');
+  assert.equal(report.topProducts[0].productName, 'נראה אותך מעז');
 });
 
 test('matching names or URLs cannot override a conflicting catalog identity or an ambiguous ID', () => {

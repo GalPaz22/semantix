@@ -66,13 +66,15 @@ try {
   const text = await page.$eval('[data-testid="takeover-analytics"]', el => el.innerText);
   assert.ok(text.includes('החיפוש הקיים') && text.includes('שיעור הוספה מאושרת לסל מתוך המוצרים שהוקלקו'));
   assert.ok(text.includes('רכישות והכנסות אינן חלק מהמדדים'));
-  assert.ok(text.includes('כיסוי הקישור') && text.includes('מזהה מוצר'));
+  assert.ok(text.includes('כיסוי הקישור') && text.includes('שם המוצר'));
   const main = await page.$eval('[data-testid=product-conversion-summary]', el => el.innerText);
   assert.ok(main.includes('המרת המוצר שהוקלק מהחיפוש') && main.includes('באישור החנות'));
   assert.ok(!main.includes('מבקרים') && !main.includes('גולשים'));
   assert.ok(text.includes('התקופה קבועה'));
   assert.ok(!text.includes('24 שעות') && !text.includes('14 ימים'));
   assert.ok(!text.includes('מחפשים שהגיעו לעגלה'));
+  assert.ok(!text.includes('sku:') && !text.includes('online:iw:IL:'));
+  for (const product of live.topProducts.filter(row => row.productName)) assert.ok(text.includes(product.productName));
   assert.ok(!text.includes('תקלה') && !text.includes('פאדיחה'));
   await page.screenshot({ path: output + '/takeover-preview.png', fullPage: false });
   await page.screenshot({ path: output + '/takeover-desktop.png', fullPage: true });

@@ -11,10 +11,10 @@
 - Product conversion uses a browser + search + canonical product chain: logged search → result click → confirmed add of that product. Product catalog IDs and Magento IDs are reconciled with `products.id`, `products.sku` and `products.siteCard.productId`. A stored SKU in `card_path` / product path is recognized only if the catalog resolves it; conflicting or ambiguous mappings are rejected. Names and arbitrary URL equality are never identity evidence.
 - `results_page`, `autocomplete` and `typed_results` are recognized. Typed-result clicks require the matching typed search; its asynchronous log can follow the click by at most 60 seconds. All stages remain inside the new period. Click/add order uses server receipt time when available; explicit click IDs and recorded visit IDs must agree.
 - Each browser/search/product combination counts once, even with repeated clicks, confirmed adds, quantities or retries. Rate = confirmed added combinations / clicked product combinations. An empty denominator displays no rate.
-- The primary view shows only product conversion for both arms and product counts/IDs. Current traffic split and measurement coverage remain available as secondary details. No overall visitor conversion is displayed.
+- The primary view shows only product conversion for both arms and product counts and catalog names. Current traffic split and measurement coverage remain available as secondary details. No overall visitor conversion is displayed.
 - Pinned, fallback, unknown and conflicting assignments are excluded from the two-arm comparison. Configured allocation and observed allocation are labeled separately. Missing and truncated sources suppress rates, rather than becoming zeros.
 - The dashboard gives Semantix brand prominence and shows its absolute activity first. Both variants' performance remains visible with consistent definitions. No winner, uplift, revenue, or purchase result is manufactured.
-- Browser responses contain aggregates, product IDs and query strings, not API credentials, visitor/search/click IDs, IP addresses or raw event documents. Results are cached privately in process for up to 60 seconds; browser and intermediary caching are disabled.
+- Browser responses contain aggregates, internal product keys, catalog names and query strings, not API credentials, visitor/search/click IDs, IP addresses or raw event documents. Results are cached privately in process for up to 60 seconds; browser and intermediary caching are disabled.
 
 ## Temporary lock
 
@@ -33,3 +33,5 @@ node scripts/verify-takeover-dashboard.mjs
 For local authenticated browser verification, start Next on port 3134 with `NEXT_DEMO_DIST_DIR=.next-takeover-preview`, then run `scripts/verify-takeover-ui.mjs`. It creates a short-lived local JWT in memory for an existing Steimatzky account and performs real read requests. It does not write account/session records or change experiment data. The mutation probes are blocked before body parsing; their intentionally invalid JSON cannot apply a change if the lock regresses. Browser artifacts are written to `TAKEOVER_QA_OUTPUT`.
 
 Tests cover the immutable reset boundary, blocked historical range requests, confirmed versus intent events, canonical product mappings, typed-result logging lag, counting and time boundaries, asymmetric attribution, conflicting/pinned/fallback cohorts, missing sources, scoped access, legacy lock guards, authenticated API responses, unauthorized requests, deep links, background tool requests and responsive layout.
+
+The product table displays catalog names only, with a neutral unavailable-name label when the catalog has no name. Internal product/SKU keys remain for grouping and attribution and are never rendered in the table.
