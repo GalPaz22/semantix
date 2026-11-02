@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import puppeteer from 'puppeteer';
 import { MongoClient } from 'mongodb';
 import { encode } from 'next-auth/jwt';
+import { TAKEOVER_MEASUREMENT_START } from '../lib/takeover-measurement.js';
 import nextEnv from '@next/env';
 
 // A short-lived local QA session for an existing store record. No account or session record is written.
@@ -31,9 +32,13 @@ try {
   const metadata = await expect('/api/customer-dashboard/dashboard?store=other-store', 200);
   assert.equal(metadata.store.dbName, 'steimatzky');
   assert.equal(metadata.access.mode, 'analytics-only');
-  const live = await expect('/api/customer-dashboard/dashboard/ab-test?days=7', 200);
+  const live = await expect('/api/customer-dashboard/dashboard/ab-test', 200);
   assert.equal(live.experiment.key, 'semantix_takeover');
-  assert.equal(live.measurement.productAttribution, 'search-product-click-cart-v1');
+  assert.equal(live.window.from, TAKEOVER_MEASUREMENT_START);
+  assert.equal(live.window.cohortFrom, TAKEOVER_MEASUREMENT_START);
+  assert.equal(live.window.locked, true);
+  assert.equal(live.measurement.cartSource, 'tracking_events:add_to_cart_confirmed');
+  assert.equal(live.measurement.productAttribution, 'confirmed-search-product-v2');
   assert.ok(live.groups.semantix.addedProducts <= live.groups.semantix.clickedProducts);
   assert.ok(live.groups.native.addedProducts <= live.groups.native.clickedProducts);
   await expect('/api/customer-dashboard/dashboard/products', 423);
@@ -43,7 +48,7 @@ try {
   await expect('/api/customer-dashboard/dashboard/pins', 423, true, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{' });
   await expect('/api/pinned-results', 423, true, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' });
   await expect('/api/api-key', 423);
-  await expect('/api/customer-dashboard/dashboard/ab-test?days=90', 400);
+  for (const query of ['days=90', 'days=1', 'days=14', 'from=2020-01-01', 'start=2020-01-01', 'to=2030-01-01']) await expect(`/api/customer-dashboard/dashboard/ab-test?${query}`, 400);
   browser = await puppeteer.launch({ headless: true, executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
   const page = await browser.newPage(), pageErrors = [], requests = [];
   page.on('pageerror', e => pageErrors.push(e.message));
@@ -59,9 +64,14 @@ try {
   assert.equal(navigation.find(b => b.text === 'אנליטיקות').disabled, false);
   assert.ok(requests.every(p => ['/api/customer-dashboard/dashboard', '/api/customer-dashboard/dashboard/ab-test'].includes(p)), 'locked tools are never mounted or fetched');
   const text = await page.$eval('[data-testid="takeover-analytics"]', el => el.innerText);
-  assert.ok(text.includes('החיפוש הקיים') && text.includes('שיעור הוספה לסל מתוך המוצרים שהוקלקו'));
+  assert.ok(text.includes('החיפוש הקיים') && text.includes('שיעור הוספה מאושרת לסל מתוך המוצרים שהוקלקו'));
   assert.ok(text.includes('רכישות והכנסות אינן חלק מהמדדים'));
   assert.ok(text.includes('כיסוי הקישור') && text.includes('מזהה מוצר'));
+  const main = await page.$eval('[data-testid=product-conversion-summary]', el => el.innerText);
+  assert.ok(main.includes('המרת המוצר שהוקלק מהחיפוש') && main.includes('באישור החנות'));
+  assert.ok(!main.includes('מבקרים') && !main.includes('גולשים'));
+  assert.ok(text.includes('התקופה קבועה'));
+  assert.ok(!text.includes('24 שעות') && !text.includes('14 ימים'));
   assert.ok(!text.includes('מחפשים שהגיעו לעגלה'));
   assert.ok(!text.includes('תקלה') && !text.includes('פאדיחה'));
   await page.screenshot({ path: output + '/takeover-preview.png', fullPage: false });

@@ -48,7 +48,8 @@ async function handle(request, { params }) {
     const access = customerDashboardAccess(user.dbName);
     if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(ANALYTICS_ONLY_MESSAGE, 423);
     if (path === 'dashboard/ab-test') {
-      const report = await readTakeoverAnalytics(client, user.dbName, { days: incoming.searchParams.get('days') || 7 });
+      if ([...incoming.searchParams.keys()].some(key => key !== 'store')) return fail('תקופת המדידה קבועה; אין אפשרות לבחור נתונים היסטוריים', 400);
+      const report = await readTakeoverAnalytics(client, user.dbName);
       return NextResponse.json(report, { headers: { 'cache-control': 'private, no-store' } });
     }
     if (path === 'dashboard' && access.mode === 'analytics-only') {
