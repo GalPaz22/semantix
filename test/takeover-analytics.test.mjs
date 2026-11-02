@@ -164,6 +164,30 @@ test('cart attribution requires the same product, search and browser; query text
   assert.equal(report.groups.semantix.excludedCarts.missingIds, 2);
 });
 
+test('an add from a result card without a click counts through its logged search, and joins the denominator', () => {
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0), event('t', 'semantix', 0), event('n', 'native', 0)],
+    queries: [search('s', 'semantix', 11, { visit_id: 'v' }), search('t', 'semantix', 13, { searchMode: 'typed' }), search('n', 'native', 11)],
+    clicks: [click('s', 'semantix', 12, { product_id: '7', visit_id: 'v' })],
+    carts: [cart('s', 'semantix', 13, { search_link: 'results_page', visit_id: 'v' }), cart('s', 'semantix', 14, { search_link: 'results_page', visit_id: 'v' }),
+      cart('s', 'semantix', 14, { product_id: '7', search_link: 'results_page', visit_id: 'v', event_id: 'after-click' }),
+      cart('t', 'semantix', 12, { search_link: 'typed_results' }),
+      cart('s', 'semantix', 15, { product_id: '8', search_link: 'results_page', visit_id: 'other' }),
+      cart('n', 'native', 10, { search_link: 'results_page' }), cart('n', 'native', 12, { search_link: 'results_page', search_id: 'gone' }),
+      cart('n', 'native', 13, { product_id: '9', search_link: 'none' }), cart('n', 'native', 14, { product_id: '9', search_link: 'results_page', click_id: 'wrong' })],
+  }, options);
+  const semantix = report.groups.semantix, native = report.groups.native;
+  assert.equal(semantix.clickedProducts, 3);
+  assert.equal(semantix.addedProducts, 3);
+  assert.equal(semantix.directAddedProducts, 2);
+  assert.equal(semantix.linkedCartEvents, 4);
+  assert.equal(semantix.excludedCarts.noMatchingClick, 1);
+  assert.equal(native.addedProducts, 0);
+  assert.equal(native.clickedProducts, 0);
+  assert.equal(native.excludedCarts.noMatchingClick, 3);
+  assert.equal(native.excludedCarts.missingIds, undefined);
+  assert.ok(semantix.addedProducts <= semantix.clickedProducts);
+});
+
 test('same product in different searches or browsers is a separate product opportunity, with duplicate retries removed', () => {
   const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0), event('t', 'semantix', 0)],
     queries: [search('s', null, 11), search('s', null, 12, { search_id: 'second' }), search('t', null, 11)],

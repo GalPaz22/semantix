@@ -14,14 +14,15 @@ export default function TakeoverAnalyticsPanel() {
   const { data: report, loading, error } = useOptimizerResource('dashboard/ab-test');
   const complete = report?.measurement.complete;
   const comparisons = report ? [
-    ['מוצרים שהוקלקו מהחיפוש', 'clickedProducts', number],
+    ['מוצרים שהוקלקו או נוספו ישירות מהחיפוש', 'clickedProducts', number],
     ['אותם מוצרים שנוספו לסל באישור החנות', 'addedProducts', number],
-    ['שיעור הוספה מאושרת לסל מתוך המוצרים שהוקלקו', 'productCartRate', percent],
+    ['מתוכם נוספו ישירות מכרטיס התוצאה, בלי קליק', 'directAddedProducts', number],
+    ['שיעור הוספה מאושרת לסל מתוך המוצרים האלה', 'productCartRate', percent],
   ] : [];
 
   return <div dir="rtl" className="space-y-6" data-testid="takeover-analytics">
     <PageHeader eyebrow="STEIMATZKY × SEMANTIX" title="המרה של מוצר מהחיפוש לסל"
-      subtitle="עוקבים אחר המוצר שהוקלק בתוצאות החיפוש ונוסף לסל באישור החנות, לפי מזהים תואמים."
+      subtitle="עוקבים אחר המוצר שהוקלק או נוסף ישירות מתוצאות החיפוש ונוסף לסל באישור החנות, לפי מזהים תואמים."
       right={<button aria-label="רענון נתוני הניסוי" onClick={refresh} disabled={loading} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:text-indigo-600 disabled:opacity-40"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>} />
 
     {loading && <div role="status" className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">אוספים את נתוני המדידה החדשה…</div>}
@@ -41,7 +42,7 @@ export default function TakeoverAnalyticsPanel() {
           const arm = report.groups[key], featured = key === 'semantix';
           return <section key={key} data-variant={key} className={`rounded-3xl border p-6 md:p-8 ${featured ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'}`}>
             <div className={`flex items-center gap-2 text-sm font-medium ${featured ? 'text-indigo-200' : 'text-slate-500'}`}><ShoppingBag className="h-4 w-4" />{label}</div>
-            <h2 className="mt-4 text-base font-medium">המרת המוצר שהוקלק מהחיפוש</h2>
+            <h2 className="mt-4 text-base font-medium">המרת מוצר מהחיפוש לסל</h2>
             <strong className="mt-4 block text-5xl font-semibold tabular-nums md:text-6xl">{complete ? percent(arm.productCartRate) : '—'}</strong>
             <p className={`mt-4 text-sm leading-7 ${featured ? 'text-slate-300' : 'text-slate-600'}`}>
               <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.addedProducts) : '—'}</strong> מוצרים נוספו לסל באישור החנות, מתוך <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.clickedProducts) : '—'}</strong> מוצרים שהוקלקו מהחיפוש.
@@ -52,7 +53,7 @@ export default function TakeoverAnalyticsPanel() {
         })}
       </div>
 
-      <Card className="overflow-hidden"><CardHeader title="ביצועי המוצר שהוקלק בחיפוש" subtitle="המכנה הוא מספר המוצרים שהוקלקו בחיפוש; המונה הוא אותם מוצרים עם הוספה מאושרת לסל." />
+      <Card className="overflow-hidden"><CardHeader title="ביצועי המוצר שהוקלק בחיפוש" subtitle="המכנה הוא מספר המוצרים שהוקלקו בחיפוש או נוספו ישירות מהתוצאות; המונה הוא אותם מוצרים עם הוספה מאושרת לסל." />
         <div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">מדד</th><th className="px-5 py-3 text-indigo-700">Semantix</th><th className="px-5 py-3">החיפוש הקיים</th></tr></thead><tbody>{comparisons.map(([label, field, format]) => <tr key={field} className="border-t border-slate-100"><td className="px-5 py-3.5 text-slate-600">{label}</td>{variants.map(([key]) => <td key={key} className="px-5 py-3.5 font-semibold tabular-nums">{complete ? format(report.groups[key][field]) : '—'}</td>)}</tr>)}</tbody></table></div>
         <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>{report.measurement.note}</p><p>רכישות והכנסות אינן חלק מהמדדים המוצגים כרגע. לחיצה על כפתור ההוספה בלבד אינה הוספה מאושרת לסל.</p></div>
       </Card>
