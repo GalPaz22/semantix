@@ -5,7 +5,7 @@ import { summarizeTakeover, readTakeoverAnalytics } from '../lib/takeover-analyt
 import { customerDashboardAccess, customerDashboardOperationAllowed, assertCustomerWorkspaceWritable } from '../lib/customer-dashboard-access.js';
 import { assertCustomerWriteAccess } from '../lib/customer-workspace-guard.js';
 
-const stamp = minute => `2026-11-02T06:${String(minute).padStart(2, '0')}:00.000Z`;
+const stamp = minute => `2026-11-02T11:${String(minute).padStart(2, '0')}:00.000Z`;
 const event = (session, variant, minute, fields = {}) => ({ session_id: session, timestamp: stamp(minute), ...(variant ? { ab_tests: { semantix_takeover: variant } } : {}), ...fields });
 const options = { from: stamp(10), to: stamp(50), cohortFrom: stamp(0) };
 
@@ -236,7 +236,7 @@ test('reused search IDs with conflicting queries cannot produce a product conver
 });
 
 test('measurement start is immutable across dates and requests; old event chains never enter the new period', async () => {
-  for (const time of ['2026-11-02T08:00:00Z', '2026-11-10T08:00:00Z']) {
+  for (const time of ['2026-11-02T12:00:00Z', '2026-11-10T08:00:00Z']) {
     const client = clientFixture({ queryRows: [search('s', null, 12), { ...search('s', null, 11), timestamp: '2026-11-01T12:00:00Z', query: 'old query' }] });
     const report = await readTakeoverAnalytics(client, 'steimatzky', { now: new Date(time), useCache: false });
     assert.equal(report.window.from, TAKEOVER_MEASUREMENT_START);
@@ -257,7 +257,7 @@ test('no range option can request historical data or override the fixed start', 
 });
 
 test('a pre-reset search or click cannot attribute a post-reset confirmed cart', () => {
-  const before = '2026-11-02T05:20:00Z';
+  const before = '2026-11-02T10:20:00Z';
   const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)],
     queries: [{ ...search('s', null, 1), timestamp: before }],
     clicks: [{ ...click('s', null, 2), timestamp: before }], carts: [cart('s', null, 3)],
