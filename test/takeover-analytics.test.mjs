@@ -75,11 +75,11 @@ test('daily series uses the customer timezone rather than UTC day boundaries', (
   assert.equal(report.daily[0].day, '2026-11-02');
 });
 
-function clientFixture({ accounts, missing = [], queryRows, failQueries = false } = {}) {
+function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmedRows, productRows = [], failQueries = false } = {}) {
   const reads = [];
   const config = { enabled: true, sticky: false, updatedAt: stamp(0), variants: [{ id: 'semantix', weight: 10 }, { id: 'native', weight: 90 }] };
   const collections = ['tracking_events', 'queries', 'products', 'product_clicks'].filter(n => !missing.includes(n));
-  const rows = { tracking_events: [event('s', 'semantix', 11)], confirmed: [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: [click('s', 'semantix', 13)] };
+  const rows = { tracking_events: [event('s', 'semantix', 11)], confirmed: confirmedRows || [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: clickRows || [click('s', 'semantix', 13)] };
   return { reads, db(name) {
     reads.push({ database: name });
     return { listCollections() { return { async toArray() { return collections.map(name => ({ name })); } }; }, collection(collection) {
@@ -89,6 +89,11 @@ function clientFixture({ accounts, missing = [], queryRows, failQueries = false 
           let limit = Infinity;
           return { sort() { return this; }, limit(n) { limit = n; return this; }, async toArray() {
             if (collection === 'queries' && failQueries) throw Error('source unavailable');
+            if (collection === 'products') return productRows.filter(product => filter.$or.some(clause => {
+              const [path, condition] = Object.entries(clause)[0];
+              const value = path.split('.').reduce((value, key) => value?.[key], product);
+              return condition.$in.includes(value);
+            })).slice(0, limit);
             const selectedRows = collection === 'tracking_events' && filter.$and?.[1]?.event_type === 'add_to_cart_confirmed' ? rows.confirmed : rows[collection] || [];
             return (name === 'users' ? (accounts || [{ credentials: { siteConfig: { abTests: { semantix_takeover: config } } } }]) : selectedRows).slice(0, limit);
           } };
@@ -115,6 +120,40 @@ test('reader is bounded, uses the authenticated database and the fixed new measu
   assert.ok(client.reads.every(r => !r.database || ['users', 'steimatzky'].includes(r.database)));
   assert.ok(!JSON.stringify(report).includes('fixture-digest'));
   assert.ok(JSON.stringify(client.reads.find(r => r.collection === 'product_clicks').filter).includes('received_at'));
+});
+
+test('cumulative reports map more than 5,000 products and attribute a cart beyond the old cutoff', async () => {
+  const productRows = Array.from({ length: 5001 }, (_, index) => ({ _id: `doc-${index}`, id: `catalog-${index}`, sku: `sku-${index}`, siteCard: { productId: String(50000 + index) } }));
+  const clickRows = productRows.map((product, index) => click('s', 'semantix', 13, { product_id: product.id, event_id: `click-${index}` }));
+  const client = clientFixture({ productRows, clickRows, confirmedRows: [cart('s', 'semantix', 14, { product_id: '55000' })] });
+  const report = await readTakeoverAnalytics(client, 'steimatzky', { now: new Date(stamp(50)), useCache: false });
+  assert.equal(report.measurement.complete, true);
+  assert.equal(report.groups.semantix.clickedProducts, 5001);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.productCartRate, 1 / 5001);
+  const reads = client.reads.filter(read => read.collection === 'products');
+  assert.ok(reads.length > 10);
+  for (const read of reads) {
+    assert.ok(read.filter.$or[0].id.$in.length <= 500);
+    assert.ok(read.filter.$or[1].sku.$in.length <= 500);
+    assert.ok(read.filter.$or[2]['siteCard.productId'].$in.length <= 1000);
+  }
+});
+
+test('batching preserves leading-zero SKUs and detects conflicting aliases across documents', async () => {
+  const clickRows = Array.from({ length: 501 }, (_, index) => click('s', 'semantix', 13, { product_id: `catalog-${index}`, event_id: `click-${index}` }));
+  clickRows.push(click('s', 'semantix', 13, { product_id: '000000123', event_id: 'sku-click' }));
+  const productRows = [
+    { _id: 'first', id: 'catalog-0', sku: '000000123', siteCard: { productId: 70000 } },
+    { _id: 'last', id: 'catalog-500', sku: '000000456', siteCard: { productId: 70000 } },
+  ];
+  const client = clientFixture({ productRows, clickRows, confirmedRows: [cart('s', 'semantix', 14, { product_id: '70000' })] });
+  const report = await readTakeoverAnalytics(client, 'steimatzky', { now: new Date(stamp(50)), useCache: false });
+  assert.equal(report.measurement.complete, true);
+  assert.equal(report.groups.semantix.clickedProducts, 501);
+  assert.equal(report.groups.semantix.addedProducts, 0);
+  assert.equal(report.groups.semantix.excludedCarts.missingIds, 1);
+  assert.ok(client.reads.some(read => read.collection === 'products' && read.filter.$or[1].sku.$in.includes('000000123')));
 });
 
 test('other stores and invalid ranges are rejected before accessing data', async () => {
