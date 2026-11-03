@@ -13,6 +13,15 @@ export default function TakeoverAnalyticsPanel() {
   const { refresh } = useOptimizer();
   const { data: report, loading, error } = useOptimizerResource('dashboard/ab-test');
   const complete = report?.measurement.complete;
+  const orders = report?.orders;
+  const orderComparisons = [
+    ['הזמנות מדווחות עם שיוך עקבי לקבוצה', 'reportedOrders', number],
+    ['מהן קושרו לחיפוש באותו ביקור', 'searchLinkedOrders', number],
+    ['מהן כוללות מוצר שהגיע מהחיפוש', 'productLinkedOrders', number],
+    ['צירופי מוצר–חיפוש שהופיעו בהזמנה', 'purchasedProducts', number],
+    ['מוצר מהחיפוש → הזמנה מדווחת', 'productPurchaseRate', percent],
+    ['כיסוי הקישור להזמנות בקבוצה', 'searchLinkCoverage', percent],
+  ];
   const comparisons = report ? [
     ['מוצרים שהוקלקו או נוספו ישירות מהחיפוש', 'clickedProducts', number],
     ['אותם מוצרים שנוספו לסל באישור החנות', 'addedProducts', number],
@@ -45,7 +54,7 @@ export default function TakeoverAnalyticsPanel() {
             <h2 className="mt-4 text-base font-medium">המרת מוצר מהחיפוש לסל</h2>
             <strong className="mt-4 block text-5xl font-semibold tabular-nums md:text-6xl">{complete ? percent(arm.productCartRate) : '—'}</strong>
             <p className={`mt-4 text-sm leading-7 ${featured ? 'text-slate-300' : 'text-slate-600'}`}>
-              <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.addedProducts) : '—'}</strong> מוצרים נוספו לסל באישור החנות, מתוך <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.clickedProducts) : '—'}</strong> מוצרים שהוקלקו מהחיפוש.
+              <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.addedProducts) : '—'}</strong> מוצרים נוספו לסל באישור החנות, מתוך <strong className={featured ? 'text-white' : 'text-slate-900'}>{complete ? number(arm.clickedProducts) : '—'}</strong> מוצרים שהוקלקו או נוספו ישירות מהחיפוש.
             </p>
             {complete && !arm.clickedProducts && <p className={`mt-2 text-xs ${featured ? 'text-indigo-200' : 'text-slate-500'}`}>השיעור יופיע כשייקלטו הקלקות חדשות שניתן לקשר לחיפוש.</p>}
             <div className={`mt-5 flex items-start gap-2 border-t pt-4 text-xs leading-6 ${featured ? 'border-white/10 text-slate-400' : 'border-slate-100 text-slate-500'}`}><MousePointer2 className="mt-1 h-3.5 w-3.5 shrink-0" /><span>אותו מוצר, אותו חיפוש ואותו מבקר. כל צירוף נספר פעם אחת, גם אם הוקלק או נוסף לסל שוב.</span></div>
@@ -55,8 +64,16 @@ export default function TakeoverAnalyticsPanel() {
 
       <Card className="overflow-hidden"><CardHeader title="ביצועי המוצר שהוקלק בחיפוש" subtitle="המכנה הוא מספר המוצרים שהוקלקו בחיפוש או נוספו ישירות מהתוצאות; המונה הוא אותם מוצרים עם הוספה מאושרת לסל." />
         <div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">מדד</th><th className="px-5 py-3 text-indigo-700">Semantix</th><th className="px-5 py-3">החיפוש הקיים</th></tr></thead><tbody>{comparisons.map(([label, field, format]) => <tr key={field} className="border-t border-slate-100"><td className="px-5 py-3.5 text-slate-600">{label}</td>{variants.map(([key]) => <td key={key} className="px-5 py-3.5 font-semibold tabular-nums">{complete ? format(report.groups[key][field]) : '—'}</td>)}</tr>)}</tbody></table></div>
-        <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>{report.measurement.note}</p><p>רכישות והכנסות אינן חלק מהמדדים המוצגים כרגע. לחיצה על כפתור ההוספה בלבד אינה הוספה מאושרת לסל.</p></div>
+        <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>{report.measurement.note}</p><p>הזמנות מדווחות מוצגות בנפרד בהמשך. לחיצה על כפתור ההוספה בלבד אינה הוספה מאושרת לסל.</p></div>
       </Card>
+
+      <div data-testid="order-conversion-summary"><Card className="overflow-hidden">
+        <CardHeader title="הזמנות שהושלמו אחרי חיפוש" subtitle="דיווח מעמוד הצלחת ההזמנה · אותו מבקר, מזהה חיפוש וביקור · כל מספר הזמנה נספר פעם אחת" />
+        {!orders?.complete ? <p className="px-5 py-6 text-sm text-slate-500">מדידת ההזמנות אינה זמינה כרגע. נתוני ההוספה לסל מוצגים בנפרד.</p> : <>
+          <div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">מדד</th><th className="px-5 py-3 text-indigo-700">Semantix</th><th className="px-5 py-3">החיפוש הקיים</th></tr></thead><tbody>{orderComparisons.map(([label, field, format]) => <tr key={field} className="border-t border-slate-100"><td className="px-5 py-3.5 text-slate-600">{label}</td>{variants.map(([key]) => <td key={key} className="px-5 py-3.5 font-semibold tabular-nums">{format(orders.groups[key][field])}</td>)}</tr>)}</tbody></table></div>
+          <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>בתקופה נקלטו {number(orders.coverage.uniqueCompletedOrders)} הזמנות מדווחות ייחודיות. הטבלה כוללת רק הזמנות שאפשר לשייך בעקביות לאחת מקבוצות הניסוי.</p><p>{orders.note}</p><p>שיעור רכישת המוצר: צירופי מוצר–חיפוש שנמצאו בפריטי הזמנה, מתוך המוצרים שהוקלקו או נוספו ישירות מהחיפוש. כל צירוף נספר פעם אחת, ללא תלות בכמות היחידות.</p><p>הזמנה שקושרה לחיפוש אינה בהכרח כוללת את המוצר שנלחץ. מוצר נחשב נרכש מהחיפוש רק כשמזהה פריט ההזמנה תואם. הזמנות ללא קישור נותרות בספירה הכללית של הקבוצה. בהזמנה יש מזהה חיפוש אחד; רכישות מחיפושים אחרים באותו סל עשויות לא להיכלל בקישור.</p></div>
+        </>}
+      </Card></div>
 
       <Card className="overflow-hidden"><CardHeader title="מוצרים מהחיפוש לסל" subtitle="פעילות לפי מוצר · כל מוצר נספר פעם אחת לכל חיפוש ומבקר" />
         <div className="mt-4 overflow-x-auto"><table className="w-full text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">שם המוצר</th><th className="px-5 py-3">Semantix · הוקלקו</th><th className="px-5 py-3">Semantix · נוספו</th><th className="px-5 py-3">חיפוש קיים · הוקלקו</th><th className="px-5 py-3">חיפוש קיים · נוספו</th></tr></thead><tbody>{report.topProducts.map(row => <tr key={row.productId} className="border-t border-slate-100"><td className="min-w-48 max-w-sm break-words px-5 py-3 font-medium">{row.productName || 'שם המוצר אינו זמין'}</td>{[row.semantix.clicked, row.semantix.added, row.native.clicked, row.native.added].map((value, index) => <td key={index} className="px-5 py-3 tabular-nums">{complete ? number(value) : '—'}</td>)}</tr>)}</tbody></table>{!report.topProducts.length && <p className="p-8 text-center text-sm text-slate-400">המוצרים יופיעו עם קליטת הקלקות מהחיפוש במדידה החדשה</p>}</div>

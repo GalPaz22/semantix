@@ -75,11 +75,11 @@ test('daily series uses the customer timezone rather than UTC day boundaries', (
   assert.equal(report.daily[0].day, '2026-11-02');
 });
 
-function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmedRows, productRows = [], failQueries = false } = {}) {
+function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmedRows, productRows = [], orderRows = [], failQueries = false, failOrders = false } = {}) {
   const reads = [];
   const config = { enabled: true, sticky: false, updatedAt: stamp(0), variants: [{ id: 'semantix', weight: 10 }, { id: 'native', weight: 90 }] };
-  const collections = ['tracking_events', 'queries', 'products', 'product_clicks'].filter(n => !missing.includes(n));
-  const rows = { tracking_events: [event('s', 'semantix', 11)], confirmed: confirmedRows || [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: clickRows || [click('s', 'semantix', 13)] };
+  const collections = ['tracking_events', 'queries', 'products', 'product_clicks', 'checkout_events'].filter(n => !missing.includes(n));
+  const rows = { tracking_events: [event('s', 'semantix', 11)], confirmed: confirmedRows || [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: clickRows || [click('s', 'semantix', 13)], checkout_events: orderRows };
   return { reads, db(name) {
     reads.push({ database: name });
     return { listCollections() { return { async toArray() { return collections.map(name => ({ name })); } }; }, collection(collection) {
@@ -89,6 +89,7 @@ function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmed
           let limit = Infinity;
           return { sort() { return this; }, limit(n) { limit = n; return this; }, async toArray() {
             if (collection === 'queries' && failQueries) throw Error('source unavailable');
+            if (collection === 'checkout_events' && failOrders) throw Error('orders unavailable');
             if (collection === 'products') return productRows.filter(product => filter.$or.some(clause => {
               const [path, condition] = Object.entries(clause)[0];
               const value = path.split('.').reduce((value, key) => value?.[key], product);
@@ -167,6 +168,16 @@ test('a missing source suppresses rates instead of recording missing cart activi
   const report = await readTakeoverAnalytics(clientFixture({ missing: ['tracking_events'] }), 'steimatzky', { now: new Date(stamp(50)), useCache: false });
   assert.equal(report.measurement.complete, false);
   assert.equal(report.groups.semantix.productCartRate, null);
+});
+
+test('missing or failing order reads leave cart analytics available and order metrics unavailable', async () => {
+  for (const setup of [{ missing: ['checkout_events'] }, { failOrders: true }]) {
+    const report = await readTakeoverAnalytics(clientFixture(setup), 'steimatzky', { now: new Date(stamp(50)), useCache: false });
+    assert.equal(report.measurement.complete, true);
+    assert.equal(report.groups.semantix.productCartRate, 1);
+    assert.equal(report.orders.complete, false);
+    assert.equal(report.orders.groups.semantix.reportedOrders, null);
+  }
 });
 
 test('conflicting rollout configurations fail closed instead of choosing a flattering split', async () => {

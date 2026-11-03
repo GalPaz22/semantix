@@ -38,3 +38,13 @@ Tests cover the immutable reset boundary, blocked historical range requests, con
 The product table displays catalog names only, with a neutral unavailable-name label when the catalog has no name. Internal product/SKU keys remain for grouping and attribution and are never rendered in the table.
 
 Product identity lookup covers every identifier in the reporting period in batches of 500 IDs/SKUs. Documents matching multiple batches are deduplicated by MongoDB `_id`; distinct documents with conflicting aliases are retained for ambiguity checks. The old 5,000-product cutoff no longer suppresses the cumulative report. The shared 200,000-row safety bound still marks genuinely truncated sources incomplete. This lookup change does not reset the measurement period or change funnel attribution.
+
+## Reported orders
+
+An additional section reads `checkout_events` for `event_type: checkout_completed` from `source: order-page`, inside the same fixed reporting period. This is a thank-you-page observation, not a server-verified payment or cancellation ledger. The older intercepted `tracking_events.checkout` events are never counted as orders.
+
+Order numbers are deduplicated globally; conflicting duplicate browser, arm, search, visit or item identities are excluded. Group totals require the existing stable cohort and the same direct arm tag on the order. Search linkage additionally requires an explicit matching browser/search ID, a recorded matching visit ID on both rows, an unambiguous logged query and valid time order. No browser-only, latest-query, query-text or product-name fallback is used.
+
+Product-linked orders additionally require an order item ID resolved through the catalog to a product already clicked or directly added from that same search and visit before the order. A unique browser/search/product opportunity counts as purchased once, irrespective of item quantity, retries or multiple orders. Product purchase rate uses the same product-opportunity denominator as the cart metric. It is a conditional, partially attributed observation, not overall shopper purchase conversion. The stored order has a single search ID; earlier searches contributing other cart items can remain unlinked. Printed and digital SKUs are not assumed interchangeable.
+
+The section displays consistent-arm orders, search-linked orders, orders containing a linked product, purchased product opportunities and coverage. Raw order numbers, visitor IDs and line items are never returned to the browser. Amounts are not presented as attributed revenue. Missing or failed order reads suppress only the order section and leave valid cart analytics available. Order item IDs join the batched catalog lookup. The original reporting start is preserved.
