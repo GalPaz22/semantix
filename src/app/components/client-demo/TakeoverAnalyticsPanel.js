@@ -15,6 +15,9 @@ export default function TakeoverAnalyticsPanel() {
   const complete = report?.measurement.complete;
   const orders = report?.orders;
   const orderComparisons = [
+    ['מבקרים מדודים בקבוצה', 'measuredVisitors', number],
+    ['מבקרים עם לפחות הזמנה מדווחת אחת', 'orderingVisitors', number],
+    ['שיעור מבקרים עם הזמנה מדווחת', 'visitorOrderRate', percent],
     ['הזמנות מדווחות עם שיוך עקבי לקבוצה', 'reportedOrders', number],
     ['מהן קושרו לחיפוש באותו ביקור', 'searchLinkedOrders', number],
     ['מהן כוללות מוצר שהגיע מהחיפוש', 'productLinkedOrders', number],
@@ -68,10 +71,10 @@ export default function TakeoverAnalyticsPanel() {
       </Card>
 
       <div data-testid="order-conversion-summary"><Card className="overflow-hidden">
-        <CardHeader title="הזמנות שהושלמו אחרי חיפוש" subtitle="דיווח מעמוד הצלחת ההזמנה · אותו מבקר, מזהה חיפוש וביקור · כל מספר הזמנה נספר פעם אחת" />
+        <CardHeader title="הזמנות מדווחות וקישור לחיפוש" subtitle="דיווח מעמוד הצלחת ההזמנה · כל מספר הזמנה נספר פעם אחת · קישור לחיפוש נבדק בנפרד" />
         {!orders?.complete ? <p className="px-5 py-6 text-sm text-slate-500">מדידת ההזמנות אינה זמינה כרגע. נתוני ההוספה לסל מוצגים בנפרד.</p> : <>
           <div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="px-5 py-3">מדד</th><th className="px-5 py-3 text-indigo-700">Semantix</th><th className="px-5 py-3">החיפוש הקיים</th></tr></thead><tbody>{orderComparisons.map(([label, field, format]) => <tr key={field} className="border-t border-slate-100"><td className="px-5 py-3.5 text-slate-600">{label}</td>{variants.map(([key]) => <td key={key} className="px-5 py-3.5 font-semibold tabular-nums">{format(orders.groups[key][field])}</td>)}</tr>)}</tbody></table></div>
-          <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>בתקופה נקלטו {number(orders.coverage.uniqueCompletedOrders)} הזמנות מדווחות ייחודיות. הטבלה כוללת רק הזמנות שאפשר לשייך בעקביות לאחת מקבוצות הניסוי.</p><p>{orders.note}</p><p>שיעור רכישת המוצר: צירופי מוצר–חיפוש שנמצאו בפריטי הזמנה, מתוך המוצרים שהוקלקו או נוספו ישירות מהחיפוש. כל צירוף נספר פעם אחת, ללא תלות בכמות היחידות.</p><p>הזמנה שקושרה לחיפוש אינה בהכרח כוללת את המוצר שנלחץ. מוצר נחשב נרכש מהחיפוש רק כשמזהה פריט ההזמנה תואם. הזמנות ללא קישור נותרות בספירה הכללית של הקבוצה. בהזמנה יש מזהה חיפוש אחד; רכישות מחיפושים אחרים באותו סל עשויות לא להיכלל בקישור.</p></div>
+          <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-xs leading-6 text-slate-500"><p>בתקופה נקלטו {number(orders.coverage.uniqueCompletedOrders)} הזמנות מדווחות ייחודיות. הטבלה כוללת רק הזמנות שאפשר לשייך בעקביות לאחת מקבוצות הניסוי.</p><p>שיעור המבקרים עם הזמנה מחושב מכל המבקרים עם חשיפה או חיפוש משויך בתקופה, גם כשההזמנה לא קושרה לחיפוש. כל מזהה דפדפן נספר פעם אחת; מבקר עם כמה הזמנות נספר פעם אחת במונה.</p><p>{orders.note}</p><p>שיעור רכישת המוצר: צירופי מוצר–חיפוש שנמצאו בפריטי הזמנה, מתוך המוצרים שהוקלקו או נוספו ישירות מהחיפוש. כל צירוף נספר פעם אחת, ללא תלות בכמות היחידות.</p><p>הזמנה שקושרה לחיפוש אינה בהכרח כוללת את המוצר שנלחץ. מוצר נחשב נרכש מהחיפוש רק כשמזהה פריט ההזמנה תואם. הזמנות ללא קישור נותרות בספירה הכללית של הקבוצה. בהזמנה יש מזהה חיפוש אחד; רכישות מחיפושים אחרים באותו סל עשויות לא להיכלל בקישור.</p></div>
         </>}
       </Card></div>
 

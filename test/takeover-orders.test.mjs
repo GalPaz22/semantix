@@ -27,6 +27,29 @@ test('two orders can contain the same reached product but that product opportuni
   assert.equal(report.orders.groups.semantix.productLinkedOrders, 2);
   assert.equal(report.orders.groups.semantix.purchasedProducts, 1);
   assert.equal(report.orders.groups.semantix.productPurchaseRate, 1);
+  assert.equal(report.orders.groups.semantix.orderingVisitors, 1);
+  assert.equal(report.orders.groups.semantix.visitorOrderRate, 1);
+});
+
+test('visitor order conversion includes non-search orders and counts each measured browser once', () => {
+  const report = summarize([order(20, { search_id: undefined }), order(21, { order_id: 'second', search_id: undefined })], {
+    exposures: [row(0), row(11, { session_id: 'no-order-browser', visit_id: 'other-visit' })],
+  });
+  assert.equal(report.orders.groups.semantix.measuredVisitors, 2);
+  assert.equal(report.orders.groups.semantix.reportedOrders, 2);
+  assert.equal(report.orders.groups.semantix.orderingVisitors, 1);
+  assert.equal(report.orders.groups.semantix.visitorOrderRate, .5);
+  assert.equal(report.orders.groups.semantix.searchLinkedOrders, 0);
+  assert.equal(report.orders.groups.native.visitorOrderRate, null);
+});
+
+test('the measured visitor cohort includes newly tagged searchers but excludes pre-period-only exposure', () => {
+  const returning = summarize([order()], { exposures: [] });
+  assert.equal(returning.orders.groups.semantix.measuredVisitors, 1);
+  assert.equal(returning.orders.groups.semantix.orderingVisitors, 1);
+  const oldOnly = summarize([order()], { queries: [], clicks: [] });
+  assert.equal(oldOnly.orders.groups.semantix.measuredVisitors, 0);
+  assert.equal(oldOnly.orders.groups.semantix.reportedOrders, 0);
 });
 
 test('ordinary checkout requests and events without a real order number are not completed orders', () => {
