@@ -49,7 +49,7 @@ test('unknown, conflicting, invalid or non-ILS money is unavailable rather than 
   assert.equal(matchedMerchandiseCents(order([a], 20), [a], false), null);
 });
 
-function modelFixture({ semCarted = 5, missingBaselineValue = false, ordersComplete = true } = {}) {
+function modelFixture({ semCarted = 5, missingBaselineValue = false, ordersComplete = true, fullBasket = false } = {}) {
   const searches = new Map(), chains = new Map(), linkedOrders = [];
   for (const [arm, n, carted] of [['semantix', 10, semCarted], ['native', 20, 6]]) {
     for (let i = 0; i < n; i++) {
@@ -58,7 +58,7 @@ function modelFixture({ semCarted = 5, missingBaselineValue = false, ordersCompl
       if (i < carted) chains.set(chainKey(browser, search, 'a'), { arm, added: true });
       if (arm === 'native' && i < 6) {
         const a = item('a', 25);
-        linkedOrders.push({ arm, searchKey: key(browser, search), row: order([a], 25, missingBaselineValue && i === 0 ? 'USD' : 'ILS'), matchedItems: [a], financiallyConsistent: true });
+        linkedOrders.push({ arm, searchKey: key(browser, search), row: order(fullBasket ? [a, item('other', 100)] : [a], fullBasket ? 125 : 25, missingBaselineValue && i === 0 ? 'USD' : 'ILS'), matchedItems: [a], financiallyConsistent: true });
       }
     }
   }
@@ -99,4 +99,26 @@ test('integration deduplicates monetary order retries and rejects conflicting re
   const conflict = summarizeTakeover({ ...input, orders: [row, { ...row, total_price: 50 }] }, opts).searchConversion;
   assert.equal(conflict.financialImpact.observed.semantix.matchedProductValue, 0);
   assert.equal(conflict.financialImpact.observed.semantix.missingValueOrders, 1);
+});
+
+
+test('monthly projection scales both arms by measured days and distinguishes full baskets from matched products', () => {
+  const r = modelFixture({ fullBasket: true }), m = r.financialImpact.monthlyProjection;
+  assert.equal(m.status, 'available');
+  assert.equal(m.volume.regularSearches, 30);
+  assert.equal(m.volume.observedDays, 3);
+  assert.equal(m.volume.projectedSearches, 300);
+  assert.equal(m.extraCartedSearches, 60);
+  assert.equal(m.matchedProductValueEstimate, 1500);
+  assert.equal(m.fullOrderValueEstimate, 7500);
+  assert.equal(m.baselineOrderValuePerPurchasedSearch, 125);
+  assert.ok(m.assumption.includes('entire additional baskets to be incremental'));
+  assert.equal(r.financialImpact.incrementalRevenueStatus, 'not-established');
+});
+
+test('monthly projection preserves negative outcomes and requires complete financial coverage', () => {
+  const negative = modelFixture({ semCarted: 0 }).financialImpact.monthlyProjection;
+  assert.equal(negative.fullOrderValueEstimate, -2250);
+  assert.equal(modelFixture({ missingBaselineValue: true }).financialImpact.monthlyProjection.fullOrderValueEstimate, null);
+  assert.equal(modelFixture({ ordersComplete: false }).financialImpact.monthlyProjection.status, 'insufficient-data');
 });
