@@ -75,11 +75,11 @@ test('daily series uses the customer timezone rather than UTC day boundaries', (
   assert.equal(report.daily[0].day, '2026-11-02');
 });
 
-function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmedRows, productRows = [], orderRows = [], failQueries = false, failOrders = false } = {}) {
+function clientFixture({ accounts, missing = [], exposureRows, queryRows, clickRows, confirmedRows, productRows = [], orderRows = [], failQueries = false, failOrders = false } = {}) {
   const reads = [];
   const config = { enabled: true, sticky: false, updatedAt: stamp(0), variants: [{ id: 'semantix', weight: 10 }, { id: 'native', weight: 90 }] };
   const collections = ['tracking_events', 'queries', 'products', 'product_clicks', 'checkout_events'].filter(n => !missing.includes(n));
-  const rows = { tracking_events: [event('s', 'semantix', 11)], confirmed: confirmedRows || [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: clickRows || [click('s', 'semantix', 13)], checkout_events: orderRows };
+  const rows = { tracking_events: exposureRows || [event('s', 'semantix', 11)], confirmed: confirmedRows || [cart('s', 'semantix', 14)], queries: queryRows || [search('s', 'semantix', 12)], cart: [cart('s', 'semantix', 14)], product_clicks: clickRows || [click('s', 'semantix', 13)], checkout_events: orderRows };
   return { reads, db(name) {
     reads.push({ database: name });
     return { listCollections() { return { async toArray() { return collections.map(name => ({ name })); } }; }, collection(collection) {
@@ -87,7 +87,7 @@ function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmed
         find(filter, opts) {
           reads.push({ name, collection, filter, opts });
           let limit = Infinity;
-          return { sort() { return this; }, limit(n) { limit = n; return this; }, async toArray() {
+          return { sort() { return this; }, batchSize() { return this; }, limit(n) { limit = n; return this; }, async toArray() {
             if (collection === 'queries' && failQueries) throw Error('source unavailable');
             if (collection === 'checkout_events' && failOrders) throw Error('orders unavailable');
             if (collection === 'products') return productRows.filter(product => filter.$or.some(clause => {
@@ -100,7 +100,22 @@ function clientFixture({ accounts, missing = [], queryRows, clickRows, confirmed
           } };
         },
         async findOne() { return { revision: 34, digest: 'fixture-digest', publishedAt: stamp(10) }; },
-        aggregate() { return { async toArray() { return []; } }; },
+        aggregate(pipeline, opts) {
+          reads.push({ name, collection, pipeline, opts });
+          return { async toArray() {
+            if (pipeline[0].$match.$and[1].event_type !== 'ab_exposure') return [];
+            const grouped = new Map();
+            for (const row of rows.tracking_events) {
+              const key = row.session_id || row.sessionId || '', arm = row.ab_tests?.semantix_takeover;
+              const id = JSON.stringify([key, arm]), existing = grouped.get(id);
+              if (existing) {
+                existing.exposure_count++;
+                if (+new Date(row.timestamp) < +existing.timestamp) existing.timestamp = new Date(row.timestamp);
+              } else grouped.set(id, { _id: { key, arm }, timestamp: new Date(row.timestamp), exposure_count: 1 });
+            }
+            return [...grouped.values()];
+          } };
+        },
       };
     } };
   } };
@@ -139,6 +154,37 @@ test('cumulative reports map more than 5,000 products and attribute a cart beyon
     assert.ok(read.filter.$or[1].sku.$in.length <= 500);
     assert.ok(read.filter.$or[2]['siteCard.productId'].$in.length <= 1000);
   }
+});
+
+test('more than 200,000 exposures retain the late conflicting arm and exact event counts', async () => {
+  const repeated = event('s', 'semantix', 11);
+  const client = clientFixture({ exposureRows: [...Array(200000).fill(repeated), event('s', 'native', 15)] });
+  const report = await readTakeoverAnalytics(client, 'steimatzky', { now: new Date(stamp(50)), useCache: false });
+  assert.equal(report.measurement.complete, true);
+  assert.equal(report.measurement.exposureEvents, 200001);
+  assert.equal(report.measurement.includedExposureEvents, 0);
+  assert.equal(report.measurement.conflictingVisitors, 1);
+  assert.equal(report.groups.semantix.searches, 0);
+  assert.deepEqual(report.measurement.sources.exposures, { available: true, truncated: false, rows: 200001, groupedRows: 2 });
+  assert.ok(!client.reads.flatMap(read => read.pipeline || []).some(stage => '$limit' in stage));
+});
+
+test('queries beyond the old event cutoff are fully read and can link a confirmed cart', async () => {
+  const client = clientFixture({ queryRows: [...Array(200000).fill(search('s', 'semantix', 12, { search_id: 'other-search' })), search('s', 'semantix', 12)] });
+  const report = await readTakeoverAnalytics(client, 'steimatzky', { now: new Date(stamp(50)), useCache: false });
+  assert.equal(report.measurement.complete, true);
+  assert.equal(report.measurement.sources.queries.rows, 200001);
+  assert.equal(report.groups.semantix.searches, 200001);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.groups.semantix.productCartRate, 1);
+});
+
+test('compacted exposures preserve raw summary, coverage, empty-ID fallback and conflicts', () => {
+  const exposures = [event('s', 'semantix', 11), event('s', 'semantix', 12), event('n', 'native', 11), event('mixed', 'semantix', 11), event('mixed', 'native', 12), event('', 'native', 11, { sessionId: 'fallback' })];
+  const input = { exposures, queries: [search('s', 'semantix', 12), search('n', 'native', 12)], clicks: [click('s', 'semantix', 13)], carts: [cart('s', 'semantix', 14)] };
+  const raw = summarizeTakeover(input, options);
+  const compact = summarizeTakeover({ ...input, exposures: [{ ...exposures[0], exposure_count: 2 }, ...exposures.slice(2)] }, options);
+  assert.deepEqual(compact, raw);
 });
 
 test('batching preserves leading-zero SKUs and detects conflicting aliases across documents', async () => {
@@ -293,7 +339,7 @@ test('measurement start is immutable across dates and requests; old event chains
     assert.equal(report.groups.semantix.searches, 1);
     assert.ok(!JSON.stringify(report).includes('old query'));
     for (const read of client.reads.filter(r => ['queries', 'product_clicks', 'tracking_events'].includes(r.collection))) {
-      assert.ok(JSON.stringify(read.filter).includes(TAKEOVER_MEASUREMENT_START));
+      assert.ok(JSON.stringify(read.filter || read.pipeline).includes(TAKEOVER_MEASUREMENT_START));
     }
   }
 });
