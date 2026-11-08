@@ -69,7 +69,7 @@ export default function TakeoverAnalyticsPanel() {
         </>}
       </Card>
 
-      <p className="px-1 text-xs leading-6 text-slate-500" data-testid="search-conversion-period">{search ? `חיפושים מ־${dateTime(search.window.from)} עד ${dateTime(search.window.to)} · פעילות נצפתה עד ${dateTime(search.window.observedUntil)} · לפחות שעתיים להבשלה · ללא השלמה אוטומטית · שעון ישראל.` : 'נתוני המדידה בעדכון.'}</p>
+      <p className="px-1 text-xs leading-6 text-slate-500" data-testid="search-conversion-period">{search ? `חיפושים מ־${dateTime(search.window.from)} עד ${dateTime(search.window.to)} · פעילות נצפתה עד ${dateTime(search.window.observedUntil)} · חלון מעקב זהה של שעתיים לכל חיפוש · ללא השלמה אוטומטית · שעון ישראל.` : 'נתוני המדידה בעדכון.'}</p>
 
       <details className="rounded-2xl border border-slate-200 bg-white p-5 text-sm" data-testid="measurement-details">
         <summary className="cursor-pointer font-medium text-slate-700">נתוני המקור, הנחות החישוב ומידת הוודאות</summary>
@@ -79,6 +79,7 @@ export default function TakeoverAnalyticsPanel() {
           <p>אין הנחה שעלייה יחסית בסלים היא עלייה זהה בהכנסות האתר כולו. התחזית משתמשת רק בתנועת החיפוש שנמדדה, בפער המוחלט בשיעור ההוספה לסל ובנתוני הרכישה בקבוצת המקורי. תוספת הכנסה סיבתית טרם נקבעה.</p>
           <p>שווי המוצרים התואמים כולל רק פריטים שהגיעו מאותו חיפוש וביקור, לאחר הקצאה יחסית של הנחת הזמנה וללא הגדלה בגלל משלוח. תרחיש ההזמנות השלמות משתמש בערך ההזמנות המדווחות המלא, הכולל גם פריטים אחרים ועשוי לכלול משלוח. מקור הסכומים הוא עמוד הצלחת ההזמנה; סליקה, ביטולים והחזרים אינם מאומתים כאן.</p>
           {impact && <p>בהיקף התנועה הנוכחי של Semantix בתקופה: {money(impact.observed.semantix.matchedProductValue)} במוצרים תואמים מתוך {number(impact.observed.semantix.valuedOrders)} הזמנות עם ערך כספי מלא; {number(impact.observed.semantix.missingValueOrders)} הזמנות נוספות ללא ערך כספי מלא. הנתון הוא קישור להזמנות מדווחות, ואינו תוספת מחזור מוכחת.</p>}
+          <p>ברישומים חדשים זמן החיפוש הוא תחילת הבקשה בשרת, כדי שהשהיית רישום ברקע לא תפסול לחיצה מוקדמת. ברישומים ישנים נשמר זמן הרישום המקורי, ללא השלמה משוערת. לכל חיפוש נמדדות הוספות לסל והזמנות במשך שעתיים בדיוק.</p>
           <p>נכללים חיפושים עם שיוך עקבי לקבוצת הניסוי. כל חיפוש נספר פעם אחת, גם אם הוביל לכמה מוצרים. ההוספה לסל דורשת אישור מהחנות וקישור למוצר מאותו חיפוש. מזהי הקטלוג ומזהי Magento מחוברים במיפוי המוצר.</p>
           <p data-testid="measurement-period">המדידה המקורית מתחילה ב־{dateTime(report.window.from)} ונשמרת ללא איפוס. החישובים מבוססים על {report.measurement.complete ? 'מקורות נתונים מלאים' : 'מקורות נתונים שעדיין בעדכון'}. עודכן {dateTime(report.generatedAt)}.</p>
         </div>

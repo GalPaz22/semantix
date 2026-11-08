@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { matchedMerchandiseCents, summarizeSearchConversion } from '../lib/takeover-search-conversion.js';
 import { summarizeTakeover } from '../lib/takeover-analytics.js';
+import { hasServerSearchStart, searchStartedAt } from '../lib/takeover-search-timing.js';
 
 const end = +new Date('2026-11-07T14:00:00Z'), start = end - 3 * 86400000;
 const key = (browser, search) => JSON.stringify([browser, search]);
 const chainKey = (browser, search, product) => JSON.stringify([browser, search, product]);
 const item = (id, price, quantity = 1) => ({ id, price, quantity });
-const order = (items, total_price, currency = 'ILS') => ({ items, total_price, currency });
+const order = (items, total_price, currency = 'ILS') => ({ items, total_price, currency, timestamp: new Date(end - 3 * 3600000 + 60000).toISOString() });
 const options = { start, end, complete: true, ordersComplete: true };
 
 test('search-to-cart counts distinct regular searches, not products, clicks, retries or autocomplete picks', () => {
@@ -20,10 +21,10 @@ test('search-to-cart counts distinct regular searches, not products, clicks, ret
     [key('s', 'old'), { arm: 'semantix', time: end - 25 * 3600000, row: {} }],
   ]);
   const chains = new Map([
-    [chainKey('s', 'one', 'a'), { arm: 'semantix', added: true }],
-    [chainKey('s', 'one', 'b'), { arm: 'semantix', added: true }],
+    [chainKey('s', 'one', 'a'), { arm: 'semantix', added: true, orderAdds: [{ at: end - 3 * 3600000 + 30000 }] }],
+    [chainKey('s', 'one', 'b'), { arm: 'semantix', added: true, orderAdds: [{ at: end - 3 * 3600000 + 30000 }] }],
     [chainKey('s', 'two', 'c'), { arm: 'semantix', added: false }],
-    [chainKey('s', 'typed', 'd'), { arm: 'semantix', added: true }],
+    [chainKey('s', 'typed', 'd'), { arm: 'semantix', added: true, orderAdds: [{ at: end - 3 * 3600000 + 30000 }] }],
   ]);
   const r = summarizeSearchConversion({ searches, chains, linkedOrders: [], ...options });
   assert.equal(r.groups.semantix.searches, 3);
@@ -55,7 +56,7 @@ function modelFixture({ semCarted = 5, missingBaselineValue = false, ordersCompl
     for (let i = 0; i < n; i++) {
       const browser = `${arm}-${i}`, search = 'search';
       searches.set(key(browser, search), { arm, time: end - 3 * 3600000, row: {} });
-      if (i < carted) chains.set(chainKey(browser, search, 'a'), { arm, added: true });
+      if (i < carted) chains.set(chainKey(browser, search, 'a'), { arm, added: true, orderAdds: [{ at: end - 3 * 3600000 + 30000 }] });
       if (arm === 'native' && i < 6) {
         const a = item('a', 25);
         linkedOrders.push({ arm, searchKey: key(browser, search), row: order(fullBasket ? [a, item('other', 100)] : [a], fullBasket ? 125 : 25, missingBaselineValue && i === 0 ? 'USD' : 'ILS'), matchedItems: [a], financiallyConsistent: true });
@@ -121,4 +122,32 @@ test('monthly projection preserves negative outcomes and requires complete finan
   assert.equal(negative.fullOrderValueEstimate, -2250);
   assert.equal(modelFixture({ missingBaselineValue: true }).financialImpact.monthlyProjection.fullOrderValueEstimate, null);
   assert.equal(modelFixture({ ordersComplete: false }).financialImpact.monthlyProjection.status, 'insufficient-data');
+});
+
+
+test('every search has exactly two hours of cart and order follow-up in both arms', () => {
+  const searches=new Map(),chains=new Map(),linkedOrders=[];
+  for(const arm of ['semantix','native']) for(const [name,offset] of [['boundary',7200000],['late',7200001],['before',-1]]) {
+    const browser=arm+name,time=end-4*3600000,sk=key(browser,'s');
+    searches.set(sk,{arm,time,row:{}});
+    chains.set(chainKey(browser,'s','a'),{arm,added:true,orderAdds:[{at:time+offset}]});
+    const a=item('a',20);linkedOrders.push({arm,searchKey:sk,row:{...order([a],20),timestamp:new Date(time+offset).toISOString()},matchedItems:[a]});
+  }
+  const r=summarizeSearchConversion({searches,chains,linkedOrders,...options});
+  for(const arm of ['semantix','native']){assert.equal(r.groups[arm].cartedSearches,1);assert.equal(r.groups[arm].productOrderedSearches,1);assert.equal(r.financialImpact.observed[arm].matchedProductValue,20);}
+  assert.equal(r.window.outcomeWindow,'fixed-per-search');assert.equal(r.window.followUpHours,2);
+});
+
+test('server request start repairs asynchronous log ordering without inventing timestamps for legacy rows', () => {
+  const t=n=>new Date(end-4*3600000+n*1000).toISOString(),base={session_id:'s',search_id:'search',visit_id:'v',ab_tests:{semantix_takeover:'native'}};
+  const query={...base,timestamp:t(10),search_started_at:t(0),searchMode:'text',query:'book'};
+  const input={exposures:[],queries:[query],clicks:[{...base,timestamp:t(2),received_at:t(2),event_id:'click',interaction_type:'click',search_link:'results_page',product_id:'42'}],carts:[{...base,timestamp:t(4),event_id:'cart',event_type:'add_to_cart_confirmed',product_id:'42',click_id:'click',search_link:'clicked_result'}]};
+  const opts={from:new Date(start).toISOString(),to:new Date(end).toISOString()};
+  const fixed=summarizeTakeover(input,opts).searchConversion;
+  assert.equal(fixed.groups.native.cartedSearches,1);assert.equal(fixed.timing.groups.native.serverStartedSearches,1);
+  const {search_started_at,...legacy}=query;
+  const old=summarizeTakeover({...input,queries:[legacy]},opts).searchConversion;
+  assert.equal(old.groups.native.cartedSearches,0);assert.equal(old.timing.groups.native.legacyTimestampSearches,1);
+  assert.equal(hasServerSearchStart({...query,search_started_at:t(11)}),false);
+  assert.equal(searchStartedAt({...query,search_started_at:'invalid'}),Date.parse(t(10)));
 });
