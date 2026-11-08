@@ -44,7 +44,7 @@ export default function TakeoverAnalyticsPanel() {
             <p className="mt-2 text-xs leading-6 text-slate-400">{complete ? `${number(search.groups[key].cartedSearches)} מתוך ${number(search.groups[key].searches)} חיפושים הגיעו לסל` : 'הנתונים בעדכון'}</p>
           </div>)}
         </div>
-        {complete && comparison.interval95PP && <p className="mt-4 text-xs leading-6 text-slate-400">פער של {decimal(comparison.differencePP)} נקודות אחוז · טווח תיאורי של 95%: {comparison.interval95PP.map(decimal).join(' עד ')} נקודות אחוז. הפער הנצפה אינו מוכיח לבדו השפעה סיבתית.</p>}
+        {complete && comparison.interval95PP && <p className="mt-4 text-xs leading-6 text-slate-400">פער של {decimal(comparison.differencePP)} נקודות אחוז · טווח תיאורי של 95%: {comparison.interval95PP.map(decimal).join(' עד ')} נקודות אחוז.</p>}
       </section>
 
       <Card className="overflow-hidden border-indigo-100" data-testid="search-financial-impact">
