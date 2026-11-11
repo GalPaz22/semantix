@@ -12,7 +12,7 @@ import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
 import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
-import { readTakeoverAnalytics } from '/lib/takeover-analytics';
+import { readFrozenTakeoverAnalytics } from '/lib/takeover-dashboard-snapshot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,7 +49,7 @@ async function handle(request, { params }) {
     if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(ANALYTICS_ONLY_MESSAGE, 423);
     if (path === 'dashboard/ab-test') {
       if ([...incoming.searchParams.keys()].some(key => key !== 'store')) return fail('תקופת המדידה קבועה; אין אפשרות לבחור נתונים היסטוריים', 400);
-      const report = await readTakeoverAnalytics(client, user.dbName);
+      const report = await readFrozenTakeoverAnalytics(client, user.dbName);
       return NextResponse.json(report, { headers: { 'cache-control': 'private, no-store' } });
     }
     if (path === 'dashboard' && access.mode === 'analytics-only') {
