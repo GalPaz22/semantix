@@ -34,7 +34,7 @@ export default function TakeoverAnalyticsPanel() {
     {error && <Card className="p-8 text-center"><p role="alert">הנתונים אינם זמינים כרגע</p><button onClick={refresh} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">ניסיון נוסף</button></Card>}
     {report && !loading && !error && <>
       <section className="overflow-hidden rounded-3xl bg-slate-950 p-6 text-white md:p-9" data-testid="search-cart-difference">
-        <div className="flex items-center gap-2 text-sm font-medium text-indigo-200"><TrendingUp className="h-4 w-4" />השוואת החיפוש · {frozen ? '24 שעות בחיתוך קבוע' : '24 השעות האחרונות'}</div>
+        <div className="flex items-center gap-2 text-sm font-medium text-indigo-200"><TrendingUp className="h-4 w-4" />השוואת החיפוש · שבעת הימים האחרונים</div>
         {frozen && <p className="mt-3 text-xs leading-6 text-slate-300" data-testid="snapshot-notice">תמונת מצב ל־{dateTime(report.generatedAt)} · התוצאות ואחוז ההבדל נעולים ואינם מתעדכנים.</p>}
         <strong dir="ltr" className="mt-5 block text-right text-7xl font-semibold tracking-tight tabular-nums md:text-8xl">{complete && Number.isFinite(comparison?.relativeLift) ? `${comparison.relativeLift >= 0 ? '+' : ''}${percent(comparison.relativeLift)}` : '—'}</strong>
         <h2 className="mt-3 text-xl font-medium md:text-2xl">{positive ? 'עלייה נצפית בשיעור החיפושים שהגיעו לסל' : 'הפער הנצפה בשיעור החיפושים שהגיעו לסל'}</h2>
@@ -61,7 +61,7 @@ export default function TakeoverAnalyticsPanel() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [number(monthly.volume.projectedSearches), 'חיפושים בחודש', 'ממוצע יומי מאז תחילת המדידה × 30'],
-              [`${decimal(comparison.differencePP)} נק׳ אחוז`, 'פער בשיעור חיפוש לסל', 'הפער המוחלט שנמדד ביממה האחרונה'],
+              [`${decimal(comparison.differencePP)} נק׳ אחוז`, 'פער בשיעור חיפוש לסל', 'הפער המוחלט שנמדד בשבוע האחרון'],
               [percent(monthly.baselineCartToProductOrderRate), 'מסל לרכישה תואמת', 'שיעור ההבשלה שנמדד בחיפוש הקיים'],
               [money(monthly.baselineOrderValuePerPurchasedSearch), 'שווי הזמנה לחיפוש שנרכש', 'ערך ההזמנות המלאות בקבוצת המקורי'],
             ].map(([value, label, note]) => <div key={label} className="rounded-xl border border-slate-100 p-4"><strong className="block text-xl tabular-nums text-slate-950">{value}</strong><p className="mt-2 text-xs font-medium text-slate-700">{label}</p><p className="mt-1 text-xs leading-5 text-slate-400">{note}</p></div>)}
