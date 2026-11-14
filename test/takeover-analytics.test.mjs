@@ -437,7 +437,7 @@ test('Rikushet: entity-id clicks, lower-case product addresses and capitalised o
 test('Rikushet is an analytics-only experiment store; unknown stores have no experiment', async () => {
   const { takeoverStore } = await import('../lib/takeover-measurement.js');
   assert.deepEqual(customerDashboardAccess('rikushet'), { mode: 'analytics-only', panels: ['analytics'], experiment: 'semantix_takeover' });
-  assert.equal(takeoverStore('rikushet').start, '2026-11-14T14:36:58.684Z');
+  assert.equal(takeoverStore('rikushet').start, '2026-11-14T21:37:12.276Z');
   assert.throws(() => takeoverStore('carmella'), { status: 404 });
   await assert.rejects(readTakeoverAnalytics({}, 'carmella'), { status: 404 });
 });
