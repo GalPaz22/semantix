@@ -27,14 +27,14 @@ export default function TakeoverAnalyticsPanel() {
     ['שווי מוצרים תואמים בהזמנות מדווחות', key => impact.observed[key].matchedProductValue, money],
   ];
   return <div dir="rtl" className="space-y-6" data-testid="takeover-analytics">
-    <PageHeader eyebrow="STEIMATZKY × SEMANTIX" title="יותר חיפושים שמגיעים לסל"
+    <PageHeader eyebrow={report?.store?.eyebrow || 'SEMANTIX'} title="יותר חיפושים שמגיעים לסל"
       subtitle="ביצועי החיפוש והפוטנציאל העסקי בפריסה מלאה."
       right={frozen ? <span className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600" data-testid="snapshot-lock"><LockKeyhole className="h-4 w-4" />תמונת מצב נעולה</span> : <button aria-label="רענון נתוני הניסוי" onClick={refresh} disabled={loading} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 disabled:opacity-40"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>} />
     {loading && <div role="status" className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">מעדכנים את תוצאות הניסוי…</div>}
     {error && <Card className="p-8 text-center"><p role="alert">הנתונים אינם זמינים כרגע</p><button onClick={refresh} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">ניסיון נוסף</button></Card>}
     {report && !loading && !error && <>
       <section className="overflow-hidden rounded-3xl bg-slate-950 p-6 text-white md:p-9" data-testid="search-cart-difference">
-        <div className="flex items-center gap-2 text-sm font-medium text-indigo-200"><TrendingUp className="h-4 w-4" />השוואת החיפוש · שבעת הימים האחרונים</div>
+        <div className="flex items-center gap-2 text-sm font-medium text-indigo-200"><TrendingUp className="h-4 w-4" />השוואת החיפוש · {frozen ? 'שבעת הימים האחרונים' : 'מאז תחילת המדידה'}</div>
         {frozen && <p className="mt-3 text-xs leading-6 text-slate-300" data-testid="snapshot-notice">תמונת מצב ל־{dateTime(report.generatedAt)} · התוצאות ואחוז ההבדל נעולים ואינם מתעדכנים.</p>}
         <strong dir="ltr" className="mt-5 block text-right text-7xl font-semibold tracking-tight tabular-nums md:text-8xl">{complete && Number.isFinite(comparison?.relativeLift) ? `${comparison.relativeLift >= 0 ? '+' : ''}${percent(comparison.relativeLift)}` : '—'}</strong>
         <h2 className="mt-3 text-xl font-medium md:text-2xl">{positive ? 'עלייה נצפית בשיעור החיפושים שהגיעו לסל' : 'הפער הנצפה בשיעור החיפושים שהגיעו לסל'}</h2>
@@ -61,7 +61,7 @@ export default function TakeoverAnalyticsPanel() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [number(monthly.volume.projectedSearches), 'חיפושים בחודש', 'ממוצע יומי מאז תחילת המדידה × 30'],
-              [`${decimal(comparison.differencePP)} נק׳ אחוז`, 'פער בשיעור חיפוש לסל', 'הפער המוחלט שנמדד בשבוע האחרון'],
+              [`${decimal(comparison.differencePP)} נק׳ אחוז`, 'פער בשיעור חיפוש לסל', frozen ? 'הפער המוחלט שנמדד בשבוע האחרון' : 'הפער המוחלט שנמדד מאז תחילת המדידה'],
               [percent(monthly.baselineCartToProductOrderRate), 'מסל לרכישה תואמת', 'שיעור ההבשלה שנמדד בחיפוש הקיים'],
               [money(monthly.baselineOrderValuePerPurchasedSearch), 'שווי הזמנה לחיפוש שנרכש', 'ערך ההזמנות המלאות בקבוצת המקורי'],
             ].map(([value, label, note]) => <div key={label} className="rounded-xl border border-slate-100 p-4"><strong className="block text-xl tabular-nums text-slate-950">{value}</strong><p className="mt-2 text-xs font-medium text-slate-700">{label}</p><p className="mt-1 text-xs leading-5 text-slate-400">{note}</p></div>)}

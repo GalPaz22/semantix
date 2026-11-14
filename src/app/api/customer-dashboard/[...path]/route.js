@@ -12,7 +12,9 @@ import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
 import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
-import { readFrozenTakeoverAnalytics } from '/lib/takeover-dashboard-snapshot';
+import { readFrozenTakeoverAnalytics, hasFrozenTakeover } from '/lib/takeover-dashboard-snapshot';
+import { readTakeoverAnalytics } from '/lib/takeover-analytics';
+import { takeoverStore } from '/lib/takeover-measurement';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,11 +51,12 @@ async function handle(request, { params }) {
     if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(ANALYTICS_ONLY_MESSAGE, 423);
     if (path === 'dashboard/ab-test') {
       if ([...incoming.searchParams.keys()].some(key => key !== 'store')) return fail('תקופת המדידה קבועה; אין אפשרות לבחור נתונים היסטוריים', 400);
-      const report = await readFrozenTakeoverAnalytics(client, user.dbName);
+      const report = hasFrozenTakeover(user.dbName) ? await readFrozenTakeoverAnalytics(client, user.dbName) : await readTakeoverAnalytics(client, user.dbName);
       return NextResponse.json(report, { headers: { 'cache-control': 'private, no-store' } });
     }
     if (path === 'dashboard' && access.mode === 'analytics-only') {
-      return NextResponse.json({ store: { dbName: user.dbName, name: 'סטימצקי', site: 'steimatzky.co.il', active: true }, access, report: null }, { headers: { 'cache-control': 'private, no-store' } });
+      const { name, site } = takeoverStore(user.dbName);
+      return NextResponse.json({ store: { dbName: user.dbName, name, site, active: true }, access, report: null }, { headers: { 'cache-control': 'private, no-store' } });
     }
     const siblings = await users.find({ dbName: user.dbName }).project({ apiKey: 1 }).toArray();
     const keys = siblings.map(u => u.apiKey).filter(Boolean);

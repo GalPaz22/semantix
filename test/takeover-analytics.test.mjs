@@ -414,3 +414,30 @@ test('a returning browser can use new direct assignment tags without any pre-res
   assert.equal(report.groups.semantix.addedProducts, 1);
   assert.equal(report.groups.semantix.exposedVisitors, 0);
 });
+
+test('Rikushet: entity-id clicks, lower-case product addresses and capitalised order SKUs resolve to one product', async () => {
+  const { TAKEOVER_STORES } = await import('../lib/takeover-measurement.js');
+  const report = summarizeTakeover({ exposures: [event('s', 'semantix', 0)], queries: [search('s', null, 11)],
+    products: [{ id: 'NM10328_041', sku: 'NM10328_041', name: 'מארז 2 חולצות מנדפות' }],
+    clicks: [click('s', null, 12, { product_id: '146144', product_url: 'https://www.rikushet.co.il/%D7%94%D7%9C%D7%91%D7%A9%D7%94-%D7%97%D7%93%D7%A9/nm10328_041' })],
+    carts: [cart('s', null, 13, { product_id: '146144', card_path: '/%D7%9E%D7%95%D7%AA%D7%92%D7%99%D7%9D/nm10328_041' })],
+  }, { ...options, store: TAKEOVER_STORES.rikushet });
+  assert.equal(report.groups.semantix.clickedProducts, 1);
+  assert.equal(report.groups.semantix.addedProducts, 1);
+  assert.equal(report.topProducts[0].productId, 'sku:nm10328_041');
+  assert.equal(report.topProducts[0].productName, 'מארז 2 חולצות מנדפות');
+  // Another store's address is never a Rikushet SKU.
+  const foreign = summarizeTakeover({ exposures: [event('s', 'semantix', 0)], queries: [search('s', null, 11)],
+    products: [{ id: 'NM10328_041', sku: 'NM10328_041' }],
+    clicks: [click('s', null, 12, { product_id: '146144', product_url: 'https://www.steimatzky.co.il/nm10328_041' })], carts: [],
+  }, { ...options, store: TAKEOVER_STORES.rikushet });
+  assert.equal(foreign.topProducts[0].productId, '146144');
+});
+
+test('Rikushet is an analytics-only experiment store; unknown stores have no experiment', async () => {
+  const { takeoverStore } = await import('../lib/takeover-measurement.js');
+  assert.deepEqual(customerDashboardAccess('rikushet'), { mode: 'analytics-only', panels: ['analytics'], experiment: 'semantix_takeover' });
+  assert.equal(takeoverStore('rikushet').start, '2026-11-14T14:36:58.684Z');
+  assert.throws(() => takeoverStore('carmella'), { status: 404 });
+  await assert.rejects(readTakeoverAnalytics({}, 'carmella'), { status: 404 });
+});
