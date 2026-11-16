@@ -10,6 +10,7 @@ import { optimizerServiceConfig } from '/lib/optimizer-config';
 import { readStudioJson } from '/lib/studio-response';
 import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
+import { getDashboardProfiles, profilesEnabled } from '/lib/dashboard-profiles';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
 import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
 import { readFrozenTakeoverAnalytics, hasFrozenTakeover } from '/lib/takeover-dashboard-snapshot';
@@ -61,6 +62,11 @@ async function handle(request, { params }) {
     const siblings = await users.find({ dbName: user.dbName }).project({ apiKey: 1 }).toArray();
     const keys = siblings.map(u => u.apiKey).filter(Boolean);
     if (path === 'dashboard/campaigns') return NextResponse.json(await getDashboardCampaigns(client, user.dbName));
+    // Customer details: the store's own customers, read from the authenticated store DB only.
+    if (path === 'dashboard/profiles') {
+      const data = await getDashboardProfiles(client, user.dbName, { query: incoming.searchParams.get('query') || '', page: incoming.searchParams.get('page') || '1' });
+      return NextResponse.json(data, { headers: { 'cache-control': 'private, no-store' } });
+    }
     if (path === 'dashboard/merchandising') {
       if (method === 'GET') return NextResponse.json(await getDashboardMerchandising(client, user.dbName));
       const data = await saveDashboardMerchandising(client, { dbName: user.dbName, actor: session.user.email || session.user.id, body: await request.json() });
@@ -113,6 +119,7 @@ async function handle(request, { params }) {
     if (path === 'dashboard' && response.ok && data.report) {
       data.report.concierge = await getDashboardConcierge(client, user.dbName, data.report.window);
     }
+    if (path === 'dashboard' && response.ok && data.store) data.store.profiles = profilesEnabled(user.dbName);
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
   } catch (error) {
     if (error.status) return fail(error.message, error.status);

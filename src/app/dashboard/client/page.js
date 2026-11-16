@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search, Sparkles, LockKeyhole } from "lucide-react";
+import { Activity, BarChart3, MessageSquare, ListOrdered, Package, Menu, X, LogOut, ArrowRight, ChevronsUpDown, ChevronLeft, Search, Sparkles, LockKeyhole, Users } from "lucide-react";
 import ClientAnalyticsPanel from "../../components/client-demo/ClientAnalyticsPanel";
 import TakeoverAnalyticsPanel from "../../components/client-demo/TakeoverAnalyticsPanel";
 import ClientChatbotPanel from "../../components/client-demo/ClientChatbotPanel";
@@ -12,6 +12,7 @@ import ActiveCampaignsPanel from '../../components/client-demo/ActiveCampaignsPa
 import SearchDemoPanel from '../../components/client-demo/SearchDemoPanel';
 import ResultsPanel from "../../components/client-demo/ResultsPanel";
 import ClientProductsPanel from "../../components/client-demo/ClientProductsPanel";
+import ProfilesPanel from "../../components/client-demo/ProfilesPanel";
 import { OptimizerProvider, useOptimizer } from "../../components/client-demo/OptimizerContext";
 
 // Client dashboard backed by the authenticated, store-scoped optimizer API.
@@ -24,6 +25,8 @@ const PANELS = [
   { id: "results", label: "סידור תוצאות", icon: ListOrdered },
   { id: "products", label: "ניהול מוצרים", icon: Package },
   { id: "agent", label: "צ׳אטבוט", icon: MessageSquare },
+  // Only for stores whose dashboard has customer profiles (dashboard.store.profiles).
+  { id: "profiles", label: "פרופילי לקוחות", icon: Users, when: store => !!store?.profiles },
 ];
 
 export default function ClientDashboardPage() {
@@ -100,6 +103,7 @@ function ClientDashboard() {
     window.scrollTo({ top: 0 });
   };
   const current = PANELS.find(p => p.id === activePanel);
+  const panels = PANELS.filter(p => !p.when || p.when(store));
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased" dir="rtl">
@@ -128,7 +132,7 @@ function ClientDashboard() {
         <nav className="flex-1 px-3 pt-6 overflow-y-auto">
           <div className="px-3 pb-2 text-[11px] font-semibold tracking-wide text-slate-400">חיפוש חכם</div>
           <div className="space-y-0.5">
-            {PANELS.map(p => {
+            {panels.map(p => {
               const on = activePanel === p.id;
               const locked = p.id !== 'analytics' && (!workspaceReady || analyticsOnly);
               return (
@@ -199,6 +203,7 @@ function ClientDashboard() {
             <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
             <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>
             <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
+            {store?.profiles && <div className={active === "profiles" ? "" : "hidden"}><ProfilesPanel visible={active === "profiles"} /></div>}
           </>}
         </main>
       </div>
