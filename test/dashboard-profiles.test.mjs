@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getDashboardProfiles, mergeIdentities, profileFilter } from '../lib/dashboard-profiles.js';
+import { getDashboardProfiles, mergeIdentities, profileFilter, orderItems } from '../lib/dashboard-profiles.js';
 
 const at = (h) => new Date(Date.UTC(2026, 10, 16, h));
 
@@ -70,4 +70,12 @@ test('a profile carries its sessions\' searches, orders and concierge chats, and
   assert.ok(!JSON.stringify(result).includes('sess-a'), 'session ids stay internal');
   await assert.rejects(getDashboardProfiles(client, 'steimatzky', {}), /אינם זמינים/);
   await assert.rejects(getDashboardProfiles(client, 'garmin', { page: '0' }));
+});
+
+test('order lines show name, quantity and price, whatever the store calls the lines', () => {
+  assert.deepEqual(orderItems({ products: [{ product_id: '1', product_name: 'קורבלי רוזה', quantity: 2, price: 42 }, { product_id: '2', product_name: 'נו רסין', quantity: 1, price: 49 }] }),
+    ['קורבלי רוזה ×2 · ₪42', 'נו רסין · ₪49']);
+  assert.deepEqual(orderItems({ cart_items: [{ product_name: 'Forerunner 265' }] }), ['Forerunner 265']);
+  // No name on the line: the catalog fills it in; the id only when the catalog does not know it either.
+  assert.deepEqual(orderItems({ products: [{ product_id: '7', quantity: 1 }, { product_id: '8' }] }, new Map([['7', { name: 'יין', price: 60 }]])), ['יין · ₪60', 'מוצר 8']);
 });

@@ -75,7 +75,7 @@ function ProfileRow({ profile }) {
         <h4 className="mb-2 text-xs font-semibold text-slate-500">הזמנות</h4>
         {profile.orders.length ? <ul className="space-y-2">{profile.orders.map((o) => <li key={o.id} className="text-[13px]">
           <div className="flex justify-between gap-2"><span className="text-slate-700">#{o.id}</span><span className="font-semibold tabular-nums">{o.total != null ? shekel(o.total) : '—'}</span></div>
-          {o.items.length > 0 && <div className="text-xs text-slate-500">{o.items.join(' · ')}</div>}
+          {o.items.length > 0 && <ul className="text-xs text-slate-500">{o.items.map((item, i) => <li key={i}>{item}</li>)}</ul>}
           <div className="text-xs text-slate-400">{dateTime(o.at)}</div>
         </li>)}</ul> : <p className="text-xs text-slate-400">אין הזמנות מהסשנים האלה</p>}
       </section>
