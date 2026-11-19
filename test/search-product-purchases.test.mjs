@@ -17,6 +17,9 @@ test('one search leads to the same catalog SKU, with only matching merchandise c
   assert.equal(p.complete, true); assert.equal(a.searches, 1); assert.equal(a.purchasedSearches, 1); assert.equal(a.confirmedCartOrders, 1); assert.equal(a.purchaseRate, 1);
   assert.deepEqual(a.value, [{ currency: 'ILS', amount: 20 }]); assert.deepEqual(a.products, ['חולצה']);
 });
+test('only the matched share of a discounted basket is credited to the search', () => {
+  const d = fixture(); d.orders[0].total_price = 59.5; assert.deepEqual(run(d).groups.semantix.value, [{ currency: 'ILS', amount: 10 }]);
+});
 test('search then purchase of another product is not search-product conversion', () => { const d = fixture(); d.orders[0].items.shift(); assert.equal(run(d).groups.semantix.purchasedSearches, 0); });
 test('the order last-search field cannot redirect product credit', () => {
   const d = fixture(); d.queries.push({ ...d.queries[0], search_id: 'unrelated', query: 'תיק', timestamp: date(2.5) }); d.orders[0].search_id = 'unrelated';
@@ -33,6 +36,7 @@ test('conflicting order retries do not credit either identity', () => { const d 
 test('typed picks are separate, without an exposure denominator or purchase rate', () => {
   const d = fixture(); d.queries[0].searchMode = 'typed'; d.clicks[0].search_link = 'typed_results';
   const p = run(d); assert.equal(p.groups.semantix.searches, 0); assert.equal(p.groups.semantix.purchasedSearches, 0); assert.equal(p.typed.semantix.orders, 1); assert.equal(p.typed.semantix.searches, null); assert.equal(p.typed.semantix.purchaseRate, null); assert.equal(p.totals.semantix.orders, 1);
+  assert.deepEqual(p.financialComparison.rows, []);
 });
 test('a typed-pick log cannot erase an actual full search with the same context', () => {
   const d = fixture(); d.queries.push({ ...d.queries[0], searchMode: 'typed', timestamp: date(.5) }); const p = run(d);
@@ -46,6 +50,7 @@ test('a later actual search cannot borrow the time or product action of an earli
 });
 test('every search needs 24h follow-up and an order within its own 24h window', () => {
   const d = fixture(), p = summarizePurchasedSearches(d, { ...options, to: new Date(start + 3600000) }); assert.equal(p.groups.semantix.searches, 0); assert.equal(p.recent.semantix.pendingSearches, 1);
+  assert.deepEqual(p.financialComparison.rows, []);
   d.orders[0].timestamp = date(1500); assert.equal(run(d).groups.semantix.orders, 0);
 });
 test('missing identities, missing order items, unresolved products and incomplete reads are unknown, not zero rates', () => {

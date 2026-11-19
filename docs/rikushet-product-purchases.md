@@ -35,10 +35,28 @@ small-sample notice. A relative lift from an observed rate difference is
 descriptive, not a significance or incremental-sales claim. Rikushet no longer
 shows the monthly full-basket revenue projection as its primary result.
 
+The money comparison shows only the reported value of matching order items, by
+currency. It compares value per 100 mature full searches and the observed
+difference at Semantix's search volume: `Semantix value - native value / native
+searches * Semantix searches`. Browser allocation does not guarantee equal
+search counts. Negative differences remain negative; missing monetary evidence
+or an empty denominator suppresses the calculation. No currency conversion,
+monthly extrapolation or incremental revenue/profit claim is made. Typed picks
+show attributed value separately, without a fabricated exposure denominator.
+
+Prices and quantities come from the tracked order items. The item subtotal is
+proportionally capped at the reported order total, using integer cents and a
+largest-remainder allocation once across the entire basket. Unrelated items and
+an order total above the subtotal never increase search credit. The tracker has
+no separate discount, tax or shipping fields: the displayed amount is reported
+merchandise value, not verified net receipts or exact discount accounting.
+Missing prices, quantities, totals or currencies are unavailable, never zero.
+
 Validation:
 
-- `npm run test:optimizer` — 153 passing tests, including the new negative
-  attribution cases and existing experiment/order tests.
+- `npm run test:optimizer` — 161 passing tests, including negative attribution,
+  monetary completeness, cent conservation, volume normalization, separate
+  currencies, zero baselines and existing experiment/order tests.
 - `npm run build` — production compilation and page generation.
 - `node scripts/verify-search-purchase-dashboard.mjs` — read-only check using the
   configured Mongo URI; `--at=ISO` fixes the observation cutoff and `--output=PATH`

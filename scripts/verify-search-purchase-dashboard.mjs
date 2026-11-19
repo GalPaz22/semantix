@@ -13,5 +13,5 @@ try {
   if (report.purchases?.version !== 'exact-product-same-visit-24h-v1' || !report.purchases.complete) throw Error('Exact-product purchase measurement is incomplete');
   if (output) await writeFile(output, JSON.stringify(report, null, 2), { mode: 0o600 });
   console.log(JSON.stringify({ verified: true, ms: Date.now() - started, revision: report.experiment.revision, split: report.experiment.configuredSplit,
-    observedUntil: report.generatedAt, groups: report.purchases.groups, typed: report.purchases.typed, totals: report.purchases.totals, coverage: report.purchases.coverage, diagnostics: report.purchases.diagnostics }, null, 2));
+    observedUntil: report.generatedAt, groups: report.purchases.groups, typed: report.purchases.typed, totals: report.purchases.totals, financialComparison: report.purchases.financialComparison, coverage: report.purchases.coverage, diagnostics: report.purchases.diagnostics }, null, 2));
 } finally { await client.close(); }
