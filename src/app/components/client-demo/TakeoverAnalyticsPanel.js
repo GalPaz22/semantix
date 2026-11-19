@@ -3,6 +3,7 @@ import React from 'react';
 import { LockKeyhole, RefreshCw, ShoppingBag, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, PageHeader } from './ui';
 import { useOptimizer, useOptimizerResource } from './OptimizerContext';
+import SearchPurchaseAnalyticsPanel from './SearchPurchaseAnalyticsPanel';
 
 const number = n => Number.isFinite(n) ? n.toLocaleString('he-IL', { maximumFractionDigits: 0 }) : '—';
 const decimal = n => Number.isFinite(n) ? n.toLocaleString('he-IL', { maximumFractionDigits: 1 }) : '—';
@@ -12,8 +13,9 @@ const dateTime = value => new Date(value).toLocaleString('he-IL', { timeZone: 'A
 const variants = [['semantix', 'Semantix'], ['native', 'החיפוש הקיים']];
 
 export default function TakeoverAnalyticsPanel() {
-  const { refresh } = useOptimizer();
+  const { refresh, dashboard } = useOptimizer();
   const { data: report, loading, error } = useOptimizerResource('dashboard/ab-test');
+  if (report?.store?.dbName === 'rikushet' || dashboard?.store?.dbName === 'rikushet') return <SearchPurchaseAnalyticsPanel report={report} loading={loading} error={error} refresh={refresh} />;
   const frozen = report?.snapshot?.mode === 'frozen';
   const search = report?.searchConversion, complete = report?.measurement.complete && search?.complete;
   const comparison = search?.comparison, impact = search?.financialImpact, monthly = impact?.monthlyProjection;
