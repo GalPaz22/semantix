@@ -6,6 +6,8 @@ import { Card, CardHeader, PageHeader } from './ui';
 const count = n => Number.isFinite(n) ? n.toLocaleString('he-IL') : '—';
 const percent = n => Number.isFinite(n) ? `${(n * 100).toLocaleString('he-IL', { maximumFractionDigits: 2 })}%` : '—';
 const decimal = n => Number.isFinite(n) ? n.toLocaleString('he-IL', { maximumFractionDigits: 2 }) : '—';
+const cash = (n, currency) => Number.isFinite(n) ? n.toLocaleString('he-IL', { style: 'currency', currency, maximumFractionDigits: 2 }) : '—';
+const values = rows => rows === null ? '—' : rows?.length ? rows.map(r => cash(r.amount, r.currency)).join(' · ') : '0';
 const stamp = v => new Date(v).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
 const variants = [['semantix', 'Semantix'], ['native', 'החיפוש המקורי']];
 
@@ -39,6 +41,24 @@ export default function SearchPurchaseAnalyticsPanel({ report, loading, error, r
           <p className={`mt-2 text-xs leading-6 ${featured ? 'text-slate-400' : 'text-slate-500'}`}>{count(a.orders)} הזמנות שונות · ב־{count(a.confirmedCartOrders)} מהן אומתה גם הוספה מוצלחת לסל.</p>
         </section>; })}
       </div>
+      <Card className="p-5 md:p-6" data-testid="observed-product-money">
+        <CardHeader title="ההבדל בכסף שנקשר לחיפוש" subtitle="שווי המוצרים התואמים בהזמנות מדווחות · דף תוצאות בלבד · אותו חלון מעקב של 24 שעות" />
+        {!p.financialComparison?.rows?.length && <p className="mt-4 text-sm text-slate-500">אין עדיין די נתונים כספיים להצגת שווי המוצרים והפער בין הקבוצות.</p>}
+        {p.financialComparison?.rows?.map(row => <section key={row.currency} className="mt-5 space-y-4" data-currency={row.currency}>
+          <div className="grid gap-4 sm:grid-cols-2">{variants.map(([key, label]) => <div key={key} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-sm text-slate-600">{label} · שווי מוצרים משויכים</p><strong className="mt-3 block text-3xl font-semibold tabular-nums" data-testid={`${key}-product-value`}>{cash(row[key].amount, row.currency)}</strong>
+            <p className="mt-2 text-xs leading-6 text-slate-500">{count(row[key].searches)} חיפושים · {cash(row[key].per100Searches, row.currency)} לכל 100 חיפושים.</p>
+          </div>)}</div>
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5">
+            <h3 className="text-sm font-semibold text-indigo-950">הפער הכספי הנצפה באותה כמות חיפושים</h3>
+            <strong className="mt-3 block text-4xl font-semibold tabular-nums text-indigo-950" data-testid="normalized-product-value-difference">{row.complete ? cash(row.normalizedDifference, row.currency) : 'לא ניתן לחשב'}</strong>
+            <p className="mt-3 text-sm leading-7 text-indigo-900">{row.complete ? <>נמדדו אצלנו {cash(row.semantix.amount, row.currency)}. לפי השווי הממוצע לחיפוש במקורי, אותו מספר חיפושים היה משקף {cash(row.expectedNativeAtSemantixVolume, row.currency)}.</> : 'חסר סכום, מטבע, פירוט פריטים או מכנה תקין באחת הקבוצות. אין השלמה אוטומטית של ערכים חסרים.'}</p>
+            {row.complete && <p className="mt-2 text-xs leading-6 text-indigo-900">פער בין הסכומים שנרשמו בפועל: {cash(row.rawDifference, row.currency)}.{Number.isFinite(row.relativeLift) && <> שינוי בשווי לחיפוש: <bdi>{row.relativeLift >= 0 ? '+' : ''}{percent(row.relativeLift)}</bdi>.</>}</p>}
+          </div>
+        </section>)}
+        <p className="mt-4 text-xs leading-6 text-slate-500">ההשוואה מתאימה את השווי למספר החיפושים בפועל, כי חלוקת דפדפנים של 50/50 אינה מבטיחה מספר חיפושים זהה. השווי מחושב לפי מחיר וכמות הפריטים שדווחו, בתקרה יחסית לסכום ההזמנה. משלוח ושאר הסל אינם מקבלים תוספת קרדיט; אין ברישום פירוט נפרד לאימות הנחות, מס ומשלוח.</p>
+        <p className="mt-2 text-xs leading-6 text-slate-600">{lessThanTwenty ? 'המדגם עדיין קטן. ' : ''}זהו פער כספי שנצפה במדגם, ולא הכנסה נוספת מוכחת או רווח. הסכומים הם כפי שדווחו בחנות, ללא אימות סליקה והחזרים מאוחרים.</p>
+      </Card>
       <Card className="p-5 md:p-6" data-testid="observed-purchase-difference">
         <h3 className="text-sm font-semibold">הפער הנצפה ברכישת מוצר מהחיפוש</h3>
         <p dir={complete && Number.isFinite(lift) ? 'ltr' : 'rtl'} className="mt-3 text-right text-3xl font-semibold tabular-nums">{complete && Number.isFinite(lift) ? `${lift >= 0 ? '+' : ''}${percent(lift)}` : 'טרם ניתן לחשב פער יחסי'}</p>
@@ -51,7 +71,7 @@ export default function SearchPurchaseAnalyticsPanel({ report, loading, error, r
           <tbody>{rows.map(r => <tr key={r.query} className="border-t border-slate-100"><td className="px-4 py-3 font-medium">{r.query}</td>{variants.map(([key]) => <React.Fragment key={key}><td className="px-4 py-3 tabular-nums">{count(r[key].searches)}</td><td className="px-4 py-3 tabular-nums">{count(r[key].purchasedSearches)}</td><td className="px-4 py-3 tabular-nums">{complete ? percent(r[key].purchaseRate) : '—'}</td></React.Fragment>)}<td className="min-w-64 px-4 py-3 text-xs leading-6 text-slate-600">{[...new Set([...r.semantix.products, ...r.native.products])].join(' · ') || 'לא נמצאה רכישה משויכת'}</td></tr>)}</tbody></table>{!rows.length && <p className="p-8 text-center text-sm text-slate-400">אין חיפושים תואמים בטווח שנמדד</p>}</div>
       </Card>
       <Card className="p-5"><CardHeader title="בחירות בזמן הקלדה — בנפרד" subtitle="הרישום נוצר בבחירת מוצר; אין ספירה מלאה של כל מי שראה הצעות, ולכן לא מוצג שיעור המרה." />
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">{variants.map(([key, label]) => <div key={key} className="rounded-xl bg-slate-50 p-4 text-sm leading-7"><strong>{label}</strong><p>{count(p.typed[key].orders)} הזמנות עם מוצר שנבחר בזמן הקלדה.</p><p className="text-xs text-slate-500">מכל המסלולים יחד: {count(p.totals[key].orders)} הזמנות שונות עם מוצר משויך. הזמנה הכוללת מוצרים מכמה מסלולים נספרת פעם אחת.</p></div>)}</div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{variants.map(([key, label]) => <div key={key} className="rounded-xl bg-slate-50 p-4 text-sm leading-7"><strong>{label}</strong><p>{count(p.typed[key].orders)} הזמנות עם מוצר שנבחר בזמן הקלדה · שווי משויך: {values(p.typed[key].value)}.</p><p className="text-xs text-slate-500">מכל המסלולים יחד: {count(p.totals[key].orders)} הזמנות שונות עם מוצר משויך, בשווי {values(p.totals[key].value)}. הזמנה הכוללת מוצרים מכמה מסלולים נספרת פעם אחת.</p></div>)}</div>
       </Card>
       <details className="rounded-2xl border border-slate-200 bg-white p-5 text-sm"><summary className="cursor-pointer font-semibold">חלוקת הניסוי ואיכות המדידה</summary>
         <div className="mt-4 space-y-2 text-xs leading-7 text-slate-600">{variants.map(([key, label]) => <p key={key}>{label} · חלוקה מוגדרת: {percent(report.experiment.configuredSplit[key])} · {count(p.groups[key].browsers)} מזהי דפדפן עם חיפוש שנכלל בהשוואה.</p>)}
