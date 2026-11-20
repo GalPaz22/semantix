@@ -441,3 +441,35 @@ test('Rikushet is an analytics-only experiment store; unknown stores have no exp
   assert.throws(() => takeoverStore('carmella'), { status: 404 });
   await assert.rejects(readTakeoverAnalytics({}, 'carmella'), { status: 404 });
 });
+
+function missingCatalogPurchase(variant, { path = 'https://www.rikushet.co.il/KGN1_001', itemId = 'KGN1_001', products = [] } = {}) {
+  const shared = { session_id: 'shopper', visit_id: 'visit', search_id: 'search', ab_tests: { semantix_takeover: variant } };
+  return clientFixture({ exposureRows: [], productRows: products, confirmedRows: [],
+    queryRows: [{ ...shared, query: 'תרמיל', timestamp: '2026-11-17T10:00:00Z' }],
+    clickRows: [{ ...shared, event_id: 'click', search_link: 'results_page', search_query: 'תרמיל', product_id: '136872', product_url: path, timestamp: '2026-11-17T10:01:00Z' }],
+    orderRows: [{ ...shared, event_type: 'checkout_completed', order_id: 'order', currency: 'ILS', total_price: 301.93, items: [{ id: itemId, quantity: 1, price: 269.93 }], timestamp: '2026-11-17T10:20:00Z' }],
+  });
+}
+
+test('Rikushet credits exact same-store ordered SKUs absent from the connected catalog symmetrically', async () => {
+  for (const variant of ['semantix', 'native']) {
+    const report = await readTakeoverAnalytics(missingCatalogPurchase(variant), 'rikushet', { now: new Date('2026-11-18T12:00:00Z'), useCache: false });
+    assert.equal(report.purchases.groups[variant].orders, 1);
+    assert.equal(report.purchases.groups[variant].purchasedSearches, 1);
+    assert.deepEqual(report.purchases.groups[variant].value, [{ currency: 'ILS', amount: 269.93 }]);
+  }
+});
+
+test('Rikushet order anchoring rejects missing, foreign and different paths, bare entity collisions and catalog conflicts', async () => {
+  for (const setup of [
+    { path: '' },
+    { path: '', itemId: '136872' },
+    { path: 'https://foreign.example/kgn1_001' },
+    { path: 'https://www.rikushet.co.il/another_sku' },
+    { products: [{ id: '136872', sku: 'OTHER_SKU' }] },
+    { products: [{ id: '136872', sku: 'A_SKU' }, { id: '136872', sku: 'B_SKU' }] },
+  ]) {
+    const report = await readTakeoverAnalytics(missingCatalogPurchase('native', setup), 'rikushet', { now: new Date('2026-11-18T12:00:00Z'), useCache: false });
+    assert.ok([0, null].includes(report.purchases.groups.native.orders), JSON.stringify(setup));
+  }
+});
