@@ -10,7 +10,11 @@ Steimatzky dashboard and its saved reporting period are unchanged.
 bounded reporting window to `summarizePurchasedSearches`. No additional database
 writes, search requests, tracking installation or experiment changes occur.
 The authenticated route still resolves the database server-side. Product IDs
-must resolve unambiguously to a catalog SKU; no name matching is used.
+must resolve unambiguously to a catalog SKU, or a same-store product-page SKU
+must exactly equal a recorded order-item SKU. Products missing from the feed
+can therefore receive credit in either arm. Unknown bare entity IDs, foreign
+hosts, different SKUs and catalog alias conflicts remain excluded; no name
+matching is used.
 
 Each context is browser + visit + search ID. Duplicate search logs do not inflate
 the denominator. A typed-pick log reusing an actual full-search context cannot
@@ -54,7 +58,7 @@ Missing prices, quantities, totals or currencies are unavailable, never zero.
 
 Validation:
 
-- `npm run test:optimizer` — 161 passing tests, including negative attribution,
+- `npm run test:optimizer` — 163 passing tests, including negative attribution,
   monetary completeness, cent conservation, volume normalization, separate
   currencies, zero baselines and existing experiment/order tests.
 - `npm run build` — production compilation and page generation.
