@@ -473,3 +473,12 @@ test('Rikushet order anchoring rejects missing, foreign and different paths, bar
     assert.ok([0, null].includes(report.purchases.groups.native.orders), JSON.stringify(setup));
   }
 });
+
+test('Rikushet accepts an exact ordered catalog id with a missing SKU field in either arm', async () => {
+  for (const variant of ['semantix', 'native']) {
+    const client = missingCatalogPurchase(variant, { products: [{ id: 'KGN1_001', sku: null }] });
+    const report = await readTakeoverAnalytics(client, 'rikushet', { now: new Date('2026-11-18T12:00:00Z'), useCache: false });
+    assert.equal(report.purchases.groups[variant].orders, 1);
+    assert.deepEqual(report.purchases.groups[variant].value, [{ currency: 'ILS', amount: 269.93 }]);
+  }
+});
