@@ -16,6 +16,11 @@ can therefore receive credit in either arm. Unknown bare entity IDs, foreign
 hosts, different SKUs and catalog alias conflicts remain excluded; no name
 matching is used.
 
+A catalog record with an empty `sku` field is also supported when its `id`
+exactly equals an SKU in the recorded order. This promotion requires the
+same-store product path or the explicit internal order-item role; a bare
+unknown Magento entity ID is still insufficient.
+
 Each context is browser + visit + search ID. Duplicate search logs do not inflate
 the denominator. A typed-pick log reusing an actual full-search context cannot
 erase the full search; typed product actions still remain in their own lane.
@@ -58,7 +63,7 @@ Missing prices, quantities, totals or currencies are unavailable, never zero.
 
 Validation:
 
-- `npm run test:optimizer` — 163 passing tests, including negative attribution,
+- `npm run test:optimizer` — 164 passing tests, including negative attribution,
   monetary completeness, cent conservation, volume normalization, separate
   currencies, zero baselines and existing experiment/order tests.
 - `npm run build` — production compilation and page generation.
