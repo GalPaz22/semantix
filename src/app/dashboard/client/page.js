@@ -51,8 +51,9 @@ function ClientDashboard() {
   const [resultsRequest, setResultsRequest] = useState(null);
   const { dashboard, loading, error } = useOptimizer();
   const analyticsOnly = dashboard?.access?.mode === 'analytics-only';
+  const chatbotLocked = dashboard?.access?.lockedPanels?.includes('agent') === true;
   const workspaceReady = !!dashboard;
-  const activePanel = analyticsOnly ? 'analytics' : active;
+  const activePanel = analyticsOnly || (chatbotLocked && active === 'agent') ? 'analytics' : active;
   const store = dashboard?.store;
   const storeName = store?.name || store?.dbName || "החנות שלך";
   const storeDomain = store?.site || store?.platform || "";
@@ -74,14 +75,14 @@ function ClientDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!analyticsOnly) return;
+    if (!analyticsOnly && !(chatbotLocked && active === 'agent')) return;
     setActive('analytics');
     setAgentRequest(null);
     setResultsRequest(null);
     const url = new URL(window.location.href);
     url.searchParams.set('panel', 'analytics');
     window.history.replaceState(null, '', url.pathname + url.search);
-  }, [analyticsOnly]);
+  }, [analyticsOnly, chatbotLocked, active]);
 
   if (status !== "authenticated" || session?.user?.onboardingComplete === false) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400 text-sm" dir="rtl">טוען…</div>;
@@ -90,6 +91,7 @@ function ClientDashboard() {
   const select = (id, prompt, options) => {
     if (!PANELS.some(panel => panel.id === id)) return;
     if (id !== 'analytics' && (!workspaceReady || analyticsOnly)) return;
+    if (id === 'agent' && chatbotLocked) return;
     setActive(id);
     setMenuOpen(false);
     if (prompt || options?.query) {
@@ -134,7 +136,7 @@ function ClientDashboard() {
           <div className="space-y-0.5">
             {panels.map(p => {
               const on = activePanel === p.id;
-              const locked = p.id !== 'analytics' && (!workspaceReady || analyticsOnly);
+              const locked = p.id !== 'analytics' && (!workspaceReady || analyticsOnly || (p.id === 'agent' && chatbotLocked));
               return (
                 <button key={p.id} onClick={() => select(p.id)} disabled={locked} title={locked ? 'יהיה זמין בהמשך' : undefined}
                   className={`group flex items-center w-full gap-3 px-3 py-2 rounded-lg text-[14px] transition ${locked ? 'cursor-not-allowed text-slate-400' : on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}>
@@ -202,7 +204,7 @@ function ClientDashboard() {
             <div className={active === "search-demo" ? "" : "hidden"}><SearchDemoPanel visible={active === "search-demo"} /></div>
             <div className={active === "results" ? "" : "hidden"}><ResultsPanel onNavigate={select} incoming={resultsRequest} /></div>
             <div className={active === "products" ? "" : "hidden"}><ClientProductsPanel visible={active === "products"} onNavigate={select} /></div>
-            <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>
+            {!chatbotLocked && <div className={active === "agent" ? "" : "hidden"}><ClientChatbotPanel request={agentRequest} onNavigate={select} visible={active === "agent"} /></div>}
             {store?.profiles && <div className={active === "profiles" ? "" : "hidden"}><ProfilesPanel visible={active === "profiles"} /></div>}
           </>}
         </main>

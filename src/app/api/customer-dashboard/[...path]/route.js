@@ -13,7 +13,7 @@ import { getDashboardConcierge } from '/lib/dashboard-concierge';
 import { getSearchRecoverySnapshot } from '/lib/dashboard-search-recovery';
 import { getDashboardProfiles, profilesEnabled } from '/lib/dashboard-profiles';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
-import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
+import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE, CHATBOT_LOCKED_MESSAGE } from '/lib/customer-dashboard-access';
 import { readFrozenTakeoverAnalytics, hasFrozenTakeover } from '/lib/takeover-dashboard-snapshot';
 import { readTakeoverAnalytics } from '/lib/takeover-analytics';
 import { takeoverStore } from '/lib/takeover-measurement';
@@ -50,7 +50,7 @@ async function handle(request, { params }) {
       : await getDashboardStoreBySession(client.db('users'), session.user);
     if (!user?.dbName) return fail(isAdmin ? 'יש לבחור חנות לצפייה' : 'לא נמצאה חנות מחוברת לחשבון', 409);
     const access = customerDashboardAccess(user.dbName);
-    if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(ANALYTICS_ONLY_MESSAGE, 423);
+    if (!customerDashboardOperationAllowed(user.dbName, method, path)) return fail(access.mode === 'analytics-only' ? ANALYTICS_ONLY_MESSAGE : CHATBOT_LOCKED_MESSAGE, 423);
     if (path === 'dashboard/ab-test') {
       if ([...incoming.searchParams.keys()].some(key => key !== 'store')) return fail('תקופת המדידה קבועה; אין אפשרות לבחור נתונים היסטוריים', 400);
       const report = hasFrozenTakeover(user.dbName) ? await readFrozenTakeoverAnalytics(client, user.dbName) : await readTakeoverAnalytics(client, user.dbName);
@@ -121,7 +121,10 @@ async function handle(request, { params }) {
       data.report.concierge = await getDashboardConcierge(client, user.dbName, data.report.window);
       data.report.searchRecovery = getSearchRecoverySnapshot(user.dbName);
     }
-    if (path === 'dashboard' && response.ok && data.store) data.store.profiles = profilesEnabled(user.dbName);
+    if (path === 'dashboard' && response.ok && data.store) {
+      data.store.profiles = profilesEnabled(user.dbName);
+      data.access = access;
+    }
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
   } catch (error) {
     if (error.status) return fail(error.message, error.status);

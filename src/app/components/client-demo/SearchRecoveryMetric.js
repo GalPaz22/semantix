@@ -10,9 +10,9 @@ export default function SearchRecoveryMetric({ snapshot }) {
   const amount = snapshot.amount.toLocaleString('he-IL', { style: 'currency', currency: snapshot.currency, maximumFractionDigits: 0 });
   return <Card className="p-5 border-emerald-200 bg-emerald-50/40">
     <div data-testid="search-recovery-metric">
-      <div className="flex gap-2 text-sm text-slate-500"><Wallet className="h-4 w-4 shrink-0" />שווי רכישות מחיפושים ללא תוצאות במקורי</div>
-      <div className="mt-3 text-3xl font-bold text-slate-900 tabular-nums" data-testid="search-recovery-amount">{amount}</div>
-      <p className="mt-2 text-xs text-slate-600">{snapshot.orders} הזמנות · {snapshot.queryCount} ביטויי חיפוש</p>
+      <div className="flex gap-2 text-sm font-bold text-slate-900"><Wallet className="h-4 w-4 shrink-0" />שווי רכישות מחיפושים ללא תוצאות במקורי</div>
+      <strong className="mt-3 block text-3xl font-extrabold text-slate-900 tabular-nums" data-testid="search-recovery-amount">{amount}</strong>
+      <p className="mt-2 text-xs font-semibold text-slate-600">{snapshot.orders} הזמנות · {snapshot.queryCount} ביטויי חיפוש</p>
       <p className="mt-2 text-xs leading-5 text-slate-500">תמונת מצב ל־{date(snapshot.generatedAt)} · קבועה גם כשמשנים את טווח התאריכים</p>
       <details className="mt-3 text-xs leading-6 text-slate-600">
         <summary className="cursor-pointer font-medium">תקופת המדידה ומשמעות הסכום</summary>
