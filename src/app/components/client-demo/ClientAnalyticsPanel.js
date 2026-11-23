@@ -6,6 +6,7 @@ import { Card, CardHeader, Segmented, PageHeader } from './ui';
 import { ResourceState, useOptimizer, buttonClass } from './OptimizerContext';
 import { analyticsMeasurement, checkoutActivity, headlineConversion } from '../../../../lib/dashboard-analytics';
 import ConciergeImpact from './ConciergeImpact';
+import SearchRecoveryMetric from './SearchRecoveryMetric';
 const number = n => n == null ? '—' : n.toLocaleString('he-IL');
 const rate = n => n == null ? '—' : `${(n * 100).toFixed(1)}%`;
 const money = rows => rows?.length ? rows.map(r => `${number(r.amount)} ${r.currency || '(מטבע לא דווח)'}`).join(' · ') : '—';
@@ -19,6 +20,7 @@ export default function ClientAnalyticsPanel({ onNavigate }) {
   const conversion = headlineConversion(r);
   const checkouts = checkoutActivity(r);
   const purchaseTracked = m.revenue;
+  const recovery = dashboard?.store?.dbName === 'shipi' && r?.searchRecovery?.dbName === 'shipi' ? r.searchRecovery : null;
   const rows = useMemo(() => [...(r?.queries?.top || [])].filter(t => t.query.toLowerCase().includes(filter.trim().toLowerCase())).sort((a, b) => (b[sort] ?? -1) - (a[sort] ?? -1)), [r, filter, sort]);
   const issues = r?.tracking?.filter(t => t.severity !== 'info') || [];
   const metricDefinition = metrics.find(x => x.id === metric);
@@ -36,7 +38,7 @@ export default function ClientAnalyticsPanel({ onNavigate }) {
         {r.window && <p className="text-xs mt-1">{date(r.window.from)} עד {date(r.window.to)} · ימים לפי שעון ישראל · עודכן {new Date(r.generatedAt).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' })}</p>}
         {r.excludedQueries?.length > 0 && <p className="text-xs mt-1">{r.excludedQueries.length} חיפושים שזוהו כאוטומטיים הוצאו מספירת החיפושים והגרף.</p>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${recovery ? 'xl:grid-cols-3' : 'xl:grid-cols-5'} gap-4`}>
         {[
           conversion
             ? [Percent, conversion.label, rate(conversion.rate), `${number(conversion.count)} סשנים ${conversion.action} מתוך ${number(f.sessions.searched)} סשנים עם חיפוש`]
@@ -48,6 +50,7 @@ export default function ClientAnalyticsPanel({ onNavigate }) {
           [Search, 'חיפושים שנמדדו', m.searchCounts ? number(f.coverage.queries) : '—', `${number(f.sessions.searched)} סשנים מזוהים עם חיפוש`],
           [SearchX, 'חיפושים ללא תוצאות', m.resultCounts ? number(r.zeroResultSearches) : '—', m.resultCounts ? `מתוך ${number(f.coverage.queriesWithResultCount)} חיפושים עם מספר תוצאות מדווח` : 'מספר התוצאות לחיפוש טרם נמדד'],
         ].map(([Icon, label, value, foot]) => <Card key={label} className="p-5"><div className="flex gap-2 text-sm text-slate-500"><Icon className="h-4 w-4" />{label}</div><div className="mt-3 text-3xl font-bold text-slate-900 break-words">{value}</div><div className="mt-2 text-xs text-slate-500">{foot}</div></Card>)}
+        {recovery && <SearchRecoveryMetric snapshot={recovery} />}
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mt-4">
         <Card className="xl:col-span-8 min-w-0"><CardHeader title="פעילות לפי יום" subtitle="התחלות צ׳קאאוט נספרות בנפרד · רכישות ללא כפילויות" right={<Segmented size="sm" options={metrics} value={metric} onChange={setMetric} />} />
