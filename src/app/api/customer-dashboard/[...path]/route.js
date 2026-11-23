@@ -10,6 +10,7 @@ import { optimizerServiceConfig } from '/lib/optimizer-config';
 import { readStudioJson } from '/lib/studio-response';
 import { getDashboardCampaigns } from '/lib/dashboard-campaigns';
 import { getDashboardConcierge } from '/lib/dashboard-concierge';
+import { getSearchRecoverySnapshot } from '/lib/dashboard-search-recovery';
 import { getDashboardProfiles, profilesEnabled } from '/lib/dashboard-profiles';
 import { publishSavedSearchRules } from '/lib/search-rule-publication';
 import { customerDashboardAccess, customerDashboardOperationAllowed, ANALYTICS_ONLY_MESSAGE } from '/lib/customer-dashboard-access';
@@ -118,6 +119,7 @@ async function handle(request, { params }) {
     }
     if (path === 'dashboard' && response.ok && data.report) {
       data.report.concierge = await getDashboardConcierge(client, user.dbName, data.report.window);
+      data.report.searchRecovery = getSearchRecoverySnapshot(user.dbName);
     }
     if (path === 'dashboard' && response.ok && data.store) data.store.profiles = profilesEnabled(user.dbName);
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
