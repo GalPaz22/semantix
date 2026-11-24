@@ -69,7 +69,7 @@ function Conversations({ visible }) {
           {turn.opening ? <p className="text-xs text-center text-slate-400">פתיחה אוטומטית בעקבות החיפוש ״{turn.query || detail.query}״</p> : turn.message && <Bubble customer text={turn.message} />}
           {turn.reply && <Bubble text={turn.reply} />}
           {turn.products.length > 0 && <div className="flex flex-wrap gap-2">{turn.products.map((p, index) => { const link = url(p.url), picture = url(p.image); return <a key={`${p.id}-${index}`} href={link || undefined} target={link ? '_blank' : undefined} rel="noreferrer" className="flex gap-2 items-center rounded-xl border border-slate-200 p-2 bg-white text-xs max-w-[250px]">{picture && <img src={picture} loading="lazy" alt="" className="w-11 h-11 rounded-lg object-contain" />}<div className="min-w-0"><p className="font-medium break-words">{p.name || 'מוצר שהוצג'}</p>{p.price != null && <p className="text-slate-500 mt-1">{p.price} ₪</p>}</div></a>; })}</div>}
-          {turn.error && <p className="text-xs text-rose-600">השיחה הסתיימה בשגיאה: {turn.error}</p>}{turn.stopped && <p className="text-xs text-amber-700">התשובה הופסקה לפני שהושלמה</p>}{turn.at && <p className="text-[11px] text-slate-400 text-center">{date(turn.at)}</p>}
+          {turn.error && <p className="text-xs text-rose-600">השיחה הסתיימה בשגיאה: {turn.error}</p>}{turn.stopped && !/^(stop|end_turn|requested_title_only)$/i.test(String(turn.stopped)) && <p className="text-xs text-amber-700">התשובה הופסקה לפני שהושלמה</p>}{turn.at && <p className="text-[11px] text-slate-400 text-center">{date(turn.at)}</p>}
         </div>)}{detail.legacy.map((m, i) => <Bubble key={i} customer={m.role === 'user'} text={m.text} />)}</div>}
       </>}</Card>
     </div>
