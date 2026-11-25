@@ -21,7 +21,7 @@ export default function ClientAnalyticsPanel({ onNavigate }) {
   const checkouts = checkoutActivity(r);
   const purchaseTracked = m.revenue;
   const chatbotLocked = dashboard?.access?.lockedPanels?.includes('agent') === true;
-  const recovery = dashboard?.store?.dbName === 'shipi' && r?.searchRecovery?.dbName === 'shipi' ? r.searchRecovery : null;
+  const recovery = dashboard?.store?.dbName && r?.searchRecovery?.dbName === dashboard.store.dbName ? r.searchRecovery : null;
   const rows = useMemo(() => [...(r?.queries?.top || [])].filter(t => t.query.toLowerCase().includes(filter.trim().toLowerCase())).sort((a, b) => (b[sort] ?? -1) - (a[sort] ?? -1)), [r, filter, sort]);
   const issues = r?.tracking?.filter(t => t.severity !== 'info') || [];
   const metricDefinition = metrics.find(x => x.id === metric);
