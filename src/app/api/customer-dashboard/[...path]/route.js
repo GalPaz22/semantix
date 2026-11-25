@@ -86,6 +86,7 @@ async function handle(request, { params }) {
     const url = new URL(`${config.prefix}/${path}`, config.endpoint);
     // Never accept a browser-supplied tenant, API key or database name.
     url.searchParams.set('dbName', user.dbName);
+    if (path === 'dashboard') url.searchParams.set('days', user.dbName === 'shipi' ? '7' : '30');
     for (const key of ['days', 'status']) if (incoming.searchParams.has(key)) url.searchParams.set(key, incoming.searchParams.get(key));
     if (path === 'optimization/weekly-review/queries') for (const key of ['query','page']) if (incoming.searchParams.has(key)) url.searchParams.set(key,incoming.searchParams.get(key));
     if (path === 'dashboard/catalog') url.searchParams.set('query', incoming.searchParams.get('query') || '');
@@ -124,6 +125,7 @@ async function handle(request, { params }) {
     if (path === 'dashboard' && response.ok && data.store) {
       data.store.profiles = profilesEnabled(user.dbName);
       data.access = access;
+      data.defaultDays = user.dbName === 'shipi' ? 7 : 30;
     }
     return NextResponse.json(publicOptimizerData(data), { status: response.status });
   } catch (error) {
