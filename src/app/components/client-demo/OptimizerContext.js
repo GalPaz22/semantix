@@ -7,13 +7,14 @@ export function OptimizerProvider({ isAdmin, children }) {
   const [selectedStore, setSelectedStore] = useState('');
   const [storeError, setStoreError] = useState('');
   const [version, setVersion] = useState(0);
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const ready = !isAdmin || !!selectedStore;
-  const scope = `${isAdmin ? selectedStore : 'account'}:${days}`;
+  const scope = `${isAdmin ? selectedStore : 'account'}:${days ?? 'default'}`;
   const dashboard = snapshot?.scope === scope ? snapshot.data : null;
+  const resolvedDays = days ?? dashboard?.defaultDays ?? (isAdmin && selectedStore === 'shipi' ? 7 : 30);
   const request = useCallback(async (path, init = {}) => {
     const [pathname, query = ''] = path.split('?');
     const params = new URLSearchParams(query);
@@ -45,7 +46,7 @@ export function OptimizerProvider({ isAdmin, children }) {
     let live = true;
     const controller = new AbortController();
     setError(''); setLoading(ready);
-    if (ready) request(`dashboard?days=${days}`, { signal: controller.signal }).then(data => { if (live) setSnapshot({ scope, data }); })
+    if (ready) request(days === null ? 'dashboard' : `dashboard?days=${days}`, { signal: controller.signal }).then(data => { if (live) setSnapshot({ scope, data }); })
       .catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; controller.abort(); };
   }, [request, days, ready, version, scope]);
@@ -59,12 +60,12 @@ export function OptimizerProvider({ isAdmin, children }) {
     const result = await request(path, { method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     refresh(); return result;
   }, [request, refresh]);
-  return <Context.Provider value={{ request, streamUrl, mutate, refresh, version, ready, days, setDays, dashboard, loading, error }}>
+  return <Context.Provider value={{ request, streamUrl, mutate, refresh, version, ready, days: resolvedDays, setDays, dashboard, loading, error }}>
     {isAdmin && <div className="lg:mr-64 border-b border-slate-200 bg-indigo-50 p-3 text-sm" dir="rtl">
       <label className="flex items-center gap-3">תצוגת לקוח — בחר חנות
         <select aria-label="בחר חנות" className="rounded-lg border border-slate-200 bg-white p-2" value={selectedStore} onChange={e => {
           const value = e.target.value;
-          setSelectedStore(value); setStoreError('');
+          setSelectedStore(value); setDays(null); setStoreError('');
           const url = new URL(window.location.href);
           if (value) url.searchParams.set('store', value);
           else url.searchParams.delete('store');
