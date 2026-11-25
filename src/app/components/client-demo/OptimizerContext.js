@@ -14,7 +14,7 @@ export function OptimizerProvider({ isAdmin, children }) {
   const ready = !isAdmin || !!selectedStore;
   const scope = `${isAdmin ? selectedStore : 'account'}:${days ?? 'default'}`;
   const dashboard = snapshot?.scope === scope ? snapshot.data : null;
-  const resolvedDays = days ?? dashboard?.defaultDays ?? (isAdmin && selectedStore === 'shipi' ? 7 : 30);
+  const resolvedDays = days ?? dashboard?.defaultDays ?? (isAdmin && ['shipi', 'yashas-wood'].includes(selectedStore) ? 7 : 30);
   const request = useCallback(async (path, init = {}) => {
     const [pathname, query = ''] = path.split('?');
     const params = new URLSearchParams(query);
