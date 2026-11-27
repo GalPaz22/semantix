@@ -36,6 +36,7 @@ function fakeClient(data, dbName = 'garmin') {
     const s = filter?.session_id?.$in;
     if (s && !s.includes(r.session_id)) return false;
     if (filter?.event_type && r.event_type !== filter.event_type) return false;
+    if (filter?.status && r.status !== filter.status) return false;
     return true;
   });
   const cursor = (rows) => ({ sort: () => cursor(rows), limit: (n) => cursor(rows.slice(0, n)), toArray: async () => rows });
@@ -90,9 +91,9 @@ test('a profile shows the searched products that came back, and the list can be 
   ], queries: [{ session_id: 'a1', query: 'x' }, { session_id: 'a2', query: 'y' }] }, 'manoVino');
   const every = await getDashboardProfiles(client, 'manoVino', {});
   assert.equal(every.total, 3);
-  assert.equal(every.restockCount, 1);
+  assert.deepEqual(every.restockCounts, { back: 1, waiting: 0 });
   assert.deepEqual(every.profiles.map((p) => p.backInStock.length), [0, 2, 0]);
-  const only = await getDashboardProfiles(client, 'manoVino', { restock: true });
+  const only = await getDashboardProfiles(client, 'manoVino', { restock: 'back' });
   assert.equal(only.total, 1);
   const [a] = only.profiles;
   assert.deepEqual(a.backInStock.map((i) => i.id), ['2', '1'], 'newest restock first, one entry per product');
@@ -102,15 +103,37 @@ test('a profile shows the searched products that came back, and the list can be 
   assert.ok(!JSON.stringify(only).includes('"rows"') && !JSON.stringify(only).includes('a1'), 'session ids stay internal');
 });
 
-test('only Mano Vino shows products that came back to stock', async () => {
+test('a profile shows the sold-out products it still waits for, and the list can be limited to those', async () => {
+  const watch = (session_id, id, extra) => ({ session_id, product_id: id, product_name: `יין ${id}`, product_url: `https://shop.example/${id}`, query: `q${id}`, last_searched_at: at(2), status: 'waiting', ...extra });
+  const client = fakeClient({ session_identities: [
+    { session_id: 'a1', email: 'a@example.com', updated_at: at(9) },
+    { session_id: 'a2', email: 'a@example.com', updated_at: at(8), back_in_stock: true, back_in_stock_products: [{ product_id: '3', name: 'חזר' }] },
+    { session_id: 'b1', email: 'b@example.com', updated_at: at(7) },
+  ], restock_watches: [
+    watch('a1', '1'), watch('a2', '1', { query: 'חדש', last_searched_at: at(4) }), watch('a1', '2', { last_searched_at: at(6), product_url: 'javascript:alert(1)' }),
+    watch('a1', '3'), watch('b1', '4', { status: 'expired' }), watch('nobody', '5'),
+  ] }, 'manoVino');
+  const every = await getDashboardProfiles(client, 'manoVino', {});
+  assert.deepEqual(every.restockCounts, { back: 1, waiting: 1 });
+  assert.deepEqual(every.profiles.map((p) => p.waiting.length), [2, 0]);
+  const only = await getDashboardProfiles(client, 'manoVino', { restock: 'waiting' });
+  assert.equal(only.total, 1);
+  const { waiting } = only.profiles[0];
+  assert.deepEqual(waiting.map((i) => i.id), ['2', '1'], 'newest search first, one entry per product, a returned product is not waiting');
+  assert.equal(waiting[0].url, null, 'only web links');
+  assert.equal(waiting[1].query, 'חדש', 'the latest search of the product');
+  assert.ok(!JSON.stringify(only).includes('a1'), 'session ids stay internal');
+});
+
+test('only Mano Vino shows the stock products and filters', async () => {
   const client = fakeClient({ session_identities: [
     { session_id: 'a1', email: 'a@example.com', updated_at: at(9), back_in_stock: true, back_in_stock_products: [{ product_id: '1', name: 'שעון' }] },
     { session_id: 'b1', email: 'b@example.com', updated_at: at(8) },
-  ] });
-  for (const restock of [false, true]) {
+  ], restock_watches: [{ session_id: 'b1', product_id: '2', product_name: 'רצועה', status: 'waiting' }] });
+  for (const restock of ['', 'back', 'waiting']) {
     const page = await getDashboardProfiles(client, 'garmin', { restock });
-    assert.equal(page.restockCount, 0);
+    assert.equal(page.restockCounts, null);
     assert.equal(page.total, 2, 'the filter is ignored');
-    assert.deepEqual(page.profiles.map((p) => p.backInStock), [[], []]);
+    assert.deepEqual(page.profiles.map((p) => [p.backInStock, p.waiting]), [[[], []], [[], []]]);
   }
 });
