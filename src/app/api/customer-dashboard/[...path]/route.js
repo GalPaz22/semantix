@@ -65,7 +65,7 @@ async function handle(request, { params }) {
     if (path === 'dashboard/campaigns') return NextResponse.json(await getDashboardCampaigns(client, user.dbName));
     // Customer details: the store's own customers, read from the authenticated store DB only.
     if (path === 'dashboard/profiles') {
-      const data = await getDashboardProfiles(client, user.dbName, { query: incoming.searchParams.get('query') || '', page: incoming.searchParams.get('page') || '1' });
+      const data = await getDashboardProfiles(client, user.dbName, { query: incoming.searchParams.get('query') || '', page: incoming.searchParams.get('page') || '1', restock: incoming.searchParams.get('restock') === '1' });
       return NextResponse.json(data, { headers: { 'cache-control': 'private, no-store' } });
     }
     if (path === 'dashboard/merchandising') {

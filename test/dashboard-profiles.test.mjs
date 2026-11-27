@@ -31,7 +31,7 @@ test('search is literal and finds a phone however it is typed', () => {
   assert.throws(() => profileFilter('x'.repeat(121)));
 });
 
-function fakeClient(data) {
+function fakeClient(data, dbName = 'garmin') {
   const pick = (rows, filter) => rows.filter((r) => {
     const s = filter?.session_id?.$in;
     if (s && !s.includes(r.session_id)) return false;
@@ -47,7 +47,7 @@ function fakeClient(data) {
       return [...counts].map(([_id, n]) => ({ _id, n }));
     } }),
   });
-  return { db: (name) => { assert.equal(name, 'garmin'); return { collection }; } };
+  return { db: (name) => { assert.equal(name, dbName); return { collection }; } };
 }
 
 test('a profile carries its sessions\' searches, orders and concierge chats, and only Garmin has profiles', async () => {
@@ -78,4 +78,39 @@ test('order lines show name, quantity and price, whatever the store calls the li
   assert.deepEqual(orderItems({ cart_items: [{ product_name: 'Forerunner 265' }] }), ['Forerunner 265']);
   // No name on the line: the catalog fills it in; the id only when the catalog does not know it either.
   assert.deepEqual(orderItems({ products: [{ product_id: '7', quantity: 1 }, { product_id: '8' }] }, new Map([['7', { name: 'יין', price: 60 }]])), ['יין · ₪60', 'מוצר 8']);
+});
+
+test('a profile shows the searched products that came back, and the list can be limited to those', async () => {
+  const item = (id, name, extra) => ({ product_id: id, name, url: `https://shop.example/${id}`, query: name, searched_at: at(1), restocked_at: at(5), ...extra });
+  const client = fakeClient({ session_identities: [
+    { session_id: 'a1', email: 'a@example.com', updated_at: at(9), back_in_stock: true, back_in_stock_products: [item('1', 'פלאם'), item('2', 'סנגריה', { url: 'javascript:alert(1)', restocked_at: at(7) })] },
+    { session_id: 'a2', email: 'a@example.com', updated_at: at(8), back_in_stock: true, back_in_stock_products: [item('1', 'פלאם', { searched_at: at(3), query: 'פלם' })] },
+    { session_id: 'b1', email: 'b@example.com', updated_at: at(10), back_in_stock: false, back_in_stock_products: [item('9', 'ישן')] },
+    { session_id: 'c1', email: 'c@example.com', updated_at: at(6) },
+  ], queries: [{ session_id: 'a1', query: 'x' }, { session_id: 'a2', query: 'y' }] }, 'manoVino');
+  const every = await getDashboardProfiles(client, 'manoVino', {});
+  assert.equal(every.total, 3);
+  assert.equal(every.restockCount, 1);
+  assert.deepEqual(every.profiles.map((p) => p.backInStock.length), [0, 2, 0]);
+  const only = await getDashboardProfiles(client, 'manoVino', { restock: true });
+  assert.equal(only.total, 1);
+  const [a] = only.profiles;
+  assert.deepEqual(a.backInStock.map((i) => i.id), ['2', '1'], 'newest restock first, one entry per product');
+  assert.equal(a.backInStock[0].url, null, 'only web links');
+  assert.equal(a.backInStock[1].query, 'פלם', 'the latest search of the product');
+  assert.equal(a.activity.searches, 2);
+  assert.ok(!JSON.stringify(only).includes('"rows"') && !JSON.stringify(only).includes('a1'), 'session ids stay internal');
+});
+
+test('only Mano Vino shows products that came back to stock', async () => {
+  const client = fakeClient({ session_identities: [
+    { session_id: 'a1', email: 'a@example.com', updated_at: at(9), back_in_stock: true, back_in_stock_products: [{ product_id: '1', name: 'שעון' }] },
+    { session_id: 'b1', email: 'b@example.com', updated_at: at(8) },
+  ] });
+  for (const restock of [false, true]) {
+    const page = await getDashboardProfiles(client, 'garmin', { restock });
+    assert.equal(page.restockCount, 0);
+    assert.equal(page.total, 2, 'the filter is ignored');
+    assert.deepEqual(page.profiles.map((p) => p.backInStock), [[], []]);
+  }
 });
